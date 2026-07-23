@@ -1,0 +1,249 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Kanit:wght@300;400;500;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════
+   PURE BLACK & WHITE HIGH-CONTRAST DESIGN SYSTEM
+   ═══════════════════════════════════════════ */
+
+:root {
+  --space-void:      #000000;
+  --space-deep:      #000000;
+  --space-mid:       #000000;
+  --space-surface:   #000000;
+  --space-raised:    #050505;
+
+  --red-core:        #FF0033;
+  --red-bright:      #FF1744;
+  --red-deep:        #C62828;
+  --red-rose:        #FF4569;
+  --red-dim:         #7F0019;
+
+  --blue-core:       #0066FF;
+  --blue-bright:     #2979FF;
+  --blue-deep:       #1565C0;
+  --blue-cyan:       #00B0FF;
+  --blue-dim:        #002266;
+
+  --accent-primary:  #FFFFFF;
+  --accent-secondary:#0066FF;
+  --accent-bright:   #00B0FF;
+  --accent-success:  #00E5FF;
+  --accent-warning:  #FF6D00;
+  --accent-danger:   #FF0033;
+
+  --glass-white:     rgba(255, 255, 255, 0.05);
+  --glass-white-md:  rgba(255, 255, 255, 0.08);
+  --glass-red:       rgba(255, 0, 51, 0.10);
+  --glass-blue:      rgba(0, 102, 255, 0.12);
+  --glass-border:    rgba(255, 255, 255, 0.12);
+  --glass-border-red:  rgba(255, 0, 51, 0.25);
+  --glass-border-blue: rgba(0, 102, 255, 0.28);
+  --glass-border-glow: rgba(255, 255, 255, 0.20);
+
+  --text-primary:    #FFFFFF;
+  --text-secondary:  #E2E8F0;
+  --text-muted:      #94A3B8;
+  --text-dim:        #64748B;
+
+  /* ── NO NEON GLOW SHADOWS ── */
+  --glow-red-sm:  0 2px 8px rgba(0,0,0,0.8);
+  --glow-red-md:  0 4px 12px rgba(0,0,0,0.9);
+  --glow-red-lg:  0 6px 16px rgba(0,0,0,0.95);
+  --glow-blue-sm: 0 2px 8px rgba(0,0,0,0.8);
+  --glow-blue-md: 0 4px 12px rgba(0,0,0,0.9);
+  --glow-blue-lg: 0 6px 16px rgba(0,0,0,0.95);
+  --glow-cyan-sm: 0 2px 8px rgba(0,0,0,0.8);
+  --glow-cyan-md: 0 4px 12px rgba(0,0,0,0.9);
+
+  /* ── BACKWARD COMPATIBILITY ALIASES ── */
+  --aurora-purple: var(--blue-core);
+  --aurora-violet: var(--blue-deep);
+  --aurora-pink:   var(--red-core);
+  --aurora-rose:   var(--red-bright);
+  --aurora-cyan:   var(--blue-cyan);
+  --aurora-blue:   var(--blue-bright);
+  --aurora-teal:   var(--blue-cyan);
+  --aurora-gold:   var(--accent-warning);
+  --aurora-green:  var(--accent-success);
+  --glass-purple:  var(--glass-blue);
+  --glass-pink:    var(--glass-red);
+  --glass-cyan:    rgba(0, 176, 255, 0.10);
+  --glow-purple-sm: var(--glow-blue-sm);
+  --glow-purple-md: var(--glow-blue-md);
+  --glow-purple-lg: var(--glow-blue-lg);
+  --glow-pink-sm:   var(--glow-red-sm);
+  --glow-pink-md:   var(--glow-red-md);
+  --glow-gold-sm:   0 2px 8px rgba(0,0,0,0.8);
+  --glow-gold-md:   0 4px 12px rgba(0,0,0,0.9);
+  --glow-green-sm:  0 2px 8px rgba(0,0,0,0.8);
+
+  /* ── Font families ── */
+  --font-display: 'Syne', sans-serif;
+  --font-heading: 'Kanit', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+}
+
+html, body {
+  background: #000000 !important;
+  color: #FFFFFF !important;
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: #000000 !important;
+  min-height: 100vh;
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ═══════════════════════════════════════════
+   GLASS UTILITY CLASSES (PURE BLACK & WHITE)
+   ═══════════════════════════════════════════ */
+
+.glass {
+  background: #000000 !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px;
+}
+
+.glass-elevated {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 24px;
+}
+
+.glass-blue, .glass-purple {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 24px;
+}
+
+.glass-red, .glass-pink {
+  background: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 24px;
+}
+
+.glass-solid {
+  background: #000000 !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 24px;
+}
+
+/* ═══════════════════════════════════════════
+   TEXT SYSTEM — PURE WHITE HEADINGS
+   ═══════════════════════════════════════════ */
+
+.gradient-text,
+.gradient-text-purple,
+.gradient-text-secondary,
+.gradient-text-red,
+.gradient-text-blue,
+.gradient-text-gold,
+.gradient-text-green {
+  color: #FFFFFF !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: #FFFFFF !important;
+}
+
+/* ═══════════════════════════════════════════
+   FORM ELEMENTS
+   ═══════════════════════════════════════════ */
+
+.form-input {
+  background: #000000;
+  border: 1px solid var(--glass-border);
+  color: #FFFFFF;
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: 100%;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  transition: all 0.25s ease;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+.form-input::placeholder {
+  color: var(--text-dim);
+}
+
+.form-select {
+  background: #000000;
+  border: 1px solid var(--glass-border);
+  color: #FFFFFF;
+  border-radius: 14px;
+  padding: 14px 16px;
+  width: 100%;
+  font-size: 0.875rem;
+  font-family: var(--font-body);
+  transition: all 0.25s ease;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+.form-select:focus {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.1);
+}
+
+.form-select option {
+  background: #000000;
+  color: #FFFFFF;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-error {
+  color: var(--red-core);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+/* Shimmer skeleton animation */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -1,0 +1,31 @@
+'use client';
+
+import GlassCard from '@/components/shared/GlassCard';
+import FadeIn from '@/components/shared/FadeIn';
+import { Radio } from 'lucide-react';
+
+export default function ParticipantLeaderboardPage() {
+  return (
+    <div className="space-y-8">
+      <FadeIn y={-20}>
+        <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold text-[var(--text-primary)]">
+          Leaderboard 🏆
+        </h1>
+      </FadeIn>
+
+      <FadeIn delay={0.1}>
+        <GlassCard variant="elevated" className="text-center py-16" hover={false} noHover>
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'var(--glass-purple)', border: '1px solid rgba(168,85,247,0.3)' }}>
+            <Radio size={32} className="text-[var(--aurora-purple)]" />
+          </div>
+          <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-[var(--text-primary)] mb-2">
+            Leaderboard Publication Pending 📡
+          </h3>
+          <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-sm max-w-md mx-auto">
+            Once the admin enables the leaderboard for a round, official rankings and score standings will be published here.
+          </p>
+        </GlassCard>
+      </FadeIn>
+    </div>
+  );
+}
