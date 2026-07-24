@@ -56,6 +56,7 @@ export default function QuizTestPage({ params }: PageProps) {
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submittingFinal, setSubmittingFinal] = useState(false);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   // Cache & Debounce Refs
   const cachedQuestions = useRef<Map<string, QuestionPayload>>(new Map());
@@ -265,7 +266,18 @@ export default function QuizTestPage({ params }: PageProps) {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#030008] text-[var(--text-primary)] overflow-hidden select-none">
+    <div className="h-screen w-screen bg-[#030008] text-[var(--text-primary)] font-[family-name:var(--font-body)] overflow-hidden select-none flex flex-col relative z-50">
+      {/* Zoom Image Modal */}
+      {zoomImage && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setZoomImage(null)}>
+          <div className="relative max-w-4xl w-full p-4 bg-black/80 border border-white/20 rounded-2xl flex flex-col items-center">
+            <button onClick={() => setZoomImage(null)} className="absolute top-4 right-4 text-white text-xl font-bold bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+            <img src={zoomImage} alt="Enlarged Circuit Diagram" className="max-h-[80vh] object-contain rounded-lg" />
+            <span className="text-xs text-[#94A3B8] font-mono mt-3">⚡ Click anywhere to close image preview</span>
+          </div>
+        </div>
+      )}
+
       {/* ═══ CSS GRID LAYOUT ═══ */}
       <div className="h-full w-full grid grid-rows-[60px_1fr] md:grid-cols-[220px_1fr_200px]">
 
@@ -458,11 +470,18 @@ export default function QuizTestPage({ params }: PageProps) {
 
                   {/* Question Image (if exists) */}
                   {currentQuestion.image_url && (
-                    <div className="mt-4 mb-4 rounded-xl overflow-hidden bg-black/40 border border-[rgba(255,255,255,0.08)] max-h-[280px] relative flex justify-center">
+                    <div
+                      className="mt-4 mb-4 p-3 rounded-xl bg-black/60 border border-[rgba(255,255,255,0.12)] flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all"
+                      onClick={() => setZoomImage(currentQuestion.image_url || null)}
+                    >
+                      <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
+                        <span>⚡ Circuit Schematic Diagram / Figure</span>
+                        <span className="text-[#00E5FF] group-hover:underline">🔍 Click to Expand</span>
+                      </div>
                       <img
                         src={currentQuestion.image_url}
                         alt={currentQuestion.image_alt || 'Question Image'}
-                        className="max-h-[280px] object-contain rounded-xl"
+                        className="max-h-[280px] object-contain rounded-xl border border-white/10 bg-black/80 p-2 shadow-lg"
                         loading="lazy"
                       />
                     </div>

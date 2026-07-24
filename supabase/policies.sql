@@ -3,6 +3,17 @@
 -- Run AFTER schema.sql
 -- =============================================
 
+-- ── 0. DEFINE SECURITY DEFINER ADMIN CHECK FUNCTION (PREVENTS RECURSION) ──
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN SECURITY DEFINER AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql;
+
 -- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rounds ENABLE ROW LEVEL SECURITY;
@@ -18,9 +29,7 @@ CREATE POLICY "Users can view own profile" ON profiles
 
 -- Profiles: admins can read all
 CREATE POLICY "Admins can view all profiles" ON profiles
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING (public.is_admin());
 
 -- Profiles: users can update own profile
 CREATE POLICY "Users can update own profile" ON profiles
@@ -32,22 +41,16 @@ CREATE POLICY "Service role can insert profiles" ON profiles
 
 -- Profiles: admins can update any profile
 CREATE POLICY "Admins can update any profile" ON profiles
-  FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR UPDATE USING (public.is_admin());
 
 -- Questions: NEVER expose correct_answer to participants
 -- All question fetching for participants goes through API routes with service role
 CREATE POLICY "Only admins can access questions directly" ON questions
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING (public.is_admin());
 
 -- Questions: admins can manage
 CREATE POLICY "Admins can manage questions" ON questions
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Rounds: everyone can read published/live/closed
 CREATE POLICY "Anyone can read active rounds" ON rounds
@@ -55,15 +58,11 @@ CREATE POLICY "Anyone can read active rounds" ON rounds
 
 -- Rounds: admins can read all rounds
 CREATE POLICY "Admins can read all rounds" ON rounds
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING (public.is_admin());
 
 -- Rounds: admins can manage
 CREATE POLICY "Admins can manage rounds" ON rounds
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Attempts: users see own attempts
 CREATE POLICY "Users see own attempts" ON attempts
@@ -71,9 +70,7 @@ CREATE POLICY "Users see own attempts" ON attempts
 
 -- Attempts: admins see all
 CREATE POLICY "Admins see all attempts" ON attempts
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING (public.is_admin());
 
 -- Attempts: service role manages (for API routes)
 CREATE POLICY "Service can manage attempts" ON attempts
@@ -91,9 +88,7 @@ CREATE POLICY "Service can manage responses" ON responses
 
 -- Proctor events: admins can read
 CREATE POLICY "Admins see proctor events" ON proctor_events
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR SELECT USING (public.is_admin());
 
 -- Proctor events: service role can insert
 CREATE POLICY "Service can manage proctor events" ON proctor_events
@@ -105,6 +100,4 @@ CREATE POLICY "Users check own eligibility" ON round_eligibility
 
 -- Round eligibility: admins manage
 CREATE POLICY "Admins manage eligibility" ON round_eligibility
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  FOR ALL USING (public.is_admin());

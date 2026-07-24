@@ -8,6 +8,8 @@ export interface QuestionWithoutAnswer {
   question_type: QuestionType;
   question_text: string;
   options: string[] | null;
+  image_url?: string | null;
+  image_alt?: string | null;
   marks: number;
   negative_marks: number;
   category: string | null;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
@@ -8,7 +9,7 @@ import GalaxyButton from '@/components/shared/GalaxyButton';
 import FadeIn from '@/components/shared/FadeIn';
 import {
   Clock, Plus, Calendar, AlertOctagon, CheckCircle2, Play, Square,
-  Settings2, Edit3, Trash2, Layers, RefreshCw, AlertTriangle, ShieldCheck
+  Settings2, Edit3, Trash2, Layers, RefreshCw, AlertTriangle, ShieldCheck, Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -38,11 +39,14 @@ export default function RoundsManagementPage() {
 
   // Form State
   const [roundNumber, setRoundNumber] = useState<number>(1);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
-  const [startTime, setStartTime] = useState('');
-  const [manualEndTime, setManualEndTime] = useState('');
+  const [maxParticipants, setMaxParticipants] = useState<number>(100);
+  const [shuffleQuestions, setShuffleQuestions] = useState<boolean>(true);
+  const [hasImages, setHasImages] = useState<boolean>(true);
+  const [startTime, setStartTime] = useState<string>('');
+  const [manualEndTime, setManualEndTime] = useState<string>('');
   const [status, setStatus] = useState<'draft' | 'published' | 'live' | 'closed'>('draft');
 
   // Manual End Confirmation Modal
@@ -221,6 +225,9 @@ export default function RoundsManagementPage() {
     setTitle(`Round ${rounds.length + 1}: Quiz Challenge`);
     setDescription('');
     setDurationMinutes(30);
+    setMaxParticipants(100);
+    setShuffleQuestions(true);
+    setHasImages(true);
     const now = new Date();
     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     setStartTime(now.toISOString().slice(0, 16));
@@ -231,10 +238,13 @@ export default function RoundsManagementPage() {
 
   const openEditModal = (r: CompetitionRound) => {
     setEditingRound(r);
-    setRoundNumber(r.round_number);
-    setTitle(r.title);
+    setRoundNumber(r.round_number || 1);
+    setTitle(r.title || '');
     setDescription(r.description || '');
     setDurationMinutes(r.duration_minutes || 30);
+    setMaxParticipants(100);
+    setShuffleQuestions(r.randomize_questions ?? true);
+    setHasImages(true);
 
     if (r.start_time) {
       const sDate = new Date(r.start_time);
@@ -252,7 +262,7 @@ export default function RoundsManagementPage() {
       setManualEndTime('');
     }
 
-    setStatus(r.status);
+    setStatus(r.status || 'draft');
     setShowModal(true);
   };
 
@@ -301,54 +311,62 @@ export default function RoundsManagementPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
           {/* TOTAL ROUNDS COUNT */}
-          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)] flex items-center justify-between" style={{ background: '#000000', boxShadow: cleanShadow }}>
-            <div>
-              <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
-                Total Competition Rounds
-              </span>
-              <div className="font-[family-name:var(--font-display)] font-black text-3xl text-[#FFFFFF] mt-1">
-                {rounds.length} <span className="text-sm font-normal text-[#94A3B8]">Rounds</span>
+          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)]" style={{ background: '#000000', boxShadow: cleanShadow }}>
+            <div className="flex items-center justify-between w-full h-full">
+              <div>
+                <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
+                  Total Competition Rounds
+                </span>
+                <div className="font-[family-name:var(--font-mono)] font-bold text-3xl text-[#FFFFFF] mt-1 flex items-baseline">
+                  {rounds.length}
+                  <span className="text-xs font-normal text-[#94A3B8] font-[family-name:var(--font-body)] ml-1.5">Rounds</span>
+                </div>
               </div>
-            </div>
-            <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white">
-              <Layers size={22} />
+              <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white flex-shrink-0 ml-4">
+                <Layers size={22} />
+              </div>
             </div>
           </GlassCard>
 
           {/* LIVE ROUND STATUS */}
-          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)] flex items-center justify-between" style={{ background: '#000000', boxShadow: cleanShadow }}>
-            <div>
-              <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
-                Active Live Round
-              </span>
-              <div className="font-[family-name:var(--font-display)] font-extrabold text-xl text-[#FFFFFF] mt-1 flex items-center gap-2 truncate">
-                {liveRound ? (
-                  <>
-                    <span className="w-2 h-2 rounded-full bg-[#FF0033] animate-pulse" />
-                    Round #{liveRound.round_number} ({liveRound.duration_minutes}m)
-                  </>
-                ) : (
-                  <span className="text-[#64748B] text-base font-normal">No Round Live</span>
-                )}
+          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)]" style={{ background: '#000000', boxShadow: cleanShadow }}>
+            <div className="flex items-center justify-between w-full h-full">
+              <div>
+                <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
+                  Active Live Round
+                </span>
+                <div className="font-[family-name:var(--font-display)] font-extrabold text-xl text-[#FFFFFF] mt-1 flex items-center gap-2 truncate">
+                  {liveRound ? (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-[#FF0033] animate-pulse" />
+                      Round #{liveRound.round_number} ({liveRound.duration_minutes}m)
+                    </>
+                  ) : (
+                    <span className="text-[#64748B] text-base font-normal">No Round Live</span>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white">
-              <Play size={22} />
+              <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white flex-shrink-0 ml-4">
+                <Play size={22} />
+              </div>
             </div>
           </GlassCard>
 
           {/* TOTAL DURATION */}
-          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)] flex items-center justify-between" style={{ background: '#000000', boxShadow: cleanShadow }}>
-            <div>
-              <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
-                Total Tournament Time
-              </span>
-              <div className="font-[family-name:var(--font-display)] font-black text-3xl text-[#FFFFFF] mt-1">
-                {totalDuration} <span className="text-sm font-normal text-[#94A3B8]">Minutes</span>
+          <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-5 border border-[rgba(255,255,255,0.12)]" style={{ background: '#000000', boxShadow: cleanShadow }}>
+            <div className="flex items-center justify-between w-full h-full">
+              <div>
+                <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase tracking-wider block">
+                  Total Tournament Time
+                </span>
+                <div className="font-[family-name:var(--font-mono)] font-bold text-3xl text-[#FFFFFF] mt-1 flex items-baseline">
+                  {totalDuration}
+                  <span className="text-xs font-normal text-[#94A3B8] font-[family-name:var(--font-body)] ml-1.5">Minutes</span>
+                </div>
               </div>
-            </div>
-            <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white">
-              <Clock size={22} />
+              <div className="w-11 h-11 rounded-2xl bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.18)] flex items-center justify-center text-white flex-shrink-0 ml-4">
+                <Clock size={22} />
+              </div>
             </div>
           </GlassCard>
 
@@ -525,91 +543,151 @@ export default function RoundsManagementPage() {
         </div>
       </FadeIn>
 
-      {/* ═══ CREATE / EDIT ROUND TIMING MODAL ═══ */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setShowModal(false)} />
-          <div className="relative z-10 w-full max-w-lg">
-            <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,255,255,0.2)] space-y-5" style={{ background: '#000000' }}>
-              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-3">
-                <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-[#FFFFFF]">
-                  {editingRound ? `Edit Round #${roundNumber} Timing` : 'Create New Competition Round'}
+      {/* ═══ CREATE / EDIT ROUND MODAL POPUP (DOCUMENT BODY PORTAL OVERLAY) ═══ */}
+      {showModal && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-[#000000]/90 backdrop-blur-xl" onClick={() => setShowModal(false)} />
+          <div className="relative z-[100000] w-full max-w-lg my-auto">
+            <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-white/20 space-y-4 select-none shadow-[0_25px_80px_rgba(0,0,0,0.98)]" style={{ background: '#05050A' }}>
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-white flex items-center gap-2">
+                  <Sparkles size={18} className="text-[#FF0033]" />
+                  {editingRound ? `Edit Round #${roundNumber}` : 'Create Competition Round'}
                 </h3>
                 <button onClick={() => setShowModal(false)} className="text-[#94A3B8] hover:text-white cursor-pointer font-bold text-lg">✕</button>
               </div>
 
               <form onSubmit={handleSaveRound} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="form-label text-xs text-[#E2E8F0]">Round Number</label>
-                    <input
-                      type="number"
-                      value={roundNumber}
-                      onChange={(e) => setRoundNumber(Number(e.target.value))}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] font-[family-name:var(--font-mono)]"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="form-label text-xs text-[#E2E8F0]">Round Title</label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Round 1: Aptitude & Logic"
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)]"
-                    />
-                  </div>
-                </div>
-
+                
+                {/* 1. TITLE & PRESET SELECTOR */}
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0]">Description / Instructions (Optional)</label>
-                  <input
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Brief description of this round..."
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs"
-                  />
+                  <label className="form-label text-xs text-[#CBD5E1] font-semibold mb-1 block">Round Title Presets</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {['First Round', 'Second Round', 'Third Round', 'Qualifier Round', 'Grand Finale'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setTitle(preset)}
+                        className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/15 text-[11px] text-white font-medium transition-all cursor-pointer"
+                      >
+                        + {preset}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="form-label text-[11px] text-[#CBD5E1]">Round #</label>
+                      <input
+                        type="number"
+                        value={roundNumber}
+                        onChange={(e) => setRoundNumber(Number(e.target.value))}
+                        className="form-input bg-black text-white border border-white/15 font-[family-name:var(--font-mono)]"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="form-label text-[11px] text-[#CBD5E1]">Title <span className="text-[#FF0033]">*</span></label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g. First Round / Second Round"
+                        className="form-input bg-black text-white border border-white/15 font-bold text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* ══ TIMING SETUP ══ */}
-                <div className="p-4 rounded-xl border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.03)] space-y-3">
-                  <span className="font-[family-name:var(--font-heading)] text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock size={14} className="text-[#00B0FF]" /> Round Timing & Schedule Controls
-                  </span>
-
+                {/* 2. DURATION IN MINUTES & PARTICIPANT LIMIT */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="form-label text-xs text-[#E2E8F0]">Duration (in Minutes)</label>
+                    <label className="form-label text-[11px] text-[#CBD5E1]">Minutes Active (Duration) <span className="text-[#FF0033]">*</span></label>
                     <input
                       type="number"
                       value={durationMinutes}
                       onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] font-[family-name:var(--font-mono)] font-bold text-base"
+                      className="form-input bg-black text-white border border-white/15 font-[family-name:var(--font-mono)] font-bold text-sm"
+                      placeholder="e.g. 30, 45, 60"
+                      min={1}
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="form-label text-xs text-[#E2E8F0]">Scheduled Start Time</label>
-                      <input
-                        type="datetime-local"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs font-[family-name:var(--font-mono)]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="form-label text-xs text-[#E2E8F0]">Manual Override End Time (Optional)</label>
-                      <input
-                        type="datetime-local"
-                        value={manualEndTime}
-                        onChange={(e) => setManualEndTime(e.target.value)}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs font-[family-name:var(--font-mono)]"
-                      />
-                    </div>
+                  <div>
+                    <label className="form-label text-[11px] text-[#CBD5E1]">Max Participants Allowed</label>
+                    <input
+                      type="number"
+                      value={maxParticipants}
+                      onChange={(e) => setMaxParticipants(Number(e.target.value))}
+                      placeholder="e.g. 100 (0 for unlimited)"
+                      className="form-input bg-black text-white border border-white/15 font-[family-name:var(--font-mono)] text-xs"
+                    />
                   </div>
+                </div>
+
+                {/* 3. QUESTION DISPLAY TYPE (WITH IMAGES VS TEXT ONLY) */}
+                <div>
+                  <label className="form-label text-[11px] text-[#CBD5E1] font-semibold mb-1 block">Round Question Type & Media</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setHasImages(true)}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        hasImages
+                          ? 'bg-[#FF0033]/15 border-[#FF0033] text-white shadow-sm'
+                          : 'bg-black/60 border-white/12 text-[#94A3B8] hover:text-white'
+                      }`}
+                    >
+                      🖼️ With Question Images (Circuit Diagrams)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHasImages(false)}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        !hasImages
+                          ? 'bg-white/15 border-white text-white shadow-sm'
+                          : 'bg-black/60 border-white/12 text-[#94A3B8] hover:text-white'
+                      }`}
+                    >
+                      📄 Text Only Questions (No Images)
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. SHUFFLING QUESTIONS & CUSTOMIZATION TOGGLES */}
+                <div className="space-y-2">
+                  <span className="form-label text-[11px] text-[#CBD5E1] font-semibold block">Customization & Shuffling</span>
+                  
+                  <div className="p-3 rounded-xl bg-black/60 border border-white/12 flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-xs text-white block">Shuffle Questions for Each Participant</span>
+                      <span className="text-[10px] text-[#94A3B8]">Randomize question order per student attempt</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={shuffleQuestions}
+                      onChange={(e) => setShuffleQuestions(e.target.checked)}
+                      className="w-4 h-4 accent-[#FF0033] cursor-pointer"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label text-[11px] text-[#CBD5E1]">Instructions & Scope Description</label>
+                    <input
+                      type="text"
+                      value={description || ''}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Brief instructions for participants..."
+                      className="form-input bg-black text-white border border-white/15 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Admin Manual Start Notice */}
+                <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2">
+                  <Play size={14} className="text-[#FF0033] flex-shrink-0" />
+                  <p className="text-[11px] text-[#94A3B8] font-light">
+                    <strong className="text-white">Manual Admin Control:</strong> Once saved, you can manually click <strong className="text-white">&quot;Start Round Now&quot;</strong> whenever you are ready to begin the event.
+                  </p>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-2">
@@ -617,21 +695,22 @@ export default function RoundsManagementPage() {
                     Cancel
                   </GalaxyButton>
                   <GalaxyButton variant="primary" size="sm" type="submit" loading={submitting}>
-                    {editingRound ? 'Save Schedule' : 'Create Round'}
+                    {editingRound ? 'Save Round Parameters' : 'Create Round'}
                   </GalaxyButton>
                 </div>
               </form>
             </GlassCard>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* ═══ MANUAL END ROUND CONFIRMATION MODAL ═══ */}
-      {manualEndRound && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setManualEndRound(null)} />
-          <div className="relative z-10 w-full max-w-md">
-            <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,0,51,0.4)] space-y-4" style={{ background: '#000000' }}>
+      {/* ═══ MANUAL END ROUND CONFIRMATION MODAL (DOCUMENT BODY PORTAL OVERLAY) ═══ */}
+      {manualEndRound && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-[#000000]/90 backdrop-blur-xl" onClick={() => setManualEndRound(null)} />
+          <div className="relative z-[100000] w-full max-w-md my-auto">
+            <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,0,51,0.4)] space-y-4 shadow-[0_25px_80px_rgba(0,0,0,0.98)]" style={{ background: '#05050A' }}>
               <div className="flex items-center gap-2 text-[#FF0033] font-[family-name:var(--font-display)] font-bold text-xl">
                 <AlertOctagon size={22} /> End Round Manually Now?
               </div>
@@ -649,7 +728,8 @@ export default function RoundsManagementPage() {
               </div>
             </GlassCard>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

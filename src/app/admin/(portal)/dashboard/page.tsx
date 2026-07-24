@@ -157,55 +157,74 @@ export default function AdminDashboardPage() {
       });
 
       // 4. Fetch latest participants (last 6)
-      const { data: partData } = await supabase
-        .from('profiles')
-        .select('id, display_name, register_number, department, year, created_at')
-        .order('created_at', { ascending: false })
-        .limit(6);
+      try {
+        const { data: partData } = await supabase
+          .from('participants')
+          .select('id, name, register_no, email, created_at')
+          .order('created_at', { ascending: false })
+          .limit(6);
 
-      if (partData) setLatestParticipants(partData);
-
-      // Recent activities
-      const { data: recentAttempts } = await supabase
-        .from('attempts')
-        .select('id, status, created_at, profiles(display_name), rounds(title)')
-        .order('created_at', { ascending: false })
-        .limit(8);
-
-      const activityList: ActivityItem[] = [];
-      (recentAttempts || []).forEach((att: any) => {
-        const name = att.profiles?.display_name || 'Participant';
-        const rTitle = att.rounds?.title || 'Round';
-        if (att.status === 'submitted') {
-          activityList.push({
-            id: att.id,
-            type: 'submission',
-            title: `${name} submitted ${rTitle}`,
-            subtitle: 'Attempt recorded successfully',
-            timestamp: att.created_at,
-          });
-        } else if (att.status === 'disqualified') {
-          activityList.push({
-            id: att.id,
-            type: 'disqualified',
-            title: `${name} disqualified in ${rTitle}`,
-            subtitle: 'Proctor violation flag triggered',
-            timestamp: att.created_at,
-          });
-        } else {
-          activityList.push({
-            id: att.id,
-            type: 'start',
-            title: `${name} started ${rTitle}`,
-            subtitle: 'Exam session initiated',
-            timestamp: att.created_at,
-          });
+        if (partData && partData.length > 0) {
+          setLatestParticipants(partData.map((p: any) => ({
+            id: p.id,
+            display_name: p.name || 'Participant',
+            register_number: p.register_no || '',
+            department: 'ECE',
+            year: '2026',
+            created_at: p.created_at || new Date().toISOString(),
+          })));
         }
-      });
+      } catch (err) {
+        console.warn('Failed to load participants list:', err);
+      }
 
-      setActivities(activityList);
+      // 5. Recent activities
+      try {
+        const { data: recentAttempts } = await supabase
+          .from('attempts')
+          .select('id, status, created_at, participants(name), rounds(title)')
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        const activityList: ActivityItem[] = [];
+        (recentAttempts || []).forEach((att: any) => {
+          const name = att.participants?.name || 'Participant';
+          const rTitle = att.rounds?.title || 'Round';
+          if (att.status === 'submitted') {
+            activityList.push({
+              id: att.id,
+              type: 'submission',
+              title: `${name} submitted ${rTitle}`,
+              subtitle: 'Attempt recorded successfully',
+              timestamp: att.created_at,
+            });
+          } else if (att.status === 'disqualified') {
+            activityList.push({
+              id: att.id,
+              type: 'disqualified',
+              title: `${name} disqualified in ${rTitle}`,
+              subtitle: 'Proctor violation flag triggered',
+              timestamp: att.created_at,
+            });
+          } else {
+            activityList.push({
+              id: att.id,
+              type: 'start',
+              title: `${name} started ${rTitle}`,
+              subtitle: 'Exam session initiated',
+              timestamp: att.created_at,
+            });
+          }
+        });
+
+        if (activityList.length > 0) {
+          setActivities(activityList);
+        }
+      } catch (err) {
+        console.warn('Failed to load recent activities:', err);
+      }
     } catch (err) {
-      console.error('fetchDashboardData error:', err);
+      console.warn('fetchDashboardData error:', err);
     } finally {
       setLoading(false);
     }

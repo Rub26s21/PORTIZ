@@ -28,22 +28,13 @@ const antiCheatPolicies = [
   { emoji: '🎲', title: 'Randomization', desc: 'Questions and options are shuffled uniquely for each participant.' },
 ];
 
+import HeaderNavbar from '@/components/shared/HeaderNavbar';
+
 export default function RulesPage() {
   return (
     <div className="min-h-screen text-[var(--text-primary)]">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50">
-        <div className="mx-4 mt-3">
-          <GlassCard variant="elevated" radius={16} hover={false} noHover className="!p-0 px-6 py-3">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <Link href="/"><Logo size="sm" /></Link>
-              <Link href="/" className="font-[family-name:var(--font-heading)] text-xs text-[var(--text-muted)] hover:text-[var(--aurora-purple)] transition-colors flex items-center gap-2">
-                <ArrowLeft size={14} /> Back Home
-              </Link>
-            </div>
-          </GlassCard>
-        </div>
-      </nav>
+      <HeaderNavbar />
 
       {/* Hero */}
       <section className="pt-36 pb-16 px-6 text-center">

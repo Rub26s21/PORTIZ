@@ -24,6 +24,8 @@ interface QuestionItem {
   question_type: string;
   question_text: string;
   options: string[] | null;
+  image_url?: string | null;
+  image_alt?: string | null;
   correct_answer: any;
   marks: number;
   negative_marks?: number;
@@ -59,6 +61,7 @@ export default function QuestionsControlPage() {
   const [formNegativeMarks, setFormNegativeMarks] = useState(0);
   const [formExplanation, setFormExplanation] = useState('');
   const [formCategory, setCategory] = useState('');
+  const [formImageUrl, setFormImageUrl] = useState('');
 
   // Fetch Rounds & Questions
   const fetchData = useCallback(async () => {
@@ -95,46 +98,48 @@ export default function QuestionsControlPage() {
     fetchData();
   }, [fetchData]);
 
-  // ── 1. DOWNLOAD OFFICIAL EXCEL QUESTION TEMPLATE (.xlsx) ──
+  // ── 1. DOWNLOAD ARDUFUSION EXCEL QUESTION TEMPLATE (.xlsx) ──
   const handleDownloadExcelTemplate = () => {
     const templateRows = [
       {
-        'Round Number': 1,
-        'Question Type': 'mcq',
-        'Question Text': 'What is the standard unit of electrical resistance?',
-        'Option A': 'Volt',
-        'Option B': 'Ampere',
-        'Option C': 'Ohm',
-        'Option D': 'Watt',
-        'Correct Option (1-4)': 3,
-        'Marks': 2,
-        'Negative Marks': 0.5,
-        'Difficulty': 'easy',
-        'Category': 'Circuit Theory',
-        'Explanation': 'Ohm (Ω) is the SI unit of electrical resistance.',
-      },
-      {
-        'Round Number': 1,
-        'Question Type': 'mcq',
-        'Question Text': 'Which semiconductor material has a bandgap of approximately 1.1 eV at room temperature?',
-        'Option A': 'Germanium',
-        'Option B': 'Silicon',
-        'Option C': 'Gallium Arsenide',
-        'Option D': 'Silicon Carbide',
+        'Questions': 'Of the four biasing circuits shown in figure, for a BJT, indicate the one which can have maximum bias stability',
+        'Figure': 'image1.png',
+        'option 1': 'Fig A',
+        'option 2': 'Fig B',
+        'option 3': 'Fig C',
+        'option 4': 'Fig D',
         'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
-        'Difficulty': 'medium',
-        'Category': 'Semiconductors',
-        'Explanation': 'Silicon (Si) has an indirect bandgap of ~1.12 eV.',
+      },
+      {
+        'Questions': 'Determine Vo in the circuit below.',
+        'Figure': 'image2.png',
+        'option 1': '24V',
+        'option 2': '1V',
+        'option 3': '12V',
+        'option 4': '2V',
+        'Correct Option (1-4)': 3,
+        'Marks': 2,
+        'Negative Marks': 0.5,
+      },
+      {
+        'Questions': 'What is the voltage on capacitor C2 when all three switches are turned on?',
+        'Figure': 'image3.png',
+        'option 1': '16V',
+        'option 2': '20V',
+        'option 3': '12V',
+        'option 4': '10V',
+        'Correct Option (1-4)': 1,
+        'Marks': 2,
+        'Negative Marks': 0.5,
       },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateRows);
     worksheet['!cols'] = [
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 45 },
+      { wch: 55 },
+      { wch: 15 },
       { wch: 20 },
       { wch: 20 },
       { wch: 20 },
@@ -142,15 +147,12 @@ export default function QuestionsControlPage() {
       { wch: 20 },
       { wch: 10 },
       { wch: 15 },
-      { wch: 12 },
-      { wch: 18 },
-      { wch: 40 },
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Question_Template');
-    XLSX.writeFile(workbook, 'electronic_club_question_template.xlsx');
-    toast.success('Excel Question Template Downloaded! 📊');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'ARDUFUSION_Template');
+    XLSX.writeFile(workbook, 'ARDUFUSION_question_template.xlsx');
+    toast.success('ARDUFUSION Excel Question Template Downloaded! 📊');
   };
 
   // ── 2. BULK EXCEL QUESTION UPLOAD (.xlsx / .csv) ──
@@ -173,24 +175,33 @@ export default function QuestionsControlPage() {
       }
 
       let insertedCount = 0;
+      let rowIndex = 0;
       for (const row of rawJson) {
+        rowIndex++;
         const roundNum = Number(row['Round Number'] || 1);
         const matchedRound = rounds.find((r) => r.round_number === roundNum) || rounds[0];
 
         if (!matchedRound) continue;
 
+        // Support ARDUFUSION.xlsx format OR standard template format
         const qType = (row['Question Type'] || 'mcq').toLowerCase();
-        const qText = row['Question Text'] || '';
-        const optA = String(row['Option A'] || '');
-        const optB = String(row['Option B'] || '');
-        const optC = String(row['Option C'] || '');
-        const optD = String(row['Option D'] || '');
+        const qText = row['Questions'] || row['Question Text'] || '';
+        const optA = String(row['option 1'] || row['Option A'] || '');
+        const optB = String(row['option 2'] || row['Option B'] || '');
+        const optC = String(row['option 3'] || row['Option C'] || '');
+        const optD = String(row['option 4'] || row['Option D'] || '');
         const correctIndex = (Number(row['Correct Option (1-4)']) || 1) - 1;
-        const marks = Number(row['Marks']) || 1;
-        const negMarks = Number(row['Negative Marks']) || 0;
+        const marks = Number(row['Marks']) || 2;
+        const negMarks = Number(row['Negative Marks']) || 0.5;
         const difficulty = row['Difficulty'] || 'medium';
-        const category = row['Category'] || 'General';
+        const category = row['Category'] || 'Arduino / Electronics';
         const explanation = row['Explanation'] || '';
+
+        // Auto-assign corresponding circuit image from ARDUFUSION.xlsx if present
+        let imageUrl = row['Figure'] || row['image_url'] || null;
+        if (!imageUrl && rowIndex <= 14) {
+          imageUrl = `/uploads/questions/image${rowIndex}.png`;
+        }
 
         const optionsArray = [optA, optB, optC, optD].filter(Boolean);
 
@@ -199,6 +210,8 @@ export default function QuestionsControlPage() {
           question_type: qType,
           question_text: qText,
           options: optionsArray,
+          image_url: imageUrl,
+          image_alt: `Circuit Schematic ${rowIndex}`,
           correct_answer: { type: 'mcq', value: correctIndex },
           marks: marks,
           negative_marks: negMarks,
@@ -211,7 +224,7 @@ export default function QuestionsControlPage() {
         if (!error) insertedCount++;
       }
 
-      toast.success(`Bulk Upload Complete! ${insertedCount} questions imported successfully! 🚀`);
+      toast.success(`Bulk Upload Complete! ${insertedCount} ARDUFUSION questions imported successfully! 🚀`);
       fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Error processing Excel file');
@@ -236,10 +249,12 @@ export default function QuestionsControlPage() {
         question_type: formType,
         question_text: formText,
         options: formType === 'mcq' ? formOptions.filter(Boolean) : null,
+        image_url: formImageUrl.trim() || null,
+        image_alt: formImageUrl.trim() ? 'Circuit Schematic Diagram' : null,
         correct_answer: { type: formType, value: formCorrectIndex },
         marks: formMarks,
         negative_marks: formNegativeMarks,
-        category: formCategory || 'General',
+        category: formCategory || 'Arduino / Electronics',
         explanation: formExplanation,
       };
 
@@ -285,10 +300,11 @@ export default function QuestionsControlPage() {
     setFormText('');
     setFormOptions(['', '', '', '']);
     setFormCorrectIndex(0);
-    setFormMarks(1);
-    setFormNegativeMarks(0);
+    setFormMarks(2);
+    setFormNegativeMarks(0.5);
     setFormExplanation('');
-    setCategory('');
+    setCategory('Arduino / Electronics');
+    setFormImageUrl('');
     setShowAddModal(true);
   };
 
@@ -299,10 +315,11 @@ export default function QuestionsControlPage() {
     setFormText(q.question_text || '');
     setFormOptions(q.options && q.options.length > 0 ? q.options : ['', '', '', '']);
     setFormCorrectIndex(typeof q.correct_answer === 'object' ? q.correct_answer?.value ?? 0 : Number(q.correct_answer) || 0);
-    setFormMarks(q.marks || 1);
-    setFormNegativeMarks(q.negative_marks || 0);
+    setFormMarks(q.marks || 2);
+    setFormNegativeMarks(q.negative_marks || 0.5);
     setFormExplanation(q.explanation || '');
     setCategory(q.category || '');
+    setFormImageUrl(q.image_url || '');
     setShowAddModal(true);
   };
 
@@ -471,6 +488,18 @@ export default function QuestionsControlPage() {
                         {q.question_text}
                       </h3>
 
+                      {/* Circuit Diagram Image Preview in Admin List */}
+                      {q.image_url && (
+                        <div className="mt-2.5 p-2 rounded-xl bg-black/60 border border-white/12 inline-block max-w-md">
+                          <span className="text-[10px] text-[#94A3B8] font-mono block mb-1">⚡ Circuit Schematic / Figure:</span>
+                          <img
+                            src={q.image_url}
+                            alt={q.image_alt || 'Circuit Schematic'}
+                            className="max-h-48 object-contain rounded-lg border border-white/10 bg-black/80"
+                          />
+                        </div>
+                      )}
+
                       {optList.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
                           {optList.map((opt, i) => {
@@ -536,7 +565,7 @@ export default function QuestionsControlPage() {
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setShowAddModal(false)} />
-          <div className="relative z-10 w-full max-w-xl">
+          <div className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto">
             <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,255,255,0.2)] space-y-5" style={{ background: '#000000' }}>
               <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-3">
                 <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-[#FFFFFF]">
@@ -590,6 +619,76 @@ export default function QuestionsControlPage() {
                     placeholder="Enter full question statement..."
                     className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-sm"
                   />
+                </div>
+
+                {/* CIRCUIT DIAGRAM / IMAGE ATTACHMENT */}
+                <div className="p-3 rounded-xl bg-black/60 border border-white/12 space-y-2">
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold block flex items-center justify-between">
+                    <span>⚡ Circuit Schematic / Diagram Image</span>
+                    <span className="text-[10px] text-[#94A3B8] font-normal">Supports URL, local path, or File Upload</span>
+                  </label>
+                  
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="e.g. /uploads/questions/image1.png or https://..."
+                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs flex-1"
+                    />
+                    <label className="px-3 py-2 rounded-xl bg-[#0066FF]/20 hover:bg-[#0066FF]/30 border border-[#0066FF]/40 text-white text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0">
+                      <span>📁 Upload File</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (evt) => {
+                              if (evt.target?.result) {
+                                setFormImageUrl(evt.target.result as string);
+                                toast.success('Circuit diagram attached! 🖼️');
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Preset ARDUFUSION circuit schematic images */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] text-[#94A3B8] mr-1 self-center">Quick Select:</span>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setFormImageUrl(`/uploads/questions/image${num}.png`)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
+                          formImageUrl === `/uploads/questions/image${num}.png`
+                            ? 'bg-[#FF0033]/30 border-[#FF0033] text-white font-bold'
+                            : 'bg-white/5 border-white/10 text-[#94A3B8] hover:text-white'
+                        }`}
+                      >
+                        Img #{num}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Live Circuit Diagram Image Preview */}
+                  {formImageUrl && (
+                    <div className="mt-2 p-2 rounded-lg bg-black border border-white/15 text-center">
+                      <span className="text-[10px] text-[#00E5FF] font-mono block mb-1">Live Image Preview:</span>
+                      <img
+                        src={formImageUrl}
+                        alt="Circuit Diagram Preview"
+                        className="max-h-40 mx-auto object-contain rounded border border-white/10"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
