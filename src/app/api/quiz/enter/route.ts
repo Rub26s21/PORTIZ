@@ -6,9 +6,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, register_no, email, phone, round_id } = body;
 
-    if (!name || !register_no || !phone || !round_id) {
+    if (!name || !register_no || !email || !round_id) {
       return NextResponse.json(
-        { error: 'Missing required fields (name, register_no, phone, round_id)' },
+        { error: 'Missing required fields (name, register_no, email, round_id)' },
         { status: 400 }
       );
     }
@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
         {
           name: name.trim(),
           register_no: regNoUpper,
-          email: email ? email.trim() : null,
-          phone: phone.trim(),
+          email: email.trim(),
+          phone: phone ? phone.trim() : null,
         },
         { onConflict: 'register_no' }
       )

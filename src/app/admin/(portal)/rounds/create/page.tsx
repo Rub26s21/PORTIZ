@@ -99,75 +99,69 @@ export default function CreateRoundPage() {
 
       {/* FORM CARD */}
       <FadeIn delay={0.06}>
-        <GlassCard variant="elevated" radius={24} hover={false} noHover className="!p-8" style={{ boxShadow: skeuomorphicShadow }}>
+        <GlassCard variant="elevated" radius={24} hover={false} noHover className="!p-8 border border-white/15" style={{ boxShadow: skeuomorphicShadow, background: '#000000' }}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-            {/* BASIC INFO */}
-            <div className="space-y-4">
-              <h3 className="font-[family-name:var(--font-display)] font-semibold text-base text-[var(--aurora-purple)] flex items-center gap-2">
-                <Sparkles size={16} /> Basic Information
+            {/* 1. ROUND TITLE (Preset selector & Custom Input) */}
+            <div className="space-y-3">
+              <h3 className="font-[family-name:var(--font-display)] font-bold text-base text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-[#FF0033]" /> 1. Round Title Selection
               </h3>
+
+              <div className="flex flex-wrap gap-2 mb-2">
+                {['First Round', 'Second Round', 'Third Round', 'Qualifier Round', 'Grand Finale'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setValue('title', preset)}
+                    className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/15 text-xs text-white font-medium transition-all cursor-pointer"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="form-label text-xs">Round Number</label>
+                  <label className="form-label text-xs text-[#CBD5E1]">Round Number</label>
                   <input
                     type="number"
                     {...register('round_number', { valueAsNumber: true })}
-                    className="form-input font-[family-name:var(--font-mono)]"
+                    className="form-input font-[family-name:var(--font-mono)] bg-black text-white border border-white/15"
                     min={1}
                   />
                   {errors.round_number && <p className="form-error text-xs">{errors.round_number.message}</p>}
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="form-label text-xs">Round Title</label>
+                  <label className="form-label text-xs text-[#CBD5E1]">Round Title <span className="text-[#FF0033]">*</span></label>
                   <input
                     type="text"
                     {...register('title')}
-                    placeholder="e.g. Round 1: General Electronics Qualifier"
-                    className="form-input"
+                    placeholder="e.g. First Round / Second Round / Grand Finale"
+                    className="form-input bg-black text-white border border-white/15 font-semibold"
                   />
                   {errors.title && <p className="form-error text-xs">{errors.title.message}</p>}
                 </div>
               </div>
-
-              <div>
-                <label className="form-label text-xs">Description</label>
-                <textarea
-                  {...register('description')}
-                  rows={3}
-                  placeholder="Provide instructions or topic scope for participants..."
-                  className="form-input resize-none"
-                />
-              </div>
             </div>
 
-            <div className="h-[1px] bg-[rgba(255,255,255,0.06)]" />
+            <div className="h-[1px] bg-white/10" />
 
-            {/* TIMING CONFIG */}
+            {/* 2. TIMING & DURATION */}
             <div className="space-y-4">
-              <h3 className="font-[family-name:var(--font-display)] font-semibold text-base text-[var(--aurora-cyan)]">
-                Timing Configuration
+              <h3 className="font-[family-name:var(--font-display)] font-bold text-base text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-[#FF0033]" /> 2. Round Duration (Minutes Active)
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="form-label text-xs">Scheduled Start Time (IST)</label>
-                  <input
-                    type="datetime-local"
-                    {...register('start_time')}
-                    className="form-input font-[family-name:var(--font-mono)] text-xs"
-                  />
-                  {errors.start_time && <p className="form-error text-xs">{errors.start_time.message}</p>}
-                </div>
-
-                <div>
-                  <label className="form-label text-xs">Duration (Minutes)</label>
+                  <label className="form-label text-xs text-[#CBD5E1]">Total Minutes Active (Duration) <span className="text-[#FF0033]">*</span></label>
                   <input
                     type="number"
                     {...register('duration_minutes', { valueAsNumber: true })}
-                    className="form-input font-[family-name:var(--font-mono)]"
+                    placeholder="e.g. 30, 45, 60"
+                    className="form-input font-[family-name:var(--font-mono)] font-bold text-base bg-black text-white border border-white/15"
                     min={1}
                   />
                   {errors.duration_minutes && <p className="form-error text-xs">{errors.duration_minutes.message}</p>}
@@ -175,29 +169,54 @@ export default function CreateRoundPage() {
               </div>
             </div>
 
-            <div className="h-[1px] bg-[rgba(255,255,255,0.06)]" />
+            <div className="h-[1px] bg-white/10" />
 
-            {/* TOGGLE SETTINGS */}
+            {/* 3. NUMBER OF PARTICIPANTS ALLOWED */}
+            <div className="space-y-3">
+              <h3 className="font-[family-name:var(--font-display)] font-bold text-base text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-[#FF0033]" /> 3. Participant Limit & Capacity
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label text-xs text-[#CBD5E1]">Max Number of Participants Allowed</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 100, 500 (or leave 0 for Unlimited)"
+                    className="form-input font-[family-name:var(--font-mono)] bg-black text-white border border-white/15"
+                    min={0}
+                    defaultValue={100}
+                  />
+                  <p className="text-[11px] text-[#94A3B8] font-light mt-1">
+                    Set a maximum capacity for student entries or set to 0 for unlimited entries.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-[1px] bg-white/10" />
+
+            {/* 4. SHUFFLING QUESTIONS & CUSTOMIZATION OPTIONS */}
             <div className="space-y-4">
-              <h3 className="font-[family-name:var(--font-display)] font-semibold text-base text-[var(--aurora-gold)]">
-                Round Settings & Rules
+              <h3 className="font-[family-name:var(--font-display)] font-bold text-base text-white flex items-center gap-2">
+                <Sparkles size={16} className="text-[#FF0033]" /> 4. Shuffling & Customization Options
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { id: 'randomize_questions', label: "Shuffle Questions", sub: "Randomize question order per student" },
-                  { id: 'randomize_options', label: "Shuffle Options", sub: "Randomize MCQ options order" },
-                  { id: 'requires_promotion', label: "Requires Promotion", sub: "Only promoted students can attempt" },
-                  { id: 'negative_marking', label: "Negative Marking", sub: "Deduct marks for incorrect answers" },
-                  { id: 'show_results', label: "Show Results Immediately", sub: "Display score right after submission" },
-                  { id: 'show_leaderboard', label: "Public Leaderboard", sub: "Include round scores in rankings" },
+                  { id: 'randomize_questions', label: "Shuffle Questions for Each Participant", sub: "Randomize question order per student attempt" },
+                  { id: 'randomize_options', label: "Shuffle MCQ Options", sub: "Randomize choice order (A, B, C, D) per student" },
+                  { id: 'requires_promotion', label: "Requires Promotion", sub: "Only students promoted from prior rounds can attempt" },
+                  { id: 'negative_marking', label: "Negative Marking", sub: "Deduct marks for incorrect attempts" },
+                  { id: 'show_results', label: "Show Results Immediately", sub: "Display score right after test submission" },
+                  { id: 'show_leaderboard', label: "Public Leaderboard", sub: "Publish round rankings publicly" },
                 ].map((item) => (
-                  <div key={item.id} className="p-3.5 rounded-xl bg-[var(--space-surface)] border border-[var(--glass-border)] flex items-center justify-between">
+                  <div key={item.id} className="p-4 rounded-xl bg-black/60 border border-white/12 flex items-center justify-between">
                     <div>
-                      <span className="font-[family-name:var(--font-heading)] font-medium text-xs text-[var(--text-primary)] block">
+                      <span className="font-[family-name:var(--font-heading)] font-bold text-xs text-white block">
                         {item.label}
                       </span>
-                      <span className="font-[family-name:var(--font-body)] text-[11px] text-[var(--text-dim)] font-light block">
+                      <span className="font-[family-name:var(--font-body)] text-[11px] text-[#94A3B8] font-light block">
                         {item.sub}
                       </span>
                     </div>
@@ -208,40 +227,39 @@ export default function CreateRoundPage() {
                         {...register(item.id as any)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-[var(--space-raised)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--aurora-purple)]" />
+                      <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#FF0033]" />
                     </label>
                   </div>
                 ))}
               </div>
 
-              {negativeMarking && (
-                <div className="pt-2">
-                  <label className="form-label text-xs">Negative Marks Per Wrong Answer</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    {...register('negative_marks_per_wrong', { valueAsNumber: true })}
-                    className="form-input font-[family-name:var(--font-mono)] max-w-xs"
-                  />
-                </div>
-              )}
+              {/* Round Scope Description */}
+              <div>
+                <label className="form-label text-xs text-[#CBD5E1]">Additional Customization Scope & Instructions</label>
+                <textarea
+                  {...register('description')}
+                  rows={2}
+                  placeholder="Enter round scope, rules, or custom instructions..."
+                  className="form-input bg-black text-white border border-white/15 resize-none text-xs"
+                />
+              </div>
             </div>
 
-            <div className="h-[1px] bg-[rgba(255,255,255,0.06)]" />
+            <div className="h-[1px] bg-white/10" />
 
             {/* STATUS SELECT */}
             <div>
-              <label className="form-label text-xs mb-2">Initial Status</label>
+              <label className="form-label text-xs mb-2 text-[#CBD5E1]">Initial Round Status</label>
               <div className="grid grid-cols-4 gap-3">
                 {['draft', 'published', 'live', 'closed'].map((st) => (
                   <button
                     key={st}
                     type="button"
                     onClick={() => setValue('status', st as any)}
-                    className={`py-2.5 rounded-xl font-[family-name:var(--font-heading)] text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`py-2.5 rounded-xl font-[family-name:var(--font-heading)] text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                       status === st
-                        ? 'bg-[var(--glass-purple)] border border-[var(--aurora-purple)] text-[var(--aurora-purple)] shadow-sm'
-                        : 'bg-[var(--glass-white)] border border-[var(--glass-border)] text-[var(--text-dim)] hover:text-white'
+                        ? 'bg-[#FF0033] border border-white/40 text-white shadow-sm'
+                        : 'bg-black/60 border border-white/15 text-[#94A3B8] hover:text-white'
                     }`}
                   >
                     {st}
@@ -256,7 +274,7 @@ export default function CreateRoundPage() {
                 <GalaxyButton variant="secondary" size="md">Cancel</GalaxyButton>
               </Link>
               <GalaxyButton variant="primary" size="md" type="submit" loading={loading} disabled={loading}>
-                <Check size={16} /> Create Round Now
+                <Check size={16} /> Save Competition Round
               </GalaxyButton>
             </div>
 

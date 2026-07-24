@@ -74,6 +74,8 @@ CREATE TABLE IF NOT EXISTS questions (
   correct_answer JSONB NOT NULL, -- stored server-side only, NEVER sent to client
   marks NUMERIC DEFAULT 1,
   negative_marks NUMERIC DEFAULT 0,
+  image_url TEXT,
+  image_alt TEXT,
   category TEXT,
   difficulty TEXT DEFAULT 'medium',
   explanation TEXT,

@@ -142,8 +142,21 @@ export default function TestPage() {
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter(a => a !== null && a !== undefined).length;
 
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
+
   return (
     <div className="min-h-screen bg-[var(--space-void)] text-[var(--text-primary)] flex flex-col select-none relative z-50">
+      {/* Zoom Image Modal */}
+      {zoomImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setZoomImage(null)}>
+          <div className="relative max-w-4xl w-full p-4 bg-black/80 border border-white/20 rounded-2xl flex flex-col items-center">
+            <button onClick={() => setZoomImage(null)} className="absolute top-4 right-4 text-white text-xl font-bold bg-white/10 hover:bg-white/20 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+            <img src={zoomImage} alt="Enlarged Circuit Diagram" className="max-h-[80vh] object-contain rounded-lg" />
+            <span className="text-xs text-[#94A3B8] font-mono mt-3">⚡ Click anywhere to close image preview</span>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar */}
       <header
         className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 border-b border-[var(--glass-border)]"
@@ -226,9 +239,24 @@ export default function TestPage() {
                 </div>
               </div>
 
-              <h2 className="font-[family-name:var(--font-body)] text-[var(--text-primary)] text-xl md:text-2xl leading-relaxed mb-8 font-medium">
+              <h2 className="font-[family-name:var(--font-body)] text-[var(--text-primary)] text-xl md:text-2xl leading-relaxed mb-6 font-medium">
                 {currentQuestion.question_text}
               </h2>
+
+              {/* Circuit Schematic Diagram / Figure */}
+              {currentQuestion.image_url && (
+                <div className="mb-8 p-4 rounded-2xl bg-black/60 border border-white/12 flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all" onClick={() => setZoomImage(currentQuestion.image_url || null)}>
+                  <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
+                    <span>⚡ Circuit Schematic Diagram / Figure</span>
+                    <span className="text-[#00E5FF] group-hover:underline">🔍 Click to Expand</span>
+                  </div>
+                  <img
+                    src={currentQuestion.image_url}
+                    alt={currentQuestion.image_alt || 'Circuit Diagram'}
+                    className="max-h-64 object-contain rounded-xl border border-white/10 bg-black/80 p-2 shadow-lg"
+                  />
+                </div>
+              )}
 
               {/* MCQ */}
               {currentQuestion.question_type === 'mcq' && currentQuestion.options && (

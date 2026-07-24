@@ -8,6 +8,8 @@ import FadeIn from '@/components/shared/FadeIn';
 import { getInitials } from '@/lib/utils';
 import { ArrowLeft, Target, Eye, Lightbulb } from 'lucide-react';
 
+import HeaderNavbar from '@/components/shared/HeaderNavbar';
+
 const team = [
   { name: 'Dr. Rajesh Kumar', role: 'Faculty Advisor', dept: 'ECE' },
   { name: 'Ananya Patel', role: 'Club President', dept: 'ECE' },
@@ -21,18 +23,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen text-[var(--text-primary)]">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50">
-        <div className="mx-4 mt-3">
-          <GlassCard variant="elevated" radius={16} hover={false} noHover className="!p-0 px-6 py-3">
-            <div className="flex items-center justify-between max-w-7xl mx-auto">
-              <Link href="/"><Logo size="sm" /></Link>
-              <Link href="/" className="font-[family-name:var(--font-heading)] text-xs text-[var(--text-muted)] hover:text-[var(--aurora-purple)] transition-colors flex items-center gap-2">
-                <ArrowLeft size={14} /> Back Home
-              </Link>
-            </div>
-          </GlassCard>
-        </div>
-      </nav>
+      <HeaderNavbar />
 
       {/* Hero */}
       <section className="pt-36 pb-16 px-6 text-center">
@@ -79,37 +70,6 @@ export default function AboutPage() {
                   {v.title}
                 </h3>
                 <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-sm leading-relaxed">{v.text}</p>
-              </GlassCard>
-            </FadeIn>
-          ))}
-        </div>
-      </section>
-
-      {/* Team */}
-      <section className="py-16 px-6 max-w-6xl mx-auto">
-        <FadeIn>
-          <h2 className="font-[family-name:var(--font-display)] text-3xl md:text-4xl font-extrabold text-center gradient-text mb-12">
-            Meet the Team 🧑‍🔬
-          </h2>
-        </FadeIn>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {team.map((member, i) => (
-            <FadeIn key={i} delay={i * 0.08}>
-              <GlassCard variant="purple" className="text-center !p-8">
-                <div
-                  className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center font-[family-name:var(--font-mono)] font-bold text-lg"
-                  style={{
-                    background: 'var(--glass-purple)',
-                    border: '2px solid rgba(168,85,247,0.4)',
-                    color: 'var(--aurora-purple)',
-                  }}
-                >
-                  {getInitials(member.name)}
-                </div>
-                <h3 className="font-[family-name:var(--font-heading)] font-bold text-[var(--text-primary)] text-base mb-1">{member.name}</h3>
-                <p className="font-[family-name:var(--font-heading)] text-[var(--aurora-purple)] text-sm mb-1 font-medium">{member.role}</p>
-                <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-xs">{member.dept} Department</p>
               </GlassCard>
             </FadeIn>
           ))}

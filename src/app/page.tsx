@@ -10,6 +10,8 @@ import {
   ChevronDown, Lock, User
 } from 'lucide-react';
 import Logo from '@/components/shared/Logo';
+import HeaderNavbar from '@/components/shared/HeaderNavbar';
+import QuizEntryCard from '@/components/quiz/QuizEntryCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import GlassCard from '@/components/shared/GlassCard';
 import FadeIn from '@/components/shared/FadeIn';
@@ -67,117 +69,37 @@ export default function HomePage() {
     <div className="relative min-h-screen text-[var(--text-primary)] overflow-x-hidden">
 
       {/* ═══ NAVBAR ═══ */}
-      <nav className="fixed top-0 left-0 right-0 z-50">
-        <div className="mx-4 mt-3">
-          <GlassCard variant="elevated" radius={16} hover={false} noHover className="!p-0 px-6 py-3">
-            <div className="flex items-center justify-between max-w-7xl mx-auto gap-4 md:gap-8">
-              <Link href="/" className="flex-shrink-0 mr-4">
-                <Logo size="sm" />
-              </Link>
-
-              {/* Center Nav Links */}
-              <div className="hidden lg:flex items-center justify-center gap-8 flex-1 mx-6">
-                {navLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    className="font-[family-name:var(--font-heading)] text-sm font-medium text-[var(--text-secondary)] hover:text-[#FFFFFF] transition-colors whitespace-nowrap px-2"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-
-              {/* Right Action Buttons */}
-              <div className="hidden lg:flex items-center gap-6 flex-shrink-0 ml-4">
-                <Link href="/admin/login" className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] hover:text-[#FFFFFF] transition-colors font-light whitespace-nowrap px-1">
-                  Admin
-                </Link>
-                <Link href="/quiz" className="flex-shrink-0">
-                  <GalaxyButton variant="primary" size="sm" className="whitespace-nowrap">
-                    Enter Quiz →
-                  </GalaxyButton>
-                </Link>
-              </div>
-
-              {/* Mobile Menu Trigger */}
-              <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 text-[var(--text-secondary)]">
-                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Mobile Dropdown */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mx-4 mt-2 p-6 rounded-2xl flex flex-col gap-4 lg:hidden"
-              style={{ background: 'rgba(10,1,24,0.95)', backdropFilter: 'blur(24px)', border: '1px solid var(--glass-border)' }}
-            >
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="font-[family-name:var(--font-heading)] text-base font-medium text-[var(--text-secondary)]"
-                >
-                  {link.label}
-                </a>
-              ))}
-              <div className="flex flex-col gap-2 mt-2">
-                <Link href="/quiz" onClick={() => setMobileMenuOpen(false)}>
-                  <GalaxyButton variant="cyan" size="md" fullWidth>
-                    Enter Quiz Now →
-                  </GalaxyButton>
-                </Link>
-                <Link href="/admin/login" onClick={() => setMobileMenuOpen(false)}>
-                  <GalaxyButton variant="secondary" size="md" fullWidth className="text-[var(--text-muted)]">
-                    <ShieldCheck size={14} className="text-[var(--aurora-purple)]" />
-                    Admin Login
-                  </GalaxyButton>
-                </Link>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </nav>
+      <HeaderNavbar />
 
       {/* ═══ HERO SECTION ═══ */}
-      <header className="relative z-10 pt-36 pb-20 min-h-[85vh] flex flex-col justify-center items-center text-center px-6">
-        <div className="max-w-4xl mx-auto flex flex-col items-center gap-6">
+      <header className="relative z-10 pt-36 pb-20 min-h-[85vh] flex flex-col justify-center px-6 sm:px-10">
+        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          
+          {/* LEFT SIDE: LEFT-ALIGNED TEXT & ELECTRONICS CLUB TITLE */}
+          <div className="flex flex-col items-start text-left gap-6">
+            <FadeIn delay={0.1} y={30}>
+              <h1 className="font-[family-name:var(--font-display)] font-extrabold tracking-tight leading-[1.08] text-[clamp(2.5rem,5.5vw,4.8rem)] text-left">
+                <span className="block text-[#FFFFFF]">Electronics Club</span>
+                <span className="block text-[#FFFFFF] mt-1 sm:mt-2">Quiz Portal</span>
+              </h1>
+            </FadeIn>
 
-          <FadeIn delay={0.1} y={30}>
-            <h1 className="font-[family-name:var(--font-display)] font-extrabold tracking-tight leading-[1.05] text-[clamp(2.8rem,7vw,5.5rem)]">
-              <span className="block text-[#FFFFFF]">Electronic Club</span>
-              <span className="block text-[#FFFFFF] mt-1">Quiz Portal</span>
-            </h1>
-          </FadeIn>
+            <FadeIn delay={0.25} y={20}>
+              <p className="font-[family-name:var(--font-body)] font-light text-lg sm:text-xl text-[#94A3B8] max-w-xl leading-relaxed text-left">
+                The premier national electronics championship. Three brutal rounds. Test your engineering mind and claim the trophy.
+              </p>
+            </FadeIn>
+          </div>
 
-          <FadeIn delay={0.25} y={20}>
-            <p className="font-[family-name:var(--font-body)] font-light text-lg sm:text-xl text-[var(--text-muted)] max-w-2xl leading-relaxed">
-              The premier national electronics championship. Three brutal rounds. Test your engineering mind and claim the trophy.
-            </p>
-          </FadeIn>
-
-          {/* SINGLE HERO CTA BUTTON LINKING TO /quiz */}
-          <FadeIn delay={0.35} y={20}>
-            <div className="pt-4">
-              <Link href="/quiz">
-                <GalaxyButton variant="cyan" size="lg" className="!px-12 !py-4 text-base font-[family-name:var(--font-heading)] uppercase tracking-wider font-semibold">
-                  Enter Quiz Now →
-                </GalaxyButton>
-              </Link>
-            </div>
-          </FadeIn>
+          {/* RIGHT SIDE: PREMIUM APPLE MAC LIQUID GLASS QUIZ ENTRY CARD */}
+          <div className="w-full flex justify-center lg:justify-end">
+            <QuizEntryCard />
+          </div>
 
         </div>
 
         {/* Scroll indicator */}
-        <div className="mt-16">
+        <div className="mt-16 flex justify-center">
           <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity }}>
             <ChevronDown size={24} className="text-[var(--aurora-purple)] opacity-50" />
           </motion.div>
@@ -335,6 +257,141 @@ export default function HomePage() {
         </FadeIn>
       </section>
 
+      {/* ═══ MEET THE CONTRIBUTORS ═══ */}
+      <section id="contributors" className="relative z-10 py-24 px-6 border-t border-[var(--glass-border)]" style={{ background: 'var(--space-deep)' }}>
+        <div className="max-w-7xl mx-auto">
+          <FadeIn>
+            <div className="text-center mb-16">
+              <span className="text-[10px] font-semibold tracking-widest text-[var(--aurora-cyan)] uppercase" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                THE TEAM BEHIND THE TOURNAMENT ✦
+              </span>
+              <h2 className="text-3xl md:text-5xl font-extrabold text-[#FFFFFF] mt-3" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                Meet the Contributors
+              </h2>
+              <p className="text-xs md:text-sm text-[#94A3B8] font-light max-w-md mx-auto mt-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                Coordinated and developed by the faculty leads and student coordinators of the Electronics Club
+              </p>
+            </div>
+          </FadeIn>
+
+          {/* HOD / Faculty Advisors Row (2 Cards) */}
+          <div className="flex flex-col md:flex-row justify-center items-center gap-10 max-w-4xl mx-auto mb-16">
+            {[
+              { name: 'Anandakumar.R', role: 'Head of Department', dept: 'ECE', initials: 'AR', rating: '99', pos: 'HOD', avatar: '/avatar_anandakumar.png', stats: [{ label: 'LDR', val: '99' }, { label: 'TEC', val: '98' }, { label: 'STR', val: '99' }, { label: 'MNT', val: '98' }], glow: 'rgba(0,102,255,0.4)' },
+              { name: 'Jamuna V', role: 'Head of Department', dept: 'ECE', initials: 'JV', rating: '99', pos: 'HOD', avatar: '/avatar_jamuna.png', stats: [{ label: 'LDR', val: '99' }, { label: 'TEC', val: '97' }, { label: 'STR', val: '99' }, { label: 'MNT', val: '98' }], glow: 'rgba(124,58,237,0.4)' },
+            ].map((member, idx) => (
+              <FadeIn key={idx} delay={idx * 0.15}>
+                <div 
+                  className="relative w-[280px] h-[420px] rounded-[2.5rem] p-[2px] transition-all duration-500 hover:scale-[1.04] group cursor-pointer overflow-hidden shadow-2xl"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 50%, rgba(0,102,255,0.2) 100%)',
+                    boxShadow: `0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px ${member.glow}`,
+                  }}
+                >
+                  {/* Glass Card Body */}
+                  <div className="w-full h-full rounded-[2.4rem] bg-black/85 backdrop-blur-xl p-6 flex flex-col justify-between items-center relative overflow-hidden">
+                    {/* Shiny Sweep Effect */}
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
+                    
+                    {/* Top Stats Banner */}
+                    <div className="w-full flex justify-between items-center z-10">
+                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
+                        <img src="/logo.png" alt="Electronics Club Logo" className="w-5 h-5 object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Avatar Frame (Futuristic circular backdrop) */}
+                    <div className="relative w-36 h-36 flex items-center justify-center -mt-4">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#0066FF] to-[#00B0FF] opacity-20 blur-xl group-hover:scale-110 transition-transform duration-500" />
+                      <div className="absolute w-28 h-28 rounded-full border border-white/10 bg-white/5 shadow-inner" />
+                      {member.avatar ? (
+                        <img 
+                          src={member.avatar} 
+                          alt={member.name} 
+                          className="w-32 h-32 object-contain z-10 transition-transform duration-500 group-hover:scale-108 -mt-2 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" 
+                        />
+                      ) : (
+                        <div className="w-28 h-28 rounded-full flex items-center justify-center font-[family-name:var(--font-mono)] font-bold text-2xl text-white/80 z-10 bg-white/5 border border-white/20 shadow-lg" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                          {member.initials}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Member Details */}
+                    <div className="text-center z-10 w-full -mt-1">
+                      <h4 className="font-extrabold text-[#FFFFFF] text-[1.35rem] tracking-wide px-2 whitespace-nowrap" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.03em' }}>{member.name}</h4>
+                      <p className="text-[#94A3B8] text-[10.5px] font-light mt-1 tracking-widest uppercase" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.08em' }}>{member.role}</p>
+                    </div>
+
+                    {/* FUT Department Name Block (Replaced Attributes Grid) */}
+                    <div className="w-full py-2.5 border-t border-white/10 z-10 text-center bg-white/3 rounded-2xl">
+                      <span className="font-extrabold text-base text-white tracking-[0.2em] uppercase pl-[0.2em]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                        DEPT OF {member.dept}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+
+          {/* Student Coordinators Row (5 Cards) */}
+          <div className="flex flex-wrap justify-center items-center gap-6 max-w-6xl mx-auto">
+            {[
+              { name: 'Rubahan P', role: 'Student Coordinator', dept: 'ECE', initials: 'RP', rating: '95', pos: 'CO' },
+              { name: 'Sanjay B', role: 'Student Coordinator', dept: 'ECE', initials: 'SB', rating: '95', pos: 'CO' },
+              { name: 'Sivasradeep S', role: 'Student Coordinator', dept: 'ECE', initials: 'SS', rating: '95', pos: 'CO' },
+              { name: 'Kishore Kumar K T', role: 'Student Coordinator', dept: 'ECE', initials: 'KK', rating: '95', pos: 'CO' },
+              { name: 'Ragul S', role: 'Student Coordinator', dept: 'ECE', initials: 'RS', rating: '95', pos: 'CO' },
+            ].map((member, idx) => (
+              <FadeIn key={idx} delay={idx * 0.08}>
+                <div 
+                  className="relative w-[210px] h-[330px] rounded-[2rem] p-[1.5px] transition-all duration-500 hover:scale-[1.04] group cursor-pointer overflow-hidden shadow-xl"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.05) 100%)',
+                    boxShadow: '0 15px 35px rgba(0, 0, 0, 0.5)',
+                  }}
+                >
+                  {/* Glass Card Body */}
+                  <div className="w-full h-full rounded-[1.9rem] bg-black/85 backdrop-blur-xl p-4.5 flex flex-col justify-between items-center relative overflow-hidden">
+                    {/* Shiny Sweep Effect */}
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
+                    
+                    {/* Top Stats Banner */}
+                    <div className="w-full flex justify-between items-center z-10 px-0.5">
+                      <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
+                        <img src="/logo.png" alt="Electronics Club Logo" className="w-4 h-4 object-contain" />
+                      </div>
+                    </div>
+
+                    {/* Avatar Initials Circle */}
+                    <div className="relative w-20 h-20 flex items-center justify-center -mt-2">
+                      <div className="absolute inset-0 rounded-full bg-white/5 opacity-10 blur-md group-hover:scale-115 transition-transform duration-500" />
+                      <div className="w-18 h-18 rounded-full flex items-center justify-center font-bold text-lg text-white/80 z-10 bg-white/5 border border-white/15 shadow-inner" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                        {member.initials}
+                      </div>
+                    </div>
+
+                    {/* Member Details */}
+                    <div className="text-center z-10 w-full -mt-1.5">
+                      <h4 className="font-bold text-[#FFFFFF] text-[0.95rem] tracking-wide px-1 whitespace-nowrap" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.03em' }}>{member.name}</h4>
+                      <p className="text-white/40 text-[9px] mt-1 tracking-widest uppercase" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.08em' }}>{member.role}</p>
+                    </div>
+
+                    {/* FUT Department Name Block (Replaced Attributes Grid) */}
+                    <div className="w-full py-2 border-t border-white/8 z-10 text-center bg-white/2 p-1.5 rounded-xl">
+                      <span className="font-extrabold text-xs text-white tracking-[0.15em] uppercase pl-[0.15em]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                        DEPT OF {member.dept}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ═══ FOOTER ═══ */}
       <footer className="relative z-10 border-t border-[var(--glass-border)]" style={{ background: 'var(--space-deep)' }}>
         <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -343,10 +400,11 @@ export default function HomePage() {
             <p className="font-[family-name:var(--font-body)] text-[var(--text-dim)] text-xs mt-2">National Level Quiz Championship Portal</p>
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-xs font-[family-name:var(--font-heading)] text-[var(--text-muted)]">
-            <a href="#about" className="hover:text-[var(--aurora-purple)]">About</a>
+            <Link href="/about" className="hover:text-[var(--aurora-purple)]">About</Link>
             <a href="#rounds" className="hover:text-[var(--aurora-purple)]">Rounds</a>
-            <a href="#rules" className="hover:text-[var(--aurora-purple)]">Rules</a>
+            <Link href="/rules" className="hover:text-[var(--aurora-purple)]">Rules</Link>
             <a href="#faq" className="hover:text-[var(--aurora-purple)]">FAQ</a>
+            <a href="#contributors" className="hover:text-[var(--aurora-purple)]">Contributors</a>
             <Link href="/quiz" className="hover:text-[var(--aurora-cyan)]">Enter Quiz</Link>
             <Link href="/admin/login" className="hover:text-[var(--aurora-rose)] text-[var(--text-dim)]">Admin →</Link>
           </div>
