@@ -566,7 +566,7 @@ export default function QuestionsControlPage() {
                         <div className="mt-2.5 p-2 rounded-xl bg-black/60 border border-white/12 inline-block max-w-md">
                           <span className="text-[10px] text-[#94A3B8] font-mono block mb-1">⚡ Circuit Schematic / Figure:</span>
                           <img
-                            src={q.image_url}
+                            src={formatImageUrl(q.image_url)}
                             alt={q.image_alt || 'Circuit Schematic'}
                             className="max-h-48 object-contain rounded-lg border border-white/10 bg-black/80"
                           />
