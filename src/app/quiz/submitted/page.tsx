@@ -58,40 +58,10 @@ function SubmittedContent() {
               </p>
             </div>
 
-            {/* Score & Rank Container (if published) */}
-            {score !== null && (
-              <div className="p-4 rounded-2xl bg-[rgba(16,185,129,0.08)] border border-[rgba(16,185,129,0.2)] flex items-center justify-around">
-                <div>
-                  <span className="font-[family-name:var(--font-heading)] text-[10px] text-[var(--text-dim)] uppercase tracking-wider block">
-                    Your Score
-                  </span>
-                  <span className="font-[family-name:var(--font-mono)] font-extrabold text-2xl text-[var(--aurora-cyan)]">
-                    <CountUp end={score} duration={2} /> pts
-                  </span>
-                </div>
-
-                {rank !== null && (
-                  <div>
-                    <span className="font-[family-name:var(--font-heading)] text-[10px] text-[var(--text-dim)] uppercase tracking-wider block">
-                      Current Rank
-                    </span>
-                    <span className="font-[family-name:var(--font-mono)] font-extrabold text-2xl text-[var(--aurora-gold)]">
-                      #{rank}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Action Buttons */}
             <div className="pt-2 flex flex-col gap-3">
-              <Link href="/participant/leaderboard">
-                <GalaxyButton variant="cyan" fullWidth size="md">
-                  <BarChart3 size={16} /> View Leaderboard
-                </GalaxyButton>
-              </Link>
               <Link href="/">
-                <GalaxyButton variant="secondary" fullWidth size="sm">
+                <GalaxyButton variant="secondary" fullWidth size="md">
                   <Home size={14} /> Back to Homepage
                 </GalaxyButton>
               </Link>
