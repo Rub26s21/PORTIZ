@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Verify attempt is valid & active
-    const { data: attempt, error: attErr } = await supabase
+    const { data: attempt, error: attErr } = await supabaseAdmin
       .from('attempts')
       .select('id, status, disqualified')
       .eq('id', attemptId)
-      .single();
+      .maybeSingle();
 
     if (attErr || !attempt) {
       return NextResponse.json({ error: 'Invalid attempt session' }, { status: 403 });
@@ -27,23 +27,23 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Fetch question without correct_answer
-    const { data: question, error: qErr } = await supabase
+    const { data: question, error: qErr } = await supabaseAdmin
       .from('questions')
       .select('id, question_text, question_type, options, image_url, image_alt, marks, negative_marks, category')
       .eq('id', questionId)
-      .single();
+      .maybeSingle();
 
     if (qErr || !question) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
     // 3. Fetch existing answer for this question if previously saved
-    const { data: savedResp } = await supabase
+    const { data: savedResp } = await supabaseAdmin
       .from('responses')
       .select('selected')
       .eq('attempt_id', attemptId)
       .eq('question_id', questionId)
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       question: {

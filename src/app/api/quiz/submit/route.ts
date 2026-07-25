@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,11 +11,11 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Fetch attempt details + round config
-    const { data: attempt, error: attErr } = await supabase
+    const { data: attempt, error: attErr } = await supabaseAdmin
       .from('attempts')
       .select('id, round_id, status, participant_id')
       .eq('id', attempt_id)
-      .single();
+      .maybeSingle();
 
     if (attErr || !attempt) {
       return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
@@ -25,20 +25,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Attempt already submitted' }, { status: 400 });
     }
 
-    const { data: round } = await supabase
+    const { data: round } = await supabaseAdmin
       .from('rounds')
       .select('id, negative_marking, negative_marks_per_wrong')
       .eq('id', attempt.round_id)
-      .single();
+      .maybeSingle();
 
     // 2. Fetch all questions for this round
-    const { data: questions } = await supabase
+    const { data: questions } = await supabaseAdmin
       .from('questions')
       .select('id, correct_answer, marks, negative_marks')
       .eq('round_id', attempt.round_id);
 
     // 3. Fetch all saved responses
-    const { data: responses } = await supabase
+    const { data: responses } = await supabaseAdmin
       .from('responses')
       .select('question_id, selected')
       .eq('attempt_id', attempt_id);
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     totalScore = Math.max(0, Math.round(totalScore * 100) / 100);
 
     // 5. Update attempt status & score
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await supabaseAdmin
       .from('attempts')
       .update({
         status: 'submitted',
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Calculate Rank
-    const { count: higherScores } = await supabase
+    const { count: higherScores } = await supabaseAdmin
       .from('attempts')
       .select('*', { count: 'exact', head: true })
       .eq('round_id', attempt.round_id)
