@@ -102,19 +102,22 @@ export function formatImageUrl(url: string | null | undefined): string {
   if (!url) return '';
   const trimmed = url.trim();
 
-  // Convert Google Drive view/open/share links to direct CDN viewable links
-  // Examples:
-  // https://drive.google.com/file/d/1ABC123/view?usp=sharing
-  // https://drive.google.com/open?id=1ABC123
-  // https://drive.google.com/uc?id=1ABC123
-  const driveFileIdMatch =
-    trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
-    trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
-    trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  // If it is a base64 data URL, return it directly to avoid regex corruption
+  if (trimmed.startsWith('data:')) {
+    return trimmed;
+  }
 
-  if (driveFileIdMatch && driveFileIdMatch[1]) {
-    const fileId = driveFileIdMatch[1];
-    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  // Convert Google Drive view/open/share links to direct CDN viewable links
+  if (trimmed.includes('drive.google.com') || trimmed.includes('/file/d/') || trimmed.includes('/d/')) {
+    const driveFileIdMatch =
+      trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+      trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+      trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+    if (driveFileIdMatch && driveFileIdMatch[1]) {
+      const fileId = driveFileIdMatch[1];
+      return `https://lh3.googleusercontent.com/d/${fileId}`;
+    }
   }
 
   return trimmed;
