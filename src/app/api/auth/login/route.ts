@@ -10,13 +10,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // Check if demo admin credentials
-    if (email === 'admin@electronicclub.edu' && password === 'ElectronicClub@2026') {
+    // Check if production admin credentials
+    if (email.toLowerCase() === 'rubahanponraj@gmail.com' && (password === 'rubahanponraj' || password === 'Rub26s21')) {
       return NextResponse.json({
         success: true,
-        user: { id: 'demo-admin-id', display_name: 'Demo Admin', role: 'admin' },
+        user: { id: '00000000-0000-0000-0000-000000000000', display_name: 'Rubahan Ponraj (Admin)', role: 'admin', email: 'rubahanponraj@gmail.com' },
         role: 'admin',
-        session: { access_token: 'demo-admin-token', user: { id: 'demo-admin-id', email } },
+        session: { access_token: 'admin-token', user: { id: '00000000-0000-0000-0000-000000000000', email } },
       });
     }
 
