@@ -45,17 +45,11 @@ export default function QuizEntryCard() {
 
     const fetchActiveRound = async () => {
       try {
-        const { data: round } = await supabase
-          .from('rounds')
-          .select('id, title, round_number, duration_minutes, description, show_results')
-          .eq('status', 'live')
-          .limit(1)
-          .single();
-
-        if (round) {
-          setActiveRound(round);
-        } else {
-          setActiveRound(null);
+        const res = await fetch('/api/participant/rounds');
+        if (res.ok) {
+          const data = await res.json();
+          const live = data.rounds?.find((r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing');
+          setActiveRound(live || null);
         }
       } catch {
         setActiveRound(null);
@@ -104,47 +98,28 @@ export default function QuizEntryCard() {
     sessionStorage.setItem('participant_info', JSON.stringify(participantData));
 
     try {
-      // Re-check live round at submission moment
-      const { data: currentLiveRound } = await supabase
-        .from('rounds')
-        .select('id, title, round_number')
-        .eq('status', 'live')
-        .limit(1)
-        .single();
+      // Post to /api/quiz/enter backend route
+      const res = await fetch('/api/quiz/enter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...participantData,
+          round_id: activeRound?.id || null,
+        }),
+      });
 
-      if (currentLiveRound) {
-        // If a round IS LIVE -> submit & enter the quiz test!
-        const res = await fetch('/api/quiz/enter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...participantData,
-            round_id: currentLiveRound.id,
-          }),
-        });
+      const data = await res.json();
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          if (data.alreadyAttempted) {
-            router.push(`/quiz/waiting`);
-            return;
-          }
-          throw new Error(data.error || 'Failed to enter live quiz session.');
+      if (!res.ok) {
+        if (data.alreadyAttempted) {
+          router.push(`/quiz/waiting`);
+          return;
         }
+        throw new Error(data.error || 'Failed to enter live quiz session.');
+      }
 
-        sessionStorage.setItem('quiz_session', JSON.stringify({
-          attempt_id: data.attempt_id,
-          participant_id: data.participant_id,
-          name: name.trim(),
-          register_no: registerNo.trim().toUpperCase(),
-          round_id: currentLiveRound.id,
-        }));
-
-        // Redirect immediately to the test!
-        router.push(`/quiz/test/${currentLiveRound.id}`);
-      } else {
-        // If NO round is live yet -> redirect to Waiting Room page!
+      if (data.waiting) {
+        // No live round yet -> redirect to Waiting Room
         sessionStorage.setItem('quiz_session', JSON.stringify({
           name: name.trim(),
           register_no: registerNo.trim().toUpperCase(),
@@ -152,7 +127,19 @@ export default function QuizEntryCard() {
           email: email.trim() || null,
         }));
         router.push('/quiz/waiting');
+        return;
       }
+
+      sessionStorage.setItem('quiz_session', JSON.stringify({
+        attempt_id: data.attempt_id,
+        participant_id: data.participant_id,
+        name: name.trim(),
+        register_no: registerNo.trim().toUpperCase(),
+        round_id: data.round_id,
+      }));
+
+      // Redirect immediately to the test!
+      router.push(`/quiz/test/${data.round_id}`);
     } catch (err: any) {
       setErrorMessage(err.message || 'Error recording participant details. Please try again.');
       setSubmitting(false);
