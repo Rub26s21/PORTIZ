@@ -423,12 +423,13 @@ export default function QuestionsPage({ params }: PageProps) {
                   </div>
 
                   {/* QUESTION IMAGE UPLOAD SECTION */}
-                  <div className="p-4 rounded-xl bg-black/60 border border-[rgba(168,85,247,0.3)] space-y-3">
+                  <div className="p-4 rounded-2xl bg-[rgba(0,229,255,0.05)] border border-[rgba(0,229,255,0.3)] space-y-3 shadow-lg">
                     <div className="flex items-center justify-between">
                       <label className="form-label text-xs font-bold text-white flex items-center gap-1.5">
-                        <ImageIcon size={14} className="text-[var(--aurora-cyan)]" /> Question Image / Diagram (Optional)
+                        <ImageIcon size={14} className="text-[#00E5FF]" />
+                        <span>Question Image / Diagram / Google Drive Link (Optional)</span>
                       </label>
-                      <span className="text-[10px] text-[var(--text-muted)] font-mono">Supports Drive Links & Uploads</span>
+                      <span className="text-[10px] text-[#00E5FF] font-mono font-bold">Drive & Upload Ready</span>
                     </div>
 
                     <div className="flex flex-col sm:flex-row gap-2">
@@ -436,12 +437,12 @@ export default function QuestionsPage({ params }: PageProps) {
                         type="text"
                         value={imageUrl || ''}
                         onChange={(e) => setImageUrl(formatImageUrl(e.target.value))}
-                        placeholder="Paste Google Drive share link or direct Image URL..."
-                        className="form-input text-xs flex-1 bg-black text-white border border-white/15"
+                        placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or direct image URL..."
+                        className="form-input text-xs flex-1 bg-black text-white border border-white/20"
                       />
-                      <label className="px-3.5 py-2 rounded-xl bg-[var(--aurora-purple)]/20 hover:bg-[var(--aurora-purple)]/30 border border-[var(--aurora-purple)]/40 text-white text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0">
+                      <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
                         <ImagePlus size={14} />
-                        <span>{uploadingImage ? 'Uploading...' : 'Upload File'}</span>
+                        <span>{uploadingImage ? 'Uploading...' : 'Upload Local Image'}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -453,20 +454,20 @@ export default function QuestionsPage({ params }: PageProps) {
 
                     {/* Live Circuit Diagram Image Preview */}
                     {imageUrl && (
-                      <div className="relative rounded-xl border border-[rgba(0,229,255,0.3)] bg-black/80 p-3 text-center space-y-2">
+                      <div className="relative rounded-xl border border-[rgba(0,229,255,0.4)] bg-black p-3 text-center space-y-2">
                         <img
                           src={formatImageUrl(imageUrl)}
                           alt="Question Preview"
-                          className="max-h-40 mx-auto object-contain rounded-lg border border-white/10"
+                          className="max-h-44 mx-auto object-contain rounded-lg border border-white/10 bg-black/80 p-1"
                         />
-                        <div className="flex items-center justify-between px-2 text-xs font-[family-name:var(--font-mono)] text-[var(--text-muted)]">
-                          <span className="truncate max-w-[240px] text-[var(--aurora-cyan)]">{imageUrl}</span>
+                        <div className="flex items-center justify-between px-2 text-xs font-[family-name:var(--font-mono)] text-[#94A3B8]">
+                          <span className="truncate max-w-[240px] text-[#00E5FF]">{imageUrl}</span>
                           <button
                             type="button"
                             onClick={() => setImageUrl(null)}
-                            className="text-[var(--aurora-rose)] hover:underline flex items-center gap-1 cursor-pointer font-bold"
+                            className="text-[#FF0033] hover:underline flex items-center gap-1 cursor-pointer font-bold"
                           >
-                            <X size={14} /> Remove Image
+                            <X size={14} /> Clear Image
                           </button>
                         </div>
                       </div>

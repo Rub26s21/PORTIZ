@@ -149,6 +149,35 @@ export default function QuestionsControlPage() {
     toast.success('ARDUFUSION Excel Question Template Downloaded! 📊');
   };
 
+  const handleDownloadCSVTemplate = () => {
+    const templateRows = [
+      {
+        'Questions': 'Of the four biasing circuits shown in figure, for a BJT, indicate the one which can have maximum bias stability',
+        'Image Link / Drive URL': 'https://drive.google.com/file/d/1ABC123EXAMPLE/view?usp=sharing',
+        'Figure': 'image1.png',
+        'option 1': 'Fig A',
+        'option 2': 'Fig B',
+        'option 3': 'Fig C',
+        'option 4': 'Fig D',
+        'Correct Option (1-4)': 2,
+        'Marks': 2,
+        'Negative Marks': 0.5,
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateRows);
+    const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'ARDUFUSION_question_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('ARDUFUSION CSV Question Template Downloaded! 📄');
+  };
+
   // ── 2. BULK EXCEL QUESTION UPLOAD (.xlsx / .csv) ──
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -396,12 +425,20 @@ export default function QuestionsControlPage() {
           {/* Action Bar */}
           <div className="flex flex-wrap items-center gap-3">
             <GalaxyButton variant="secondary" size="sm" onClick={handleDownloadExcelTemplate}>
-              <Download size={14} /> Download Excel Format (.xlsx)
+              <Download size={14} /> Download Excel Template (.xlsx)
             </GalaxyButton>
 
-            <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.2)] border border-[rgba(255,255,255,0.25)] text-white text-xs font-[family-name:var(--font-heading)] font-semibold transition-all">
+            <button
+              onClick={handleDownloadCSVTemplate}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.2)] text-white text-xs font-[family-name:var(--font-heading)] font-semibold transition-all cursor-pointer"
+            >
+              <FileSpreadsheet size={14} className="text-[#00E5FF]" />
+              <span>Download CSV Template (.csv)</span>
+            </button>
+
+            <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-[family-name:var(--font-heading)] font-bold transition-all shadow-md">
               <UploadCloud size={14} />
-              {uploadingExcel ? 'Uploading Excel...' : 'Bulk Excel Upload (.xlsx)'}
+              <span>{uploadingExcel ? 'Uploading Excel...' : 'Bulk Excel / CSV Upload'}</span>
               <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" disabled={uploadingExcel} />
             </label>
 
@@ -610,14 +647,15 @@ export default function QuestionsControlPage() {
                 <button onClick={() => setShowAddModal(false)} className="text-[#94A3B8] hover:text-white cursor-pointer font-bold text-lg">✕</button>
               </div>
 
-              <form onSubmit={handleSaveQuestion} className="space-y-4">
+              <form onSubmit={handleSaveQuestion} className="space-y-5">
+                {/* 1. ROUND SELECT & MARKS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="form-label text-xs text-[#E2E8F0]">Select Target Round</label>
+                    <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Competition Round</label>
                     <select
                       value={formRoundId}
                       onChange={(e) => setFormRoundId(e.target.value)}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)]"
+                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
                     >
                       {rounds.map((r) => (
                         <option key={r.id} value={r.id}>Round #{r.round_number}: {r.title}</option>
@@ -626,54 +664,60 @@ export default function QuestionsControlPage() {
                   </div>
 
                   <div>
-                    <label className="form-label text-xs text-[#E2E8F0]">Marks & Negative</label>
+                    <label className="form-label text-xs text-[#E2E8F0] font-bold">Marks & Negative Penalty</label>
                     <div className="flex gap-2">
                       <input
                         type="number"
-                        placeholder="Marks"
+                        placeholder="Marks (+)"
                         value={formMarks}
                         onChange={(e) => setFormMarks(Number(e.target.value))}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)]"
+                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                       />
                       <input
                         type="number"
-                        placeholder="Negative"
+                        placeholder="Negative (-)"
                         value={formNegativeMarks}
                         onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)]"
+                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                       />
                     </div>
                   </div>
                 </div>
 
+                {/* 2. QUESTION STATEMENT */}
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0]">Question Text</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Statement / Problem Text</label>
                   <textarea
                     rows={3}
                     value={formText}
                     onChange={(e) => setFormText(e.target.value)}
-                    placeholder="Enter full question statement..."
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-sm"
+                    placeholder="Enter complete question text or problem statement..."
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-sm"
+                    required
                   />
                 </div>
 
-                {/* CIRCUIT DIAGRAM / IMAGE ATTACHMENT */}
-                <div className="p-3 rounded-xl bg-black/60 border border-white/12 space-y-2">
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold block flex items-center justify-between">
-                    <span>⚡ Circuit Schematic / Diagram Image</span>
-                    <span className="text-[10px] text-[#94A3B8] font-normal">Supports URL, local path, or File Upload</span>
-                  </label>
-                  
-                  <div className="flex gap-2">
+                {/* 3. PROMINENT QUESTION DIAGRAM / GOOGLE DRIVE LINK / IMAGE UPLOAD */}
+                <div className="p-4 rounded-2xl bg-[rgba(0,229,255,0.05)] border border-[rgba(0,229,255,0.3)] space-y-3 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <label className="form-label text-xs text-white font-bold flex items-center gap-2">
+                      <span className="p-1 rounded bg-[#00E5FF]/20 text-[#00E5FF]">⚡</span>
+                      <span>Question Image / Circuit Diagram / Google Drive Link (Optional)</span>
+                    </label>
+                    <span className="text-[10px] text-[#00E5FF] font-mono font-bold">Google Drive & Local File Ready</span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={formImageUrl}
                       onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
-                      placeholder="Paste Google Drive share link or Image URL..."
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs flex-1"
+                      placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or direct image URL..."
+                      className="form-input bg-black text-white border border-white/20 text-xs flex-1"
                     />
-                    <label className="px-3 py-2 rounded-xl bg-[#0066FF]/20 hover:bg-[#0066FF]/30 border border-[#0066FF]/40 text-white text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0">
-                      <span>📁 Upload File</span>
+                    <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
+                      <UploadCloud size={14} />
+                      <span>Upload Local Image</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -685,7 +729,7 @@ export default function QuestionsControlPage() {
                             reader.onload = (evt) => {
                               if (evt.target?.result) {
                                 setFormImageUrl(evt.target.result as string);
-                                toast.success('Circuit diagram attached! 🖼️');
+                                toast.success('Image attached successfully! 🖼️');
                               }
                             };
                             reader.readAsDataURL(file);
@@ -695,9 +739,9 @@ export default function QuestionsControlPage() {
                     </label>
                   </div>
 
-                  {/* Preset ARDUFUSION circuit schematic images */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    <span className="text-[10px] text-[#94A3B8] mr-1 self-center">Quick Select:</span>
+                  {/* Quick Select Presets */}
+                  <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                    <span className="text-[10px] text-[#94A3B8] font-mono mr-1">Preset Schematics:</span>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((num) => (
                       <button
                         key={num}
@@ -705,7 +749,7 @@ export default function QuestionsControlPage() {
                         onClick={() => setFormImageUrl(`/uploads/questions/image${num}.png`)}
                         className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
                           formImageUrl === `/uploads/questions/image${num}.png`
-                            ? 'bg-[#FF0033]/30 border-[#FF0033] text-white font-bold'
+                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-white font-bold'
                             : 'bg-white/5 border-white/10 text-[#94A3B8] hover:text-white'
                         }`}
                       >
@@ -714,30 +758,33 @@ export default function QuestionsControlPage() {
                     ))}
                   </div>
 
-                  {/* Live Circuit Diagram Image Preview */}
+                  {/* Live Diagram Image Preview */}
                   {formImageUrl && (
-                    <div className="mt-2 p-2 rounded-lg bg-black border border-white/15 text-center">
-                      <div className="flex items-center justify-between px-1 mb-1">
-                        <span className="text-[10px] text-[#00E5FF] font-mono block">Live Image Preview:</span>
+                    <div className="mt-2 p-3 rounded-xl bg-black border border-[rgba(0,229,255,0.4)] text-center space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] text-[#00E5FF] font-mono font-bold flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Image Attached & Ready Preview:
+                        </span>
                         <button
                           type="button"
                           onClick={() => setFormImageUrl('')}
-                          className="text-xs text-[#FF0033] hover:underline cursor-pointer"
+                          className="text-xs text-[#FF0033] hover:underline font-bold cursor-pointer"
                         >
-                          Clear Image
+                          ✕ Clear Image
                         </button>
                       </div>
                       <img
                         src={formatImageUrl(formImageUrl)}
                         alt="Circuit Diagram Preview"
-                        className="max-h-40 mx-auto object-contain rounded border border-white/10"
+                        className="max-h-44 mx-auto object-contain rounded-lg border border-white/10 bg-black/80 p-1"
                       />
                     </div>
                   )}
                 </div>
 
+                {/* 4. MULTIPLE CHOICE OPTIONS */}
                 <div className="space-y-2">
-                  <label className="form-label text-xs text-[#E2E8F0]">Multiple Choice Options (Select Correct Index)</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Multiple Choice Options (Select Correct Answer Radio)</label>
                   {formOptions.map((opt, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <input
@@ -745,9 +792,9 @@ export default function QuestionsControlPage() {
                         name="correctOpt"
                         checked={formCorrectIndex === idx}
                         onChange={() => setFormCorrectIndex(idx)}
-                        className="w-4 h-4 accent-white cursor-pointer"
+                        className="w-4 h-4 accent-[#00E5FF] cursor-pointer"
                       />
-                      <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6">{String.fromCharCode(65 + idx)}.</span>
+                      <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6 font-bold">{String.fromCharCode(65 + idx)}.</span>
                       <input
                         type="text"
                         value={opt}
@@ -757,24 +804,26 @@ export default function QuestionsControlPage() {
                           setFormOptions(updated);
                         }}
                         placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs flex-1"
+                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs flex-1"
                       />
                     </div>
                   ))}
                 </div>
 
+                {/* 5. EXPLANATION */}
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0]">Explanation (Optional)</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Explanation / Solution Reference (Optional)</label>
                   <input
                     type="text"
                     value={formExplanation}
                     onChange={(e) => setFormExplanation(e.target.value)}
                     placeholder="Provide solution breakdown or reference..."
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs"
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-2">
+                {/* MODAL FOOTER */}
+                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
                   <GalaxyButton variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
                     Cancel
                   </GalaxyButton>
