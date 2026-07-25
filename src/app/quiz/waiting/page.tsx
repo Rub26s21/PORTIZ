@@ -30,21 +30,20 @@ export default function ParticipantWaitingPage() {
     const checkLiveRound = async () => {
       setChecking(true);
       try {
-        const { data: liveRound } = await supabase
-          .from('rounds')
-          .select('id, title, round_number')
-          .eq('status', 'live')
-          .limit(1)
-          .single();
+        const res = await fetch('/api/participant/rounds');
+        if (res.ok) {
+          const data = await res.json();
+          const liveRound = data.rounds?.find((r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing');
 
-        if (liveRound) {
-          setLiveRoundTitle(liveRound.title);
-          // Automatically redirect participant to test when round starts!
-          setTimeout(() => {
-            router.push(`/quiz/test/${liveRound.id}`);
-          }, 1200);
-        } else {
-          setLiveRoundTitle(null);
+          if (liveRound) {
+            setLiveRoundTitle(liveRound.title);
+            // Automatically redirect participant to test when round starts!
+            setTimeout(() => {
+              router.push(`/quiz/test/${liveRound.id}`);
+            }, 1200);
+          } else {
+            setLiveRoundTitle(null);
+          }
         }
       } catch (err) {
         console.warn('Checking live round status:', err);
