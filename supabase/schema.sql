@@ -121,3 +121,45 @@ CREATE TABLE IF NOT EXISTS proctor_events (
   event_type TEXT NOT NULL,
   occurred_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- =============================================
+-- Row Level Security (RLS) Policies
+-- Run this block in Supabase SQL Editor
+-- =============================================
+
+ALTER TABLE public.rounds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.round_eligibility ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.proctor_events ENABLE ROW LEVEL SECURITY;
+
+-- Rounds Policies
+DROP POLICY IF EXISTS "Allow all on rounds" ON public.rounds;
+CREATE POLICY "Allow all on rounds" ON public.rounds FOR ALL USING (true) WITH CHECK (true);
+
+-- Questions Policies
+DROP POLICY IF EXISTS "Allow all on questions" ON public.questions;
+CREATE POLICY "Allow all on questions" ON public.questions FOR ALL USING (true) WITH CHECK (true);
+
+-- Attempts Policies
+DROP POLICY IF EXISTS "Allow all on attempts" ON public.attempts;
+CREATE POLICY "Allow all on attempts" ON public.attempts FOR ALL USING (true) WITH CHECK (true);
+
+-- Responses Policies
+DROP POLICY IF EXISTS "Allow all on responses" ON public.responses;
+CREATE POLICY "Allow all on responses" ON public.responses FOR ALL USING (true) WITH CHECK (true);
+
+-- Profiles Policies
+DROP POLICY IF EXISTS "Allow all on profiles" ON public.profiles;
+CREATE POLICY "Allow all on profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+
+-- Round Eligibility Policies
+DROP POLICY IF EXISTS "Allow all on round_eligibility" ON public.round_eligibility;
+CREATE POLICY "Allow all on round_eligibility" ON public.round_eligibility FOR ALL USING (true) WITH CHECK (true);
+
+-- Proctor Events Policies
+DROP POLICY IF EXISTS "Allow all on proctor_events" ON public.proctor_events;
+CREATE POLICY "Allow all on proctor_events" ON public.proctor_events FOR ALL USING (true) WITH CHECK (true);
+
