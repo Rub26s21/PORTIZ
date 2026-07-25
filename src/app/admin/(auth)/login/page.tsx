@@ -161,7 +161,7 @@ export default function CleanAdminLoginPage() {
                 <input
                   {...register('email')}
                   type="email"
-                  placeholder="admin@electronicclub.edu"
+                  placeholder="rubahanponraj@gmail.com"
                   className="w-full bg-[#000000] border border-[rgba(255,255,255,0.2)] rounded-xl px-4 py-3 text-sm text-[#FFFFFF] outline-none focus:border-white transition-all"
                   style={{ fontFamily: '"Times New Roman", Times, serif' }}
                 />
@@ -216,26 +216,6 @@ export default function CleanAdminLoginPage() {
                 {isLoading ? <Logo3DSpinner size="xs" /> : 'SIGN IN TO DASHBOARD'}
               </button>
             </form>
-
-            {/* Divider */}
-            <div className="h-[1px] bg-[rgba(255,255,255,0.1)] my-6" />
-
-            {/* ═══ BOTTOM QUICK / DEMO LOGIN OPTIONS ═══ */}
-            <div className="space-y-3">
-              <span className="block text-center text-xs text-[#94A3B8]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                Quick Administrative Options:
-              </span>
-
-              <button
-                type="button"
-                onClick={autofillAndLoginDemo}
-                className="w-full py-2.5 px-4 rounded-xl bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.15)] text-[#FFFFFF] text-xs font-semibold tracking-wide transition-all cursor-pointer flex items-center justify-center gap-2"
-                style={{ fontFamily: '"Times New Roman", Times, serif' }}
-              >
-                <Zap size={14} className="text-white" /> Quick Demo Admin Sign In
-              </button>
-            </div>
-
           </div>
         </motion.div>
       </main>

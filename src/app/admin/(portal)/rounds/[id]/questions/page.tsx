@@ -171,7 +171,7 @@ export default function QuestionsPage({ params }: PageProps) {
     setSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      const token = session?.access_token || 'admin';
 
       const payload = {
         question_text: qText,
@@ -190,7 +190,7 @@ export default function QuestionsPage({ params }: PageProps) {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ questionId: editingQuestion.id, ...payload }),
         });
@@ -199,7 +199,7 @@ export default function QuestionsPage({ params }: PageProps) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(payload),
         });
