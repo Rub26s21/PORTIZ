@@ -174,6 +174,13 @@ export default function QuestionsControlPage() {
         return;
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Authentication session expired. Please log in again.');
+        setUploadingExcel(false);
+        return;
+      }
+
       let insertedCount = 0;
       let rowIndex = 0;
       for (const row of rawJson) {
@@ -220,8 +227,16 @@ export default function QuestionsControlPage() {
           explanation: explanation,
         };
 
-        const { error } = await supabase.from('questions').insert([newQuestionPayload]);
-        if (!error) insertedCount++;
+        const res = await fetch(`/api/admin/rounds/${matchedRound.id}/questions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(newQuestionPayload),
+        });
+
+        if (res.ok) insertedCount++;
       }
 
       toast.success(`Bulk Upload Complete! ${insertedCount} ARDUFUSION questions imported successfully! 🚀`);
@@ -244,6 +259,12 @@ export default function QuestionsControlPage() {
 
     setSubmitting(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        return;
+      }
+
       const payload = {
         round_id: formRoundId,
         question_type: formType,
@@ -258,17 +279,28 @@ export default function QuestionsControlPage() {
         explanation: formExplanation,
       };
 
-      if (editingQ) {
-        const { error } = await supabase
-          .from('questions')
-          .update(payload)
-          .eq('id', editingQ.id);
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      };
 
-        if (error) throw error;
+      if (editingQ) {
+        const res = await fetch(`/api/admin/rounds/${formRoundId}/questions`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ questionId: editingQ.id, ...payload }),
+        });
+
+        if (!res.ok) throw new Error('Failed to update question');
         toast.success('Question updated successfully! ✏️');
       } else {
-        const { error } = await supabase.from('questions').insert([payload]);
-        if (error) throw error;
+        const res = await fetch(`/api/admin/rounds/${formRoundId}/questions`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error('Failed to create question');
         toast.success('New Question created! ➕');
       }
 
@@ -285,8 +317,17 @@ export default function QuestionsControlPage() {
   const handleDeleteQuestion = async (qId: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
     try {
-      const { error } = await supabase.from('questions').delete().eq('id', qId);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/admin/rounds/${formRoundId || 'all'}/questions?questionId=${qId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) throw new Error('Failed to delete question');
       toast.success('Question deleted');
       fetchData();
     } catch {

@@ -57,15 +57,16 @@ export default function RoundsManagementPage() {
   const fetchRounds = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('rounds')
-        .select('*')
-        .order('round_number', { ascending: true });
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = session ? { Authorization: `Bearer ${session.access_token}` } : {};
 
-      if (error) throw error;
-      if (data) {
-        setRounds(data);
-        setRoundNumber(data.length + 1);
+      const res = await fetch('/api/admin/rounds', { headers });
+      if (!res.ok) throw new Error('Failed to fetch rounds');
+
+      const data = await res.json();
+      if (data.rounds) {
+        setRounds(data.rounds);
+        setRoundNumber(data.rounds.length + 1);
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load competition rounds');
@@ -78,7 +79,7 @@ export default function RoundsManagementPage() {
     fetchRounds();
   }, [fetchRounds]);
 
-  // ── 1. CREATE / EDIT ROUND WITH TIMING ──
+  // ── 1. CREATE / EDIT ROUND ──
   const handleSaveRound = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -88,36 +89,38 @@ export default function RoundsManagementPage() {
 
     setSubmitting(true);
     try {
-      // Calculate end time from start time and duration if manual end time not specified
-      const sTimeDate = startTime ? new Date(startTime) : new Date();
-      const calculatedEnd = manualEndTime
-        ? new Date(manualEndTime).toISOString()
-        : new Date(sTimeDate.getTime() + durationMinutes * 60000).toISOString();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Authentication session expired. Please log in again.');
+        return;
+      }
 
       const payload = {
         round_number: roundNumber,
         title: title,
         description: description,
         duration_minutes: Number(durationMinutes),
-        start_time: startTime ? new Date(startTime).toISOString() : new Date().toISOString(),
-        end_time: calculatedEnd,
         status: status,
       };
 
-      if (editingRound) {
-        const { error } = await supabase
-          .from('rounds')
-          .update(payload)
-          .eq('id', editingRound.id);
+      const url = editingRound ? `/api/admin/rounds/${editingRound.id}` : '/api/admin/rounds';
+      const method = editingRound ? 'PUT' : 'POST';
 
-        if (error) throw error;
-        toast.success(`Round #${roundNumber} timing and details updated! ⏱️`);
-      } else {
-        const { error } = await supabase.from('rounds').insert([payload]);
-        if (error) throw error;
-        toast.success(`Round #${roundNumber} created successfully! 🚀`);
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to save round');
       }
 
+      toast.success(editingRound ? `Round #${roundNumber} updated!` : `Round #${roundNumber} created successfully! 🚀`);
       setShowModal(false);
       fetchRounds();
     } catch (err: any) {
@@ -136,12 +139,19 @@ export default function RoundsManagementPage() {
     );
 
     try {
-      const { error } = await supabase
-        .from('rounds')
-        .update({ duration_minutes: newDuration })
-        .eq('id', round.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-      if (error) throw error;
+      const res = await fetch(`/api/admin/rounds/${round.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ duration_minutes: newDuration }),
+      });
+
+      if (!res.ok) throw new Error();
       toast.success(`Round #${round.round_number} duration updated to ${newDuration} mins! ⏱️`);
     } catch {
       toast.error('Failed to update round duration');
@@ -149,22 +159,25 @@ export default function RoundsManagementPage() {
     }
   };
 
-  // ── 3. MANUAL END ROUND (INSTANT CLOSURE AT SPECIFIC TIME OR NOW) ──
+  // ── 3. MANUAL END ROUND ──
   const handleManualEndRound = async () => {
     if (!manualEndRound) return;
     setManualEnding(true);
 
-    const nowIso = new Date().toISOString();
     try {
-      const { error } = await supabase
-        .from('rounds')
-        .update({
-          status: 'closed',
-          end_time: nowIso,
-        })
-        .eq('id', manualEndRound.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-      if (error) throw error;
+      const res = await fetch(`/api/admin/rounds/${manualEndRound.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ status: 'closed' }),
+      });
+
+      if (!res.ok) throw new Error();
 
       toast.success(`Round #${manualEndRound.round_number} ("${manualEndRound.title}") HAS BEEN MANUALLY ENDED! 🛑`);
       setManualEndRound(null);
@@ -179,22 +192,19 @@ export default function RoundsManagementPage() {
   // ── 4. ACTIVATE / START ROUND LIVE ──
   const handleActivateRound = async (round: CompetitionRound) => {
     try {
-      // First, set any other live round to closed or published
-      await supabase.from('rounds').update({ status: 'closed' }).eq('status', 'live');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
 
-      const nowIso = new Date().toISOString();
-      const endIso = new Date(Date.now() + round.duration_minutes * 60000).toISOString();
+      const res = await fetch(`/api/admin/rounds/${round.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ status: 'live' }),
+      });
 
-      const { error } = await supabase
-        .from('rounds')
-        .update({
-          status: 'live',
-          start_time: nowIso,
-          end_time: endIso,
-        })
-        .eq('id', round.id);
-
-      if (error) throw error;
+      if (!res.ok) throw new Error();
 
       toast.success(`Round #${round.round_number} IS NOW LIVE! 🟢 Timer started (${round.duration_minutes} mins)`);
       fetchRounds();
@@ -207,8 +217,17 @@ export default function RoundsManagementPage() {
   const handleDeleteRound = async (roundId: string) => {
     if (!confirm('Are you sure you want to delete this round? All associated questions will remain.')) return;
     try {
-      const { error } = await supabase.from('rounds').delete().eq('id', roundId);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/admin/rounds/${roundId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!res.ok) throw new Error();
       toast.success('Round deleted');
       fetchRounds();
     } catch {
