@@ -25,14 +25,9 @@ export async function POST(
     return NextResponse.json({ error: 'Round not found' }, { status: 404 });
   }
 
-  // Check round is live
+  // Check round is live (admin has manually started it)
   if (round.status !== 'live') {
     return NextResponse.json({ error: 'Round is not currently live' }, { status: 400 });
-  }
-
-  const now = new Date();
-  if (now < new Date(round.start_time) || now > new Date(round.end_time)) {
-    return NextResponse.json({ error: 'Round is outside its active time window' }, { status: 400 });
   }
 
   // Check eligibility if round requires promotion

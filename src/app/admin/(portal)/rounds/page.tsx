@@ -130,17 +130,15 @@ export default function RoundsManagementPage() {
   // ── 2. QUICK DURATION UPDATE ──
   const handleQuickDurationChange = async (round: CompetitionRound, deltaMinutes: number) => {
     const newDuration = Math.max(1, (round.duration_minutes || 30) + deltaMinutes);
-    const sDate = new Date(round.start_time || Date.now());
-    const newEnd = new Date(sDate.getTime() + newDuration * 60000).toISOString();
 
     setRounds((prev) =>
-      prev.map((r) => (r.id === round.id ? { ...r, duration_minutes: newDuration, end_time: newEnd } : r))
+      prev.map((r) => (r.id === round.id ? { ...r, duration_minutes: newDuration } : r))
     );
 
     try {
       const { error } = await supabase
         .from('rounds')
-        .update({ duration_minutes: newDuration, end_time: newEnd })
+        .update({ duration_minutes: newDuration })
         .eq('id', round.id);
 
       if (error) throw error;
@@ -475,19 +473,19 @@ export default function RoundsManagementPage() {
 
                         <div className="p-2.5 px-3 rounded-xl bg-[#000000] border border-[rgba(255,255,255,0.1)]">
                           <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase block">
-                            Scheduled Start:
+                            Started At:
                           </span>
                           <span className="font-[family-name:var(--font-mono)] text-xs text-[#FFFFFF] block mt-0.5">
-                            {round.start_time ? new Date(round.start_time).toLocaleString('en-IN') : 'Not Set'}
+                            {(round as any).started_at ? new Date((round as any).started_at).toLocaleString('en-IN') : 'Not Started'}
                           </span>
                         </div>
 
                         <div className="p-2.5 px-3 rounded-xl bg-[#000000] border border-[rgba(255,255,255,0.1)]">
                           <span className="font-[family-name:var(--font-heading)] text-[10px] text-[#94A3B8] uppercase block">
-                            Manual / Scheduled End Time:
+                            Ended At:
                           </span>
                           <span className="font-[family-name:var(--font-mono)] text-xs text-[#FFFFFF] block mt-0.5">
-                            {round.end_time ? new Date(round.end_time).toLocaleString('en-IN') : 'Calculated on Start'}
+                            {(round as any).ended_at ? new Date((round as any).ended_at).toLocaleString('en-IN') : 'Still Open'}
                           </span>
                         </div>
                       </div>
