@@ -8,6 +8,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import QuizTimer from '@/components/quiz/QuizTimer';
 import Logo from '@/components/shared/Logo';
+import { formatImageUrl } from '@/lib/utils';
 import {
   Bookmark, CheckCircle2, XCircle, CheckCircle, Loader2,
   AlertTriangle, HelpCircle, FileText
@@ -472,14 +473,14 @@ export default function QuizTestPage({ params }: PageProps) {
                   {currentQuestion.image_url && (
                     <div
                       className="mt-4 mb-4 p-3 rounded-xl bg-black/60 border border-[rgba(255,255,255,0.12)] flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all"
-                      onClick={() => setZoomImage(currentQuestion.image_url || null)}
+                      onClick={() => setZoomImage(formatImageUrl(currentQuestion.image_url))}
                     >
                       <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
                         <span>⚡ Circuit Schematic Diagram / Figure</span>
                         <span className="text-[#00E5FF] group-hover:underline">🔍 Click to Expand</span>
                       </div>
                       <img
-                        src={currentQuestion.image_url}
+                        src={formatImageUrl(currentQuestion.image_url)}
                         alt={currentQuestion.image_alt || 'Question Image'}
                         className="max-h-[280px] object-contain rounded-xl border border-white/10 bg-black/80 p-2 shadow-lg"
                         loading="lazy"

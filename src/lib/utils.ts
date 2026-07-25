@@ -96,3 +96,26 @@ export function getInitials(name: string): string {
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// Format and transform Google Drive or standard image URLs into direct display URLs
+export function formatImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+
+  // Convert Google Drive view/open/share links to direct CDN viewable links
+  // Examples:
+  // https://drive.google.com/file/d/1ABC123/view?usp=sharing
+  // https://drive.google.com/open?id=1ABC123
+  // https://drive.google.com/uc?id=1ABC123
+  const driveFileIdMatch =
+    trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/) ||
+    trimmed.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+  if (driveFileIdMatch && driveFileIdMatch[1]) {
+    const fileId = driveFileIdMatch[1];
+    return `https://lh3.googleusercontent.com/d/${fileId}`;
+  }
+
+  return trimmed;
+}
