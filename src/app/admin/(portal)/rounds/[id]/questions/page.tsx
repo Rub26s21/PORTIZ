@@ -12,7 +12,39 @@ import { Question, QuestionType } from '@/types/database';
 import {
   Plus, Trash2, Edit2, UploadCloud, ArrowLeft, X, ImagePlus, Image as ImageIcon
 } from 'lucide-react';
-import Papa from 'papaparse';
+import { formatImageUrl } from '@/lib/utils';
+
+// inside component:
+  const handleDownloadCSVTemplate = () => {
+    const templateData = [
+      {
+        'Question Text': 'Identify the active microcontroller on the Arduino Uno development board shown in the diagram.',
+        'Question Type': 'mcq',
+        'option 1': 'ATmega328P',
+        'option 2': 'ATmega2560',
+        'option 3': 'ESP32',
+        'option 4': 'STM32F103',
+        'Correct Option (1-4)': 1,
+        'Marks': 2,
+        'Negative Marks': 0.5,
+        'Image Link / Drive URL': 'https://drive.google.com/file/d/1ABC123EXAMPLE/view?usp=sharing',
+        'Category': 'Arduino & Microcontrollers',
+        'Difficulty': 'medium',
+        'Explanation': 'ATmega328P is the standard 8-bit AVR microcontroller on Arduino Uno.',
+      },
+    ];
+
+    const csv = Papa.unparse(templateData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'Question_Bank_Template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Question CSV Template Downloaded! 📊');
+  };
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -262,7 +294,10 @@ export default function QuestionsPage({ params }: PageProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <GalaxyButton variant="secondary" size="sm" type="button" onClick={handleDownloadCSVTemplate}>
+              <UploadCloud size={14} /> Download Template
+            </GalaxyButton>
             <label className="cursor-pointer">
               <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
               <GalaxyButton variant="secondary" size="sm" type="button">
@@ -388,45 +423,53 @@ export default function QuestionsPage({ params }: PageProps) {
                   </div>
 
                   {/* QUESTION IMAGE UPLOAD SECTION */}
-                  <div className="space-y-2">
-                    <label className="form-label text-xs">Question Image (Optional)</label>
+                  <div className="p-4 rounded-xl bg-black/60 border border-[rgba(168,85,247,0.3)] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="form-label text-xs font-bold text-white flex items-center gap-1.5">
+                        <ImageIcon size={14} className="text-[var(--aurora-cyan)]" /> Question Image / Diagram (Optional)
+                      </label>
+                      <span className="text-[10px] text-[var(--text-muted)] font-mono">Supports Drive Links & Uploads</span>
+                    </div>
 
-                    {imageUrl ? (
-                      <div className="relative rounded-xl border border-[rgba(168,85,247,0.3)] bg-black/40 p-3 text-center space-y-2">
-                        <img src={imageUrl} alt="Uploaded Preview" className="max-h-36 mx-auto object-contain rounded-lg" />
-                        <div className="flex items-center justify-between px-2 text-xs font-[family-name:var(--font-body)] text-[var(--text-muted)]">
-                          <span className="truncate max-w-[200px] text-[var(--aurora-cyan)]">Image Attached</span>
-                          <button type="button" onClick={() => setImageUrl(null)} className="text-[var(--aurora-rose)] hover:underline flex items-center gap-1 cursor-pointer">
-                            <X size={12} /> Remove Image
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative rounded-xl border-2 border-dashed border-[rgba(168,85,247,0.3)] hover:border-[rgba(168,85,247,0.6)] bg-[rgba(168,85,247,0.05)] p-5 text-center transition-colors cursor-pointer">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={imageUrl || ''}
+                        onChange={(e) => setImageUrl(formatImageUrl(e.target.value))}
+                        placeholder="Paste Google Drive share link or direct Image URL..."
+                        className="form-input text-xs flex-1 bg-black text-white border border-white/15"
+                      />
+                      <label className="px-3.5 py-2 rounded-xl bg-[var(--aurora-purple)]/20 hover:bg-[var(--aurora-purple)]/30 border border-[var(--aurora-purple)]/40 text-white text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0">
+                        <ImagePlus size={14} />
+                        <span>{uploadingImage ? 'Uploading...' : 'Upload File'}</span>
                         <input
                           type="file"
                           accept="image/*"
                           onChange={handleImageFileChange}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          className="hidden"
                         />
-                        <ImagePlus size={28} className="mx-auto text-[var(--aurora-purple)] opacity-60 mb-2" />
-                        <p className="font-[family-name:var(--font-body)] text-xs text-[var(--text-muted)] font-light">
-                          {uploadingImage ? 'Uploading Image...' : 'Click or drag image file here'}
-                        </p>
-                        <p className="font-[family-name:var(--font-mono)] text-[10px] text-[var(--text-dim)] mt-1">
-                          PNG, JPG, WebP · Max 2MB
-                        </p>
-                      </div>
-                    )}
+                      </label>
+                    </div>
 
+                    {/* Live Circuit Diagram Image Preview */}
                     {imageUrl && (
-                      <input
-                        type="text"
-                        value={imageAlt}
-                        onChange={(e) => setImageAlt(e.target.value)}
-                        placeholder="Image description / alt text for accessibility..."
-                        className="form-input text-xs"
-                      />
+                      <div className="relative rounded-xl border border-[rgba(0,229,255,0.3)] bg-black/80 p-3 text-center space-y-2">
+                        <img
+                          src={formatImageUrl(imageUrl)}
+                          alt="Question Preview"
+                          className="max-h-40 mx-auto object-contain rounded-lg border border-white/10"
+                        />
+                        <div className="flex items-center justify-between px-2 text-xs font-[family-name:var(--font-mono)] text-[var(--text-muted)]">
+                          <span className="truncate max-w-[240px] text-[var(--aurora-cyan)]">{imageUrl}</span>
+                          <button
+                            type="button"
+                            onClick={() => setImageUrl(null)}
+                            className="text-[var(--aurora-rose)] hover:underline flex items-center gap-1 cursor-pointer font-bold"
+                          >
+                            <X size={14} /> Remove Image
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 

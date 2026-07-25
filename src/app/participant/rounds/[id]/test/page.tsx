@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { initAntiCheat, ViolationType } from '@/lib/anti-cheat';
-import { formatDuration, getTimeRemaining } from '@/lib/utils';
+import { formatDuration, getTimeRemaining, formatImageUrl } from '@/lib/utils';
 import { QuestionWithoutAnswer, AnswerValue } from '@/types/quiz';
-import { Clock, Send, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { Clock, Send, ChevronLeft, ChevronRight, Flag, X, Maximize2 } from 'lucide-react';
 import GlowButton from '@/components/shared/GlowButton';
 import GlassCard from '@/components/shared/GlassCard';
 
@@ -18,6 +18,7 @@ export default function TestPage() {
   const [questions, setQuestions] = useState<QuestionWithoutAnswer[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, AnswerValue | null>>({});
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(new Set());
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [startedAt, setStartedAt] = useState('');
@@ -142,8 +143,6 @@ export default function TestPage() {
   const currentQuestion = questions[currentIndex];
   const answeredCount = Object.values(answers).filter(a => a !== null && a !== undefined).length;
 
-  const [zoomImage, setZoomImage] = useState<string | null>(null);
-
   return (
     <div className="min-h-screen bg-[var(--space-void)] text-[var(--text-primary)] flex flex-col select-none relative z-50">
       {/* Zoom Image Modal */}
@@ -245,13 +244,15 @@ export default function TestPage() {
 
               {/* Circuit Schematic Diagram / Figure */}
               {currentQuestion.image_url && (
-                <div className="mb-8 p-4 rounded-2xl bg-black/60 border border-white/12 flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all" onClick={() => setZoomImage(currentQuestion.image_url || null)}>
+                <div className="mb-8 p-4 rounded-2xl bg-black/60 border border-white/12 flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all" onClick={() => setZoomImage(formatImageUrl(currentQuestion.image_url))}>
                   <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
                     <span>⚡ Circuit Schematic Diagram / Figure</span>
-                    <span className="text-[#00E5FF] group-hover:underline">🔍 Click to Expand</span>
+                    <span className="text-[#00E5FF] group-hover:underline flex items-center gap-1">
+                      <Maximize2 size={12} /> Click to Expand
+                    </span>
                   </div>
                   <img
-                    src={currentQuestion.image_url}
+                    src={formatImageUrl(currentQuestion.image_url)}
                     alt={currentQuestion.image_alt || 'Circuit Diagram'}
                     className="max-h-64 object-contain rounded-xl border border-white/10 bg-black/80 p-2 shadow-lg"
                   />
@@ -392,6 +393,25 @@ export default function TestPage() {
               </GlowButton>
             </div>
           </GlassCard>
+        </div>
+      )}
+
+      {/* HIGH-RES LIGHTBOX IMAGE ZOOM MODAL */}
+      {zoomImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setZoomImage(null)}>
+          <div className="relative max-w-5xl max-h-[90vh] p-2 bg-black border border-white/20 rounded-2xl flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setZoomImage(null)}
+              className="absolute top-3 right-3 p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer z-10"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={formatImageUrl(zoomImage)}
+              alt="High Res Circuit Diagram"
+              className="max-h-[85vh] max-w-full object-contain rounded-xl"
+            />
+          </div>
         </div>
       )}
     </div>

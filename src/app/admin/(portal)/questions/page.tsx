@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import FadeIn from '@/components/shared/FadeIn';
+import { formatImageUrl } from '@/lib/utils';
 import {
   HelpCircle, Plus, UploadCloud, Download, FileSpreadsheet,
   Search, Trash2, Edit3, CheckCircle2, RefreshCw, FileText
@@ -99,10 +100,12 @@ export default function QuestionsControlPage() {
   }, [fetchData]);
 
   // ── 1. DOWNLOAD ARDUFUSION EXCEL QUESTION TEMPLATE (.xlsx) ──
+
   const handleDownloadExcelTemplate = () => {
     const templateRows = [
       {
         'Questions': 'Of the four biasing circuits shown in figure, for a BJT, indicate the one which can have maximum bias stability',
+        'Image Link / Drive URL': 'https://drive.google.com/file/d/1ABC123EXAMPLE/view?usp=sharing',
         'Figure': 'image1.png',
         'option 1': 'Fig A',
         'option 2': 'Fig B',
@@ -114,6 +117,7 @@ export default function QuestionsControlPage() {
       },
       {
         'Questions': 'Determine Vo in the circuit below.',
+        'Image Link / Drive URL': 'https://drive.google.com/file/d/1XYZ456EXAMPLE/view?usp=sharing',
         'Figure': 'image2.png',
         'option 1': '24V',
         'option 2': '1V',
@@ -123,22 +127,12 @@ export default function QuestionsControlPage() {
         'Marks': 2,
         'Negative Marks': 0.5,
       },
-      {
-        'Questions': 'What is the voltage on capacitor C2 when all three switches are turned on?',
-        'Figure': 'image3.png',
-        'option 1': '16V',
-        'option 2': '20V',
-        'option 3': '12V',
-        'option 4': '10V',
-        'Correct Option (1-4)': 1,
-        'Marks': 2,
-        'Negative Marks': 0.5,
-      },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateRows);
     worksheet['!cols'] = [
       { wch: 55 },
+      { wch: 40 },
       { wch: 15 },
       { wch: 20 },
       { wch: 20 },
@@ -204,8 +198,9 @@ export default function QuestionsControlPage() {
         const category = row['Category'] || 'Arduino / Electronics';
         const explanation = row['Explanation'] || '';
 
-        // Auto-assign corresponding circuit image from ARDUFUSION.xlsx if present
-        let imageUrl = row['Figure'] || row['image_url'] || null;
+        // Auto-assign image link from Excel/CSV column or figure
+        let rawImageUrl = row['Image Link / Drive URL'] || row['Image Link'] || row['Drive Link'] || row['Figure'] || row['image_url'] || null;
+        let imageUrl = rawImageUrl ? formatImageUrl(String(rawImageUrl)) : null;
         if (!imageUrl && rowIndex <= 14) {
           imageUrl = `/uploads/questions/image${rowIndex}.png`;
         }
@@ -673,8 +668,8 @@ export default function QuestionsControlPage() {
                     <input
                       type="text"
                       value={formImageUrl}
-                      onChange={(e) => setFormImageUrl(e.target.value)}
-                      placeholder="e.g. /uploads/questions/image1.png or https://..."
+                      onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
+                      placeholder="Paste Google Drive share link or Image URL..."
                       className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.15)] text-xs flex-1"
                     />
                     <label className="px-3 py-2 rounded-xl bg-[#0066FF]/20 hover:bg-[#0066FF]/30 border border-[#0066FF]/40 text-white text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 flex-shrink-0">
@@ -722,9 +717,18 @@ export default function QuestionsControlPage() {
                   {/* Live Circuit Diagram Image Preview */}
                   {formImageUrl && (
                     <div className="mt-2 p-2 rounded-lg bg-black border border-white/15 text-center">
-                      <span className="text-[10px] text-[#00E5FF] font-mono block mb-1">Live Image Preview:</span>
+                      <div className="flex items-center justify-between px-1 mb-1">
+                        <span className="text-[10px] text-[#00E5FF] font-mono block">Live Image Preview:</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormImageUrl('')}
+                          className="text-xs text-[#FF0033] hover:underline cursor-pointer"
+                        >
+                          Clear Image
+                        </button>
+                      </div>
                       <img
-                        src={formImageUrl}
+                        src={formatImageUrl(formImageUrl)}
                         alt="Circuit Diagram Preview"
                         className="max-h-40 mx-auto object-contain rounded border border-white/10"
                       />
