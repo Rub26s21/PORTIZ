@@ -12,9 +12,21 @@ import { Question, QuestionType } from '@/types/database';
 import {
   Plus, Trash2, Edit2, UploadCloud, ArrowLeft, X, ImagePlus, Image as ImageIcon
 } from 'lucide-react';
+import Papa from 'papaparse';
 import { formatImageUrl } from '@/lib/utils';
 
-// inside component:
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function QuestionsPage({ params }: PageProps) {
+  const resolvedParams = use(params);
+  const roundId = resolvedParams.id;
+
+  const [roundTitle, setRoundTitle] = useState('');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const handleDownloadCSVTemplate = () => {
     const templateData = [
       {
@@ -45,18 +57,6 @@ import { formatImageUrl } from '@/lib/utils';
     document.body.removeChild(link);
     toast.success('Question CSV Template Downloaded! 📊');
   };
-
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function QuestionsPage({ params }: PageProps) {
-  const resolvedParams = use(params);
-  const roundId = resolvedParams.id;
-
-  const [roundTitle, setRoundTitle] = useState('');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
