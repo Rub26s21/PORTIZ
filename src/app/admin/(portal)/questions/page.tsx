@@ -63,6 +63,7 @@ export default function QuestionsControlPage() {
   const [formExplanation, setFormExplanation] = useState('');
   const [formCategory, setCategory] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
+  const [dragActive, setDragActive] = useState(false);
 
   // Fetch Rounds & Questions
   const fetchData = useCallback(async () => {
@@ -698,14 +699,41 @@ export default function QuestionsControlPage() {
               </div>
 
               {/* 3. PROMINENT QUESTION DIAGRAM / GOOGLE DRIVE LINK / IMAGE UPLOAD */}
-              <div className="p-4 rounded-2xl bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.4)] space-y-3 shadow-xl">
+              <div 
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragActive(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      if (evt.target?.result) {
+                        setFormImageUrl(evt.target.result as string);
+                        toast.success('Image dropped & attached successfully! 🖼️');
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  } else {
+                    toast.error('Only image files are supported');
+                  }
+                }}
+                className={`p-4 rounded-2xl transition-all duration-200 space-y-3 shadow-xl ${
+                  dragActive 
+                    ? 'bg-[rgba(0,229,255,0.15)] border-2 border-dashed border-[#00E5FF] scale-[1.01]' 
+                    : 'bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.4)]'
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <label className="form-label text-xs text-white font-bold flex items-center gap-2">
                     <span className="p-1 rounded bg-[#00E5FF]/20 text-[#00E5FF]">⚡</span>
                     <span>Question Image / Circuit Diagram / Google Drive Link (Optional)</span>
                   </label>
                   <span className="text-[10px] text-[#00E5FF] font-mono font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30">
-                    Drive & File Ready
+                    Drag & Drop Active
                   </span>
                 </div>
 
@@ -714,7 +742,7 @@ export default function QuestionsControlPage() {
                     type="text"
                     value={formImageUrl}
                     onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
-                    placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or direct image URL..."
+                    placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or drag image file here..."
                     className="form-input bg-black text-white border border-white/20 text-xs flex-1"
                   />
                   <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
@@ -740,6 +768,27 @@ export default function QuestionsControlPage() {
                     />
                   </label>
                 </div>
+
+                {/* Thumbnail Preview Area */}
+                {formImageUrl && (
+                  <div className="relative mt-2 p-2 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/20 bg-black flex items-center justify-center">
+                        <img src={formImageUrl} alt="Preview" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8] font-mono truncate max-w-[200px]">
+                        {formImageUrl.startsWith('data:') ? 'Local file uploaded' : formImageUrl}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormImageUrl('')}
+                      className="px-2.5 py-1.5 rounded-lg bg-[rgba(255,0,51,0.15)] hover:bg-[rgba(255,0,51,0.25)] border border-[rgba(255,0,51,0.3)] text-[#FF4569] text-[10px] font-bold transition-all cursor-pointer"
+                    >
+                      Clear Image
+                    </button>
+                  </div>
+                )}
 
                 {/* Quick Select Presets */}
                 <div className="flex flex-wrap gap-1.5 pt-1 items-center">
