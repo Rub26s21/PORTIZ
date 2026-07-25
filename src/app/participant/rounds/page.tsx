@@ -60,7 +60,7 @@ export default function ParticipantRoundsPage() {
                       {round.description as string || 'No description'}
                     </p>
                     <div className="flex flex-wrap gap-6 text-sm font-[family-name:var(--font-mono)] text-[var(--aurora-cyan)] font-medium mb-4">
-                      <span>📅 {formatDateIST(round.start_time as string)}</span>
+                      <span>📅 {(round as any).started_at ? formatDateIST((round as any).started_at as string) : round.status === 'live' ? '🔴 LIVE NOW' : 'Not Started'}</span>
                       <span>⏱️ {round.duration_minutes as number} min</span>
                     </div>
                     <div className="flex flex-wrap gap-2.5">

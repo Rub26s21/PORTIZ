@@ -81,8 +81,10 @@ export interface RoundWithStats extends Record<string, unknown> {
   round_number: number;
   title: string;
   description: string | null;
-  start_time: string;
-  end_time: string;
+  start_time: string | null;
+  end_time: string | null;
+  started_at: string | null;
+  ended_at: string | null;
   duration_minutes: number;
   status: string;
   total_questions: number;
@@ -96,8 +98,10 @@ export interface ParticipantRound {
   round_number: number;
   title: string;
   description: string | null;
-  start_time: string;
-  end_time: string;
+  start_time: string | null;
+  end_time: string | null;
+  started_at: string | null;
+  ended_at: string | null;
   duration_minutes: number;
   status: string;
   is_eligible: boolean;

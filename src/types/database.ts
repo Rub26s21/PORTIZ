@@ -16,8 +16,10 @@ export interface Round {
   round_number: number;
   title: string;
   description: string | null;
-  start_time: string;
-  end_time: string;
+  start_time: string | null;
+  end_time: string | null;
+  started_at: string | null;
+  ended_at: string | null;
   duration_minutes: number;
   status: RoundStatus;
   requires_promotion: boolean;

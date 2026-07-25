@@ -23,8 +23,6 @@ export default function CreateRoundPage() {
       round_number: 1,
       title: '',
       description: '',
-      start_time: '',
-      end_time: '',
       duration_minutes: 30,
       randomize_questions: true,
       randomize_options: true,

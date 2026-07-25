@@ -43,8 +43,6 @@ export const roundSchema = z.object({
   round_number: z.coerce.number().int().min(1, 'Round number must be at least 1'),
   title: z.string().min(1, 'Title is required').max(100),
   description: z.string().optional(),
-  start_time: z.string().min(1, 'Start time is required'),
-  end_time: z.string().min(1, 'End time is required'),
   duration_minutes: z.coerce.number().int().min(1, 'Duration must be at least 1 minute'),
   status: z.enum(['draft', 'published', 'live', 'closed']).default('draft'),
   requires_promotion: z.boolean().default(false),

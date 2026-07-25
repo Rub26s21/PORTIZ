@@ -41,8 +41,10 @@ CREATE TABLE IF NOT EXISTS rounds (
   round_number INT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  start_time TIMESTAMPTZ NOT NULL,
-  end_time TIMESTAMPTZ NOT NULL,
+  start_time TIMESTAMPTZ,            -- optional scheduled start (nullable for manual start)
+  end_time TIMESTAMPTZ,              -- optional scheduled end (nullable for manual start)
+  started_at TIMESTAMPTZ,            -- actual start timestamp (set when admin clicks Start)
+  ended_at TIMESTAMPTZ,              -- actual end timestamp (set when admin clicks Close)
   duration_minutes INT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
   requires_promotion BOOLEAN DEFAULT FALSE,

@@ -976,7 +976,7 @@ export default function AdminDashboardPage() {
                               <StatusBadge status={round.status} />
                             </td>
                             <td className="px-5 py-4 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8]">
-                              {formatDateIST(round.start_time)}
+                              {(round as any).started_at ? formatDateIST((round as any).started_at) : round.status === 'live' ? '🔴 LIVE NOW' : 'Not Started'}
                             </td>
                             <td className="px-5 py-4 font-[family-name:var(--font-mono)] text-xs text-[#FFFFFF] font-medium">
                               ⏱️ {round.duration_minutes} min
