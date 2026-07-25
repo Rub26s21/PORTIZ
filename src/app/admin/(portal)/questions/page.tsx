@@ -636,207 +636,214 @@ export default function QuestionsControlPage() {
 
       {/* ═══ CREATE / EDIT QUESTION MODAL ═══ */}
       {showAddModal && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pb-28 overflow-y-auto">
-          <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setShowAddModal(false)} />
-          <div className="relative z-10 w-full max-w-xl max-h-[85vh] overflow-y-auto">
-            <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,255,255,0.2)] space-y-5" style={{ background: '#000000' }}>
-              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-3">
-                <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-[#FFFFFF]">
-                  {editingQ ? 'Edit Question' : 'Create Question'}
-                </h3>
-                <button onClick={() => setShowAddModal(false)} className="text-[#94A3B8] hover:text-white cursor-pointer font-bold text-lg">✕</button>
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-start justify-center pt-6 pb-28">
+          <div className="fixed inset-0 bg-black/80" onClick={() => setShowAddModal(false)} />
+          
+          <div className="relative z-10 w-full max-w-2xl bg-[#08080C] border border-white/20 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
+            {/* STICKY HEADER */}
+            <div className="flex items-center justify-between p-5 px-6 bg-[#0B0B10] border-b border-white/12 flex-shrink-0">
+              <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
+                <span className="text-[#00E5FF]">⚡</span> {editingQ ? 'Edit Question' : 'Create New Question'}
+              </h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* SCROLLABLE FORM BODY */}
+            <form onSubmit={handleSaveQuestion} className="flex-1 overflow-y-auto max-h-[70vh] p-6 space-y-5">
+              {/* 1. ROUND SELECT & MARKS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Competition Round</label>
+                  <select
+                    value={formRoundId}
+                    onChange={(e) => setFormRoundId(e.target.value)}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
+                  >
+                    {rounds.map((r) => (
+                      <option key={r.id} value={r.id}>Round #{r.round_number}: {r.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Marks & Negative Penalty</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="Marks (+)"
+                      value={formMarks}
+                      onChange={(e) => setFormMarks(Number(e.target.value))}
+                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Negative (-)"
+                      value={formNegativeMarks}
+                      onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
+                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <form onSubmit={handleSaveQuestion} className="space-y-5">
-                {/* 1. ROUND SELECT & MARKS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Competition Round</label>
-                    <select
-                      value={formRoundId}
-                      onChange={(e) => setFormRoundId(e.target.value)}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
-                    >
-                      {rounds.map((r) => (
-                        <option key={r.id} value={r.id}>Round #{r.round_number}: {r.title}</option>
-                      ))}
-                    </select>
-                  </div>
+              {/* 2. QUESTION STATEMENT */}
+              <div>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Statement / Problem Text</label>
+                <textarea
+                  rows={3}
+                  value={formText}
+                  onChange={(e) => setFormText(e.target.value)}
+                  placeholder="Enter complete question text or problem statement..."
+                  className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-sm"
+                  required
+                />
+              </div>
 
-                  <div>
-                    <label className="form-label text-xs text-[#E2E8F0] font-bold">Marks & Negative Penalty</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        placeholder="Marks (+)"
-                        value={formMarks}
-                        onChange={(e) => setFormMarks(Number(e.target.value))}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Negative (-)"
-                        value={formNegativeMarks}
-                        onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
-                      />
-                    </div>
-                  </div>
+              {/* 3. PROMINENT QUESTION DIAGRAM / GOOGLE DRIVE LINK / IMAGE UPLOAD */}
+              <div className="p-4 rounded-2xl bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.4)] space-y-3 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <label className="form-label text-xs text-white font-bold flex items-center gap-2">
+                    <span className="p-1 rounded bg-[#00E5FF]/20 text-[#00E5FF]">⚡</span>
+                    <span>Question Image / Circuit Diagram / Google Drive Link (Optional)</span>
+                  </label>
+                  <span className="text-[10px] text-[#00E5FF] font-mono font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30">
+                    Drive & File Ready
+                  </span>
                 </div>
 
-                {/* 2. QUESTION STATEMENT */}
-                <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Statement / Problem Text</label>
-                  <textarea
-                    rows={3}
-                    value={formText}
-                    onChange={(e) => setFormText(e.target.value)}
-                    placeholder="Enter complete question text or problem statement..."
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-sm"
-                    required
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={formImageUrl}
+                    onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
+                    placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or direct image URL..."
+                    className="form-input bg-black text-white border border-white/20 text-xs flex-1"
                   />
-                </div>
-
-                {/* 3. PROMINENT QUESTION DIAGRAM / GOOGLE DRIVE LINK / IMAGE UPLOAD */}
-                <div className="p-4 rounded-2xl bg-[rgba(0,229,255,0.05)] border border-[rgba(0,229,255,0.3)] space-y-3 shadow-lg">
-                  <div className="flex items-center justify-between">
-                    <label className="form-label text-xs text-white font-bold flex items-center gap-2">
-                      <span className="p-1 rounded bg-[#00E5FF]/20 text-[#00E5FF]">⚡</span>
-                      <span>Question Image / Circuit Diagram / Google Drive Link (Optional)</span>
-                    </label>
-                    <span className="text-[10px] text-[#00E5FF] font-mono font-bold">Google Drive & Local File Ready</span>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
+                    <UploadCloud size={14} />
+                    <span>Upload Local Image</span>
                     <input
-                      type="text"
-                      value={formImageUrl}
-                      onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
-                      placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or direct image URL..."
-                      className="form-input bg-black text-white border border-white/20 text-xs flex-1"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (evt) => {
+                            if (evt.target?.result) {
+                              setFormImageUrl(evt.target.result as string);
+                              toast.success('Image attached successfully! 🖼️');
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
                     />
-                    <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
-                      <UploadCloud size={14} />
-                      <span>Upload Local Image</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (evt) => {
-                              if (evt.target?.result) {
-                                setFormImageUrl(evt.target.result as string);
-                                toast.success('Image attached successfully! 🖼️');
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Quick Select Presets */}
-                  <div className="flex flex-wrap gap-1.5 pt-1 items-center">
-                    <span className="text-[10px] text-[#94A3B8] font-mono mr-1">Preset Schematics:</span>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setFormImageUrl(`/uploads/questions/image${num}.png`)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
-                          formImageUrl === `/uploads/questions/image${num}.png`
-                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-white font-bold'
-                            : 'bg-white/5 border-white/10 text-[#94A3B8] hover:text-white'
-                        }`}
-                      >
-                        Img #{num}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Live Diagram Image Preview */}
-                  {formImageUrl && (
-                    <div className="mt-2 p-3 rounded-xl bg-black border border-[rgba(0,229,255,0.4)] text-center space-y-2">
-                      <div className="flex items-center justify-between px-1">
-                        <span className="text-[10px] text-[#00E5FF] font-mono font-bold flex items-center gap-1">
-                          <CheckCircle2 size={12} /> Image Attached & Ready Preview:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setFormImageUrl('')}
-                          className="text-xs text-[#FF0033] hover:underline font-bold cursor-pointer"
-                        >
-                          ✕ Clear Image
-                        </button>
-                      </div>
-                      <img
-                        src={formatImageUrl(formImageUrl)}
-                        alt="Circuit Diagram Preview"
-                        className="max-h-44 mx-auto object-contain rounded-lg border border-white/10 bg-black/80 p-1"
-                      />
-                    </div>
-                  )}
+                  </label>
                 </div>
 
-                {/* 4. MULTIPLE CHOICE OPTIONS */}
-                <div className="space-y-2">
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Multiple Choice Options (Select Correct Answer Radio)</label>
-                  {formOptions.map((opt, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="correctOpt"
-                        checked={formCorrectIndex === idx}
-                        onChange={() => setFormCorrectIndex(idx)}
-                        className="w-4 h-4 accent-[#00E5FF] cursor-pointer"
-                      />
-                      <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6 font-bold">{String.fromCharCode(65 + idx)}.</span>
-                      <input
-                        type="text"
-                        value={opt}
-                        onChange={(e) => {
-                          const updated = [...formOptions];
-                          updated[idx] = e.target.value;
-                          setFormOptions(updated);
-                        }}
-                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                        className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs flex-1"
-                      />
-                    </div>
+                {/* Quick Select Presets */}
+                <div className="flex flex-wrap gap-1.5 pt-1 items-center">
+                  <span className="text-[10px] text-[#94A3B8] font-mono mr-1">Preset Schematics:</span>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setFormImageUrl(`/uploads/questions/image${num}.png`)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
+                        formImageUrl === `/uploads/questions/image${num}.png`
+                          ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-white font-bold'
+                          : 'bg-white/5 border-white/10 text-[#94A3B8] hover:text-white'
+                      }`}
+                    >
+                      Img #{num}
+                    </button>
                   ))}
                 </div>
 
-                {/* 5. EXPLANATION */}
-                <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Explanation / Solution Reference (Optional)</label>
-                  <input
-                    type="text"
-                    value={formExplanation}
-                    onChange={(e) => setFormExplanation(e.target.value)}
-                    placeholder="Provide solution breakdown or reference..."
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
-                  />
-                </div>
+                {/* Live Diagram Image Preview */}
+                {formImageUrl && (
+                  <div className="mt-2 p-3 rounded-xl bg-black border border-[rgba(0,229,255,0.5)] text-center space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] text-[#00E5FF] font-mono font-bold flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Image Attached & Ready Preview:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFormImageUrl('')}
+                        className="text-xs text-[#FF0033] hover:underline font-bold cursor-pointer"
+                      >
+                        ✕ Clear Image
+                      </button>
+                    </div>
+                    <img
+                      src={formatImageUrl(formImageUrl)}
+                      alt="Circuit Diagram Preview"
+                      className="max-h-44 mx-auto object-contain rounded-lg border border-white/10 bg-black/80 p-1"
+                    />
+                  </div>
+                )}
+              </div>
 
-                {/* MODAL FOOTER */}
-                <div className="flex justify-end gap-3 pt-3 border-t border-white/10">
-                  <GalaxyButton variant="secondary" size="sm" onClick={() => setShowAddModal(false)}>
-                    Cancel
-                  </GalaxyButton>
-                  <GalaxyButton variant="primary" size="sm" type="submit" loading={submitting}>
-                    {editingQ ? 'Save Changes' : 'Create Question'}
-                  </GalaxyButton>
-                </div>
-              </form>
-            </GlassCard>
+              {/* 4. MULTIPLE CHOICE OPTIONS */}
+              <div className="space-y-2">
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Multiple Choice Options (Select Correct Answer Radio)</label>
+                {formOptions.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="correctOpt"
+                      checked={formCorrectIndex === idx}
+                      onChange={() => setFormCorrectIndex(idx)}
+                      className="w-4 h-4 accent-[#00E5FF] cursor-pointer"
+                    />
+                    <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6 font-bold">{String.fromCharCode(65 + idx)}.</span>
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => {
+                        const updated = [...formOptions];
+                        updated[idx] = e.target.value;
+                        setFormOptions(updated);
+                      }}
+                      placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* 5. EXPLANATION */}
+              <div>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Explanation / Solution Reference (Optional)</label>
+                <input
+                  type="text"
+                  value={formExplanation}
+                  onChange={(e) => setFormExplanation(e.target.value)}
+                  placeholder="Provide solution breakdown or reference..."
+                  className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                />
+              </div>
+
+              {/* STICKY FOOTER INSIDE FORM */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/12 flex-shrink-0">
+                <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowAddModal(false)}>
+                  Cancel
+                </GalaxyButton>
+                <GalaxyButton variant="primary" size="sm" type="submit" loading={submitting}>
+                  {editingQ ? 'Save Changes' : 'Create Question'}
+                </GalaxyButton>
+              </div>
+            </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }

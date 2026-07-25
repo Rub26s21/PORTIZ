@@ -395,18 +395,21 @@ export default function QuestionsPage({ params }: PageProps) {
       {/* ADD / EDIT MODAL WITH IMAGE UPLOAD */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pb-28 overflow-y-auto">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-[#03010A]/85 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94 }} className="relative z-10 w-full max-w-xl max-h-[85vh] overflow-y-auto no-scrollbar">
-              <GlassCard variant="elevated" radius={24} hover={false} noHover className="!p-7 border border-[rgba(168,85,247,0.3)] space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-[family-name:var(--font-display)] font-bold text-xl gradient-text">
-                    {editingQuestion ? 'Edit Question' : 'Add New Question'}
-                  </h3>
-                  <button onClick={() => setShowModal(false)} className="text-[var(--text-muted)] hover:text-white cursor-pointer"><X size={18} /></button>
-                </div>
+          <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-start justify-center pt-6 pb-28">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-black/80" />
+            <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94 }} className="relative z-10 w-full max-w-2xl bg-[#08080C] border border-white/20 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
+              {/* STICKY HEADER */}
+              <div className="flex items-center justify-between p-5 px-6 bg-[#0B0B10] border-b border-white/12 flex-shrink-0">
+                <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
+                  <span className="text-[#00E5FF]">⚡</span> {editingQuestion ? 'Edit Question' : 'Add New Question'}
+                </h3>
+                <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer">
+                  ✕
+                </button>
+              </div>
 
-                <form onSubmit={handleSaveQuestion} className="space-y-4 pt-2">
+              {/* SCROLLABLE FORM BODY */}
+              <form onSubmit={handleSaveQuestion} className="flex-1 overflow-y-auto max-h-[70vh] p-6 space-y-5">
                   <div>
                     <label className="form-label text-xs">Question Type</label>
                     <select value={qType} onChange={(e) => setQType(e.target.value as QuestionType)} className="form-input bg-[var(--space-surface)] text-[var(--text-primary)] font-[family-name:var(--font-heading)]">
@@ -517,12 +520,12 @@ export default function QuestionsPage({ params }: PageProps) {
                     <input type="number" value={marks} onChange={(e) => setMarks(Number(e.target.value))} min={1} className="form-input font-[family-name:var(--font-mono)]" />
                   </div>
 
-                  <div className="pt-2 flex justify-end gap-3">
+                  {/* STICKY FOOTER INSIDE FORM */}
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/12 flex-shrink-0">
                     <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowModal(false)}>Cancel</GalaxyButton>
                     <GalaxyButton variant="primary" size="sm" type="submit" loading={submitting}>Save Question</GalaxyButton>
                   </div>
                 </form>
-              </GlassCard>
             </motion.div>
           </div>
         )}
