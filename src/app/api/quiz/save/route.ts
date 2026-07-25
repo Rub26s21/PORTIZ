@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { supabaseAdmin } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,18 +11,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Verify attempt status
-    const { data: attempt } = await supabase
+    const { data: attempt } = await supabaseAdmin
       .from('attempts')
       .select('status, disqualified')
       .eq('id', attempt_id)
-      .single();
+      .maybeSingle();
 
     if (!attempt || attempt.status === 'submitted' || attempt.disqualified) {
       return NextResponse.json({ error: 'Attempt closed' }, { status: 409 });
     }
 
     // 2. Upsert response
-    const { error: saveErr } = await supabase
+    const { error: saveErr } = await supabaseAdmin
       .from('responses')
       .upsert(
         {
