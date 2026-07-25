@@ -726,7 +726,7 @@ export default function SettingsPage() {
 
       {/* KICK CONFIRMATION MODAL */}
       {kickModalParticipant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pb-28 overflow-y-auto">
           <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setKickModalParticipant(null)} />
           <div className="relative z-10 w-full max-w-sm">
             <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,0,51,0.4)] space-y-4" style={{ background: '#000000' }}>

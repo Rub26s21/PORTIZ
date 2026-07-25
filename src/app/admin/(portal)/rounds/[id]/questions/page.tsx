@@ -395,9 +395,9 @@ export default function QuestionsPage({ params }: PageProps) {
       {/* ADD / EDIT MODAL WITH IMAGE UPLOAD */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-[#03010A]/80 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94 }} className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto no-scrollbar">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pb-28 overflow-y-auto">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="fixed inset-0 bg-[#03010A]/85 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.94 }} className="relative z-10 w-full max-w-xl max-h-[85vh] overflow-y-auto no-scrollbar">
               <GlassCard variant="elevated" radius={24} hover={false} noHover className="!p-7 border border-[rgba(168,85,247,0.3)] space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-[family-name:var(--font-display)] font-bold text-xl gradient-text">
