@@ -599,9 +599,9 @@ export default function QuestionsControlPage() {
 
       {/* ═══ CREATE / EDIT QUESTION MODAL ═══ */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 pb-28 overflow-y-auto">
           <div className="fixed inset-0 bg-[#000000]/85 backdrop-blur-md" onClick={() => setShowAddModal(false)} />
-          <div className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto">
+          <div className="relative z-10 w-full max-w-xl max-h-[85vh] overflow-y-auto">
             <GlassCard variant="elevated" radius={28} hover={false} noHover className="!p-7 border border-[rgba(255,255,255,0.2)] space-y-5" style={{ background: '#000000' }}>
               <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-3">
                 <h3 className="font-[family-name:var(--font-display)] font-bold text-xl text-[#FFFFFF]">
