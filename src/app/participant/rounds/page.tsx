@@ -31,16 +31,16 @@ export default function ParticipantRoundsPage() {
     <div className="space-y-8">
       <FadeIn y={-20}>
         <h1 className="font-[family-name:var(--font-display)] text-3xl md:text-4xl font-extrabold text-[var(--text-primary)] tracking-tight">
-          Competition Rounds 🏆
+          Weekly Department Assessments 🏆
         </h1>
       </FadeIn>
 
       {loading ? (
-        <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-base font-medium">Loading rounds...</p>
+        <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-base font-medium">Loading tests...</p>
       ) : rounds.length === 0 ? (
         <GlassCard variant="solid" className="!p-8 text-center">
           <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-lg py-8">
-            No rounds available yet. Check back later! 📡
+            No tests available right now. Check back later! 📡
           </p>
         </GlassCard>
       ) : (
@@ -52,16 +52,17 @@ export default function ParticipantRoundsPage() {
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-3 mb-3">
                       <h3 className="font-[family-name:var(--font-display)] text-xl font-bold text-[var(--text-primary)]">
-                        Round {round.round_number as number}: {round.title as string}
+                        {round.title || `Weekly Test #${round.round_number}`}
                       </h3>
                       <RoundBadge status={round.status as string} />
                     </div>
                     <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-sm md:text-base leading-relaxed mb-4">
-                      {round.description as string || 'No description'}
+                      {round.description as string || '50-Question Adaptable Multi-Subject Department Test'}
                     </p>
                     <div className="flex flex-wrap gap-6 text-sm font-[family-name:var(--font-mono)] text-[var(--aurora-cyan)] font-medium mb-4">
                       <span>📅 {(round as any).started_at ? formatDateIST((round as any).started_at as string) : round.status === 'live' ? '🔴 LIVE NOW' : 'Not Started'}</span>
                       <span>⏱️ {round.duration_minutes as number} min</span>
+                      <span>📝 50 Questions</span>
                     </div>
                     <div className="flex flex-wrap gap-2.5">
                       {round.is_eligible ? <RoundBadge status="eligible" /> : <RoundBadge status="not_eligible" />}
@@ -72,7 +73,7 @@ export default function ParticipantRoundsPage() {
                     {round.is_eligible && !round.has_attempted && round.status === 'live' && (
                       <Link href={`/participant/rounds/${round.id}/instructions`}>
                         <GlowButton variant="primary" size="md">
-                          Enter Round ⚡
+                          Start 50-Q Test ⚡
                         </GlowButton>
                       </Link>
                     )}
