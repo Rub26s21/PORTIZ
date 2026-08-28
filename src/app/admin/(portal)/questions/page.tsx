@@ -264,9 +264,15 @@ export default function QuestionsControlPage() {
         const category = row['Category'] || rowSubject || 'Electronics';
         const explanation = row['Explanation'] || '';
 
-        // Auto-assign image link from Excel/CSV column or figure
-        let rawImageUrl = row['Image Link / Drive URL'] || row['Image Link'] || row['Drive Link'] || row['Figure'] || row['image_url'] || null;
-        let imageUrl = rawImageUrl ? formatImageUrl(String(rawImageUrl)) : null;
+        // Auto-assign image link from Excel/CSV column: Strict parsing (No image collision)
+        let rawImageUrl = row['Image Link / Drive URL'] || row['Image Link'] || row['Drive Link'] || row['image_url'] || null;
+        let imageUrl: string | null = null;
+        if (rawImageUrl && String(rawImageUrl).trim() !== '' && String(rawImageUrl).trim() !== 'null') {
+          const formatted = formatImageUrl(String(rawImageUrl).trim());
+          if (formatted && formatted.trim()) {
+            imageUrl = formatted;
+          }
+        }
 
         const optionsArray = [optA, optB, optC, optD].filter(Boolean);
 
