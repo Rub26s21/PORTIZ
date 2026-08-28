@@ -199,11 +199,11 @@ export default function QuizEntryCard() {
         <div className="relative z-10">
           <form onSubmit={handleSubmit} className="space-y-3.5">
 
-            {/* Live Round Badge if Active */}
+            {/* Live Test Badge if Active */}
             {activeRound && (
               <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/15 flex items-center justify-between text-xs mb-1">
                 <span className="font-[family-name:var(--font-heading)] text-white font-bold uppercase tracking-wider text-[11px]">
-                  Round {activeRound.round_number}: {activeRound.title}
+                  ⚡ {activeRound.title || `Weekly Test #${activeRound.round_number}`} (50 Qs)
                 </span>
                 <span className="font-[family-name:var(--font-mono)] text-[#FF0033] font-semibold">
                   ⏱️ {activeRound.duration_minutes}m
