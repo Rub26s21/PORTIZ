@@ -742,10 +742,6 @@ export default function QuestionsControlPage() {
                           📚 {subjectTag}
                         </span>
 
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-medium bg-[rgba(0,102,255,0.15)] border border-[rgba(0,102,255,0.3)] text-[#0066FF] uppercase">
-                          Round #{q.rounds?.round_number || 1} · {q.rounds?.title || 'Round'}
-                        </span>
-
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] uppercase bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] text-[#94A3B8]">
                           {q.question_type || 'MCQ'}
                         </span>
@@ -853,21 +849,8 @@ export default function QuestionsControlPage() {
 
             {/* SCROLLABLE FORM BODY */}
             <form onSubmit={handleSaveQuestion} className="flex-1 overflow-y-auto max-h-[70vh] p-6 space-y-5">
-              {/* 1. ROUND SELECT, SUBJECT & MARKS */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Round</label>
-                  <select
-                    value={formRoundId}
-                    onChange={(e) => setFormRoundId(e.target.value)}
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
-                  >
-                    {rounds.map((r) => (
-                      <option key={r.id} value={r.id}>Round #{r.round_number}: {r.title}</option>
-                    ))}
-                  </select>
-                </div>
-
+              {/* 1. SUBJECT & MARKS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="form-label text-xs text-[#E2E8F0] font-bold">Subject Name</label>
                   <select

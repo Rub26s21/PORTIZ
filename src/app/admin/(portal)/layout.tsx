@@ -9,7 +9,7 @@ import Logo from '@/components/shared/Logo';
 import GlassCard from '@/components/shared/GlassCard';
 import { getInitials } from '@/lib/utils';
 import {
-  LayoutDashboard, Trophy, Users2, BarChart3, Award, Settings2, LogOut, Activity, Globe, ExternalLink, Search, Bell, ChevronRight, HelpCircle
+  LayoutDashboard, Trophy, Users2, BarChart3, Award, Settings2, LogOut, Activity, Globe, ExternalLink, Search, Bell, ChevronRight, HelpCircle, Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -161,7 +161,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
   const navItems: { label: string; href: string; icon: any; isLive?: boolean }[] = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-    { label: 'Rounds', href: '/admin/rounds', icon: Trophy },
+    { label: 'Scheduling 📅', href: '/admin/scheduling', icon: Calendar },
     { label: 'Questions Bank', href: '/admin/questions', icon: HelpCircle },
     { label: 'Participants', href: '/admin/participants', icon: Users2 },
     { label: 'Leaderboard', href: '/admin/leaderboard', icon: BarChart3 },
