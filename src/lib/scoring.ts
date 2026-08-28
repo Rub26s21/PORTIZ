@@ -22,7 +22,7 @@ export function scoreAnswer(
 
   switch (question.question_type) {
     case 'mcq':
-      isCorrect = scoreMCQ(correctAnswer, selectedAnswer);
+      isCorrect = scoreMCQ(correctAnswer, selectedAnswer, question.options);
       break;
     case 'true_false':
       isCorrect = scoreTrueFalse(correctAnswer, selectedAnswer);
@@ -49,25 +49,52 @@ export function scoreAnswer(
   return { isCorrect, marksAwarded };
 }
 
-function scoreMCQ(correct: CorrectAnswer, selected: SelectedAnswer): boolean {
-  if (correct.type !== 'mcq' || selected.type !== 'mcq') return false;
-  return correct.value === selected.value;
+function scoreMCQ(correct: any, selected: any, questionOptions?: string[] | null): boolean {
+  let cVal = typeof correct === 'object' ? (correct?.value !== undefined ? correct.value : correct) : correct;
+  let sVal = typeof selected === 'object' ? (selected?.value !== undefined ? selected.value : selected) : selected;
+
+  if (cVal === undefined || cVal === null || sVal === undefined || sVal === null) return false;
+
+  const cStr = String(cVal).trim().toLowerCase();
+  const sStr = String(sVal).trim().toLowerCase();
+
+  if (cStr === sStr) return true;
+
+  if (questionOptions && Array.isArray(questionOptions)) {
+    const cIdx = Number(cVal);
+    if (!isNaN(cIdx) && cIdx >= 0 && cIdx < questionOptions.length) {
+      if (String(questionOptions[cIdx]).trim().toLowerCase() === sStr) return true;
+    }
+
+    const sIdx = Number(sVal);
+    if (!isNaN(sIdx) && sIdx >= 0 && sIdx < questionOptions.length) {
+      if (String(questionOptions[sIdx]).trim().toLowerCase() === cStr) return true;
+    }
+  }
+
+  return false;
 }
 
-function scoreTrueFalse(correct: CorrectAnswer, selected: SelectedAnswer): boolean {
-  if (correct.type !== 'true_false' || selected.type !== 'true_false') return false;
-  return correct.value === selected.value;
+function scoreTrueFalse(correct: any, selected: any): boolean {
+  let cVal = typeof correct === 'object' ? correct?.value : correct;
+  let sVal = typeof selected === 'object' ? selected?.value : selected;
+  return String(cVal).trim().toLowerCase() === String(sVal).trim().toLowerCase();
 }
 
-function scoreFillBlank(correct: CorrectAnswer, selected: SelectedAnswer): boolean {
-  if (correct.type !== 'fill_blank' || selected.type !== 'fill_blank') return false;
-  const normalizedSelected = normalizeText(selected.value);
-  return correct.value.some((accepted) => normalizeText(accepted) === normalizedSelected);
+function scoreFillBlank(correct: any, selected: any): boolean {
+  let cVal = typeof correct === 'object' ? correct?.value : correct;
+  let sVal = typeof selected === 'object' ? selected?.value : selected;
+  if (Array.isArray(cVal)) {
+    return cVal.some((accepted) => normalizeText(String(accepted)) === normalizeText(String(sVal)));
+  }
+  return normalizeText(String(cVal)) === normalizeText(String(sVal));
 }
 
-function scoreNumerical(correct: CorrectAnswer, selected: SelectedAnswer): boolean {
-  if (correct.type !== 'numerical' || selected.type !== 'numerical') return false;
-  return Math.abs(selected.value - correct.value) <= correct.tolerance;
+function scoreNumerical(correct: any, selected: any): boolean {
+  let cVal = typeof correct === 'object' ? correct?.value : correct;
+  let sVal = typeof selected === 'object' ? selected?.value : selected;
+  const tol = typeof correct === 'object' ? (correct?.tolerance || 0) : 0;
+  return Math.abs(Number(sVal) - Number(cVal)) <= tol;
 }
 
 function normalizeText(text: string): string {
