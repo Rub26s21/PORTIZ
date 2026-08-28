@@ -431,14 +431,14 @@ export default function QuizTestPage({ params }: PageProps) {
                       <span className="px-2.5 py-1 rounded-lg bg-[rgba(168,85,247,0.14)] border border-[rgba(168,85,247,0.28)] font-[family-name:var(--font-mono)] font-semibold text-xs text-[var(--aurora-purple)]">
                         Q{currentIndex + 1}
                       </span>
+                      {((currentQuestion as any).subject_name || currentQuestion.category) && (
+                        <span className="px-2.5 py-1 rounded-lg bg-[rgba(0,229,255,0.12)] border border-[rgba(0,229,255,0.28)] font-[family-name:var(--font-heading)] font-semibold text-xs text-[#00E5FF]">
+                          📚 {(currentQuestion as any).subject_name || currentQuestion.category}
+                        </span>
+                      )}
                       <span className="px-2.5 py-1 rounded-lg bg-[rgba(6,182,212,0.12)] border border-[rgba(6,182,212,0.25)] font-[family-name:var(--font-heading)] text-xs text-[var(--aurora-cyan)] uppercase">
                         {currentQuestion.question_type.replace('_', ' ')}
                       </span>
-                      {currentQuestion.category && (
-                        <span className="px-2.5 py-1 rounded-lg bg-[var(--glass-white)] border border-[var(--glass-border)] font-[family-name:var(--font-body)] text-xs text-[var(--text-muted)]">
-                          {currentQuestion.category}
-                        </span>
-                      )}
                     </div>
 
                     <button
@@ -469,14 +469,14 @@ export default function QuizTestPage({ params }: PageProps) {
                     {currentQuestion.question_text}
                   </h2>
 
-                  {/* Question Image (if exists) */}
-                  {currentQuestion.image_url && (
+                  {/* Question Image (Only rendered if image_url exists and is non-empty) */}
+                  {Boolean(currentQuestion.image_url && currentQuestion.image_url.trim()) && (
                     <div
                       className="mt-4 mb-4 p-3 rounded-xl bg-black/60 border border-[rgba(255,255,255,0.12)] flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all"
                       onClick={() => setZoomImage(formatImageUrl(currentQuestion.image_url))}
                     >
                       <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
-                        <span>⚡ Circuit Schematic Diagram / Figure</span>
+                        <span>⚡ Question Diagram / Figure</span>
                         <span className="text-[#00E5FF] group-hover:underline">🔍 Click to Expand</span>
                       </div>
                       <img

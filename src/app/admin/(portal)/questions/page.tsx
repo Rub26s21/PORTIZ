@@ -39,10 +39,12 @@ interface QuestionItem {
 export default function QuestionsControlPage() {
   const [rounds, setRounds] = useState<RoundItem[]>([]);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
   const [selectedRoundFilter, setSelectedRoundFilter] = useState<string>('all');
+  const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -54,6 +56,7 @@ export default function QuestionsControlPage() {
 
   // Form State
   const [formRoundId, setFormRoundId] = useState('');
+  const [formSubjectName, setFormSubjectName] = useState('Digital Electronics');
   const [formType, setFormType] = useState('mcq');
   const [formText, setFormText] = useState('');
   const [formOptions, setFormOptions] = useState<string[]>(['', '', '', '']);
@@ -65,7 +68,7 @@ export default function QuestionsControlPage() {
   const [formImageUrl, setFormImageUrl] = useState('');
   const [dragActive, setDragActive] = useState(false);
 
-  // Fetch Rounds & Questions
+  // Fetch Rounds, Subjects & Questions
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -80,7 +83,19 @@ export default function QuestionsControlPage() {
         if (!formRoundId) setFormRoundId(rData[0].id);
       }
 
-      // 2. Fetch Questions
+      // 2. Fetch Subjects
+      try {
+        const subRes = await fetch('/api/admin/subjects');
+        const subJson = await subRes.json();
+        if (subJson.subjects && subJson.subjects.length > 0) {
+          setSubjects(subJson.subjects);
+          setFormSubjectName(subJson.subjects[0].name);
+        }
+      } catch (e) {
+        console.error('Error fetching subjects:', e);
+      }
+
+      // 3. Fetch Questions
       const { data: qData } = await supabase
         .from('questions')
         .select('*, rounds(title, round_number)')
@@ -100,41 +115,57 @@ export default function QuestionsControlPage() {
     fetchData();
   }, [fetchData]);
 
-  // ── 1. DOWNLOAD ARDUFUSION EXCEL QUESTION TEMPLATE (.xlsx) ──
+  // ── 1. DOWNLOAD MULTI-SUBJECT EXCEL QUESTION TEMPLATE (.xlsx) ──
 
   const handleDownloadExcelTemplate = () => {
     const templateRows = [
       {
+        'Subject Name': 'Digital Electronics',
         'Questions': 'Of the four biasing circuits shown in figure, for a BJT, indicate the one which can have maximum bias stability',
+        'Question Type': 'mcq',
         'Image Link / Drive URL': 'https://drive.google.com/file/d/1ABC123EXAMPLE/view?usp=sharing',
-        'Figure': 'image1.png',
-        'option 1': 'Fig A',
-        'option 2': 'Fig B',
-        'option 3': 'Fig C',
-        'option 4': 'Fig D',
+        'Option A': 'Fig A',
+        'Option B': 'Fig B',
+        'Option C': 'Fig C',
+        'Option D': 'Fig D',
         'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
       },
       {
-        'Questions': 'Determine Vo in the circuit below.',
-        'Image Link / Drive URL': 'https://drive.google.com/file/d/1XYZ456EXAMPLE/view?usp=sharing',
-        'Figure': 'image2.png',
-        'option 1': '24V',
-        'option 2': '1V',
-        'option 3': '12V',
-        'option 4': '2V',
-        'Correct Option (1-4)': 3,
+        'Subject Name': 'Microprocessors & Microcontrollers',
+        'Questions': 'What is the maximum addressable memory capacity of 8086 microprocessor?',
+        'Question Type': 'mcq',
+        'Image Link / Drive URL': '',
+        'Option A': '64 KB',
+        'Option B': '1 MB',
+        'Option C': '4 GB',
+        'Option D': '16 MB',
+        'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
+      },
+      {
+        'Subject Name': 'Signals & Systems',
+        'Questions': 'The Fourier Transform of a unit impulse delta function delta(t) is _____',
+        'Question Type': 'fill_blank',
+        'Image Link / Drive URL': '',
+        'Option A': '',
+        'Option B': '',
+        'Option C': '',
+        'Option D': '',
+        'Correct Option (1-4)': '1',
+        'Marks': 2,
+        'Negative Marks': 0,
       },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateRows);
     worksheet['!cols'] = [
+      { wch: 30 },
       { wch: 55 },
-      { wch: 40 },
       { wch: 15 },
+      { wch: 40 },
       { wch: 20 },
       { wch: 20 },
       { wch: 20 },
@@ -145,21 +176,22 @@ export default function QuestionsControlPage() {
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'ARDUFUSION_Template');
-    XLSX.writeFile(workbook, 'ARDUFUSION_question_template.xlsx');
-    toast.success('ARDUFUSION Excel Question Template Downloaded! 📊');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'MultiSubject_Question_Template');
+    XLSX.writeFile(workbook, 'ECE_MultiSubject_Question_Template.xlsx');
+    toast.success('Multi-Subject Excel Question Template Downloaded! 📊');
   };
 
   const handleDownloadCSVTemplate = () => {
     const templateRows = [
       {
+        'Subject Name': 'Digital Electronics',
         'Questions': 'Of the four biasing circuits shown in figure, for a BJT, indicate the one which can have maximum bias stability',
+        'Question Type': 'mcq',
         'Image Link / Drive URL': 'https://drive.google.com/file/d/1ABC123EXAMPLE/view?usp=sharing',
-        'Figure': 'image1.png',
-        'option 1': 'Fig A',
-        'option 2': 'Fig B',
-        'option 3': 'Fig C',
-        'option 4': 'Fig D',
+        'Option A': 'Fig A',
+        'Option B': 'Fig B',
+        'Option C': 'Fig C',
+        'Option D': 'Fig D',
         'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
@@ -172,11 +204,11 @@ export default function QuestionsControlPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'ARDUFUSION_question_template.csv');
+    link.setAttribute('download', 'ECE_MultiSubject_Question_Template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('ARDUFUSION CSV Question Template Downloaded! 📄');
+    toast.success('Multi-Subject CSV Question Template Downloaded! 📄');
   };
 
   // ── 2. BULK EXCEL QUESTION UPLOAD (.xlsx / .csv) ──
@@ -213,34 +245,34 @@ export default function QuestionsControlPage() {
         // Support ARDUFUSION.xlsx format OR standard template format
         const qType = (row['Question Type'] || 'mcq').toLowerCase();
         const qText = row['Questions'] || row['Question Text'] || '';
+        const rowSubject = row['Subject Name'] || row['Subject'] || formSubjectName;
         const optA = String(row['option 1'] || row['Option A'] || '');
         const optB = String(row['option 2'] || row['Option B'] || '');
         const optC = String(row['option 3'] || row['Option C'] || '');
         const optD = String(row['option 4'] || row['Option D'] || '');
-        const correctIndex = (Number(row['Correct Option (1-4)']) || 1) - 1;
+        const correctVal = row['Correct Option (1-4)'] !== undefined ? row['Correct Option (1-4)'] : row['Correct Answer'];
+        const correctIndex = typeof correctVal === 'number' ? correctVal - 1 : (Number(correctVal) ? Number(correctVal) - 1 : 0);
         const marks = Number(row['Marks']) || 2;
         const negMarks = Number(row['Negative Marks']) || 0.5;
         const difficulty = row['Difficulty'] || 'medium';
-        const category = row['Category'] || 'Arduino / Electronics';
+        const category = row['Category'] || rowSubject || 'Electronics';
         const explanation = row['Explanation'] || '';
 
         // Auto-assign image link from Excel/CSV column or figure
         let rawImageUrl = row['Image Link / Drive URL'] || row['Image Link'] || row['Drive Link'] || row['Figure'] || row['image_url'] || null;
         let imageUrl = rawImageUrl ? formatImageUrl(String(rawImageUrl)) : null;
-        if (!imageUrl && rowIndex <= 14) {
-          imageUrl = `/uploads/questions/image${rowIndex}.png`;
-        }
 
         const optionsArray = [optA, optB, optC, optD].filter(Boolean);
 
         const newQuestionPayload = {
           round_id: matchedRound.id,
+          subject_name: rowSubject,
           question_type: qType,
           question_text: qText,
           options: optionsArray,
           image_url: imageUrl,
-          image_alt: `Circuit Schematic ${rowIndex}`,
-          correct_answer: { type: 'mcq', value: correctIndex },
+          image_alt: imageUrl ? `Question Diagram ${rowIndex}` : null,
+          correct_answer: { type: qType, value: qType === 'mcq' ? correctIndex : String(correctVal || '') },
           marks: marks,
           negative_marks: negMarks,
           difficulty: difficulty,
@@ -285,15 +317,16 @@ export default function QuestionsControlPage() {
 
       const payload = {
         round_id: formRoundId,
+        subject_name: formSubjectName,
         question_type: formType,
         question_text: formText,
         options: formType === 'mcq' ? formOptions.filter(Boolean) : null,
         image_url: formImageUrl.trim() || null,
-        image_alt: formImageUrl.trim() ? 'Circuit Schematic Diagram' : null,
+        image_alt: formImageUrl.trim() ? 'Question Diagram' : null,
         correct_answer: { type: formType, value: formCorrectIndex },
         marks: formMarks,
         negative_marks: formNegativeMarks,
-        category: formCategory || 'Arduino / Electronics',
+        category: formCategory || formSubjectName || 'Electronics',
         explanation: formExplanation,
       };
 
@@ -383,13 +416,15 @@ export default function QuestionsControlPage() {
   };
 
   // Filtered List
-  const filteredQuestions = questions.filter((q) => {
+  const filteredQuestions = questions.filter((q: any) => {
     const matchRound = selectedRoundFilter === 'all' || q.round_id === selectedRoundFilter;
+    const matchSubject = subjectFilter === 'all' || q.subject_name === subjectFilter || q.category === subjectFilter;
     const matchType = typeFilter === 'all' || q.question_type === typeFilter;
     const matchSearch =
       q.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      q.category?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchRound && matchType && matchSearch;
+      q.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      q.subject_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchRound && matchSubject && matchType && matchSearch;
   });
 
   const cleanShadow = '0 4px 20px rgba(0,0,0,0.8)';
@@ -479,12 +514,29 @@ export default function QuestionsControlPage() {
             })}
           </div>
 
+          {/* Subject Filter Selector */}
+          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto no-scrollbar">
+            <span className="text-xs text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase mr-1">Subject:</span>
+            <select
+              value={subjectFilter}
+              onChange={(e) => setSubjectFilter(e.target.value)}
+              className="bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs px-3 py-1.5 rounded-xl font-[family-name:var(--font-heading)] outline-none"
+            >
+              <option value="all">All Subjects</option>
+              {subjects.map((sub) => (
+                <option key={sub.id} value={sub.name}>
+                  {sub.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Search Input */}
-          <div className="flex items-center gap-2 bg-[#000000] p-2 px-3 rounded-xl border border-[rgba(255,255,255,0.12)] w-full md:w-[280px]">
+          <div className="flex items-center gap-2 bg-[#000000] p-2 px-3 rounded-xl border border-[rgba(255,255,255,0.12)] w-full md:w-[240px]">
             <Search size={14} className="text-[#94A3B8] flex-shrink-0" />
             <input
               type="text"
-              placeholder="Search question text..."
+              placeholder="Search question text or subject..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-transparent border-none outline-none text-xs text-[#FFFFFF] placeholder:text-[#64748B] font-[family-name:var(--font-body)] w-full"
@@ -504,7 +556,7 @@ export default function QuestionsControlPage() {
               No questions found
             </h3>
             <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] mt-1">
-              Create a question manually or upload using the Excel Question Format template.
+              Create a question manually or upload using the Multi-Subject Excel Question Template.
             </p>
             <div className="flex justify-center gap-3 mt-5">
               <GalaxyButton variant="secondary" size="sm" onClick={handleDownloadExcelTemplate}>
@@ -517,9 +569,10 @@ export default function QuestionsControlPage() {
           </GlassCard>
         ) : (
           <div className="space-y-4">
-            {filteredQuestions.map((q, index) => {
+            {filteredQuestions.map((q: any, index: number) => {
               const optList = q.options || [];
               const correctIdx = typeof q.correct_answer === 'object' ? q.correct_answer?.value : Number(q.correct_answer);
+              const subjectTag = q.subject_name || q.category || 'General';
 
               return (
                 <GlassCard
@@ -536,6 +589,10 @@ export default function QuestionsControlPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-[family-name:var(--font-mono)] font-bold text-xs px-2.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] text-white">
                           Q{index + 1}
+                        </span>
+
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(0,229,255,0.14)] border border-[rgba(0,229,255,0.3)] text-[#00E5FF] uppercase">
+                          📚 {subjectTag}
                         </span>
 
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-medium bg-[rgba(0,102,255,0.15)] border border-[rgba(0,102,255,0.3)] text-[#0066FF] uppercase">
@@ -569,7 +626,7 @@ export default function QuestionsControlPage() {
 
                       {optList.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
-                          {optList.map((opt, i) => {
+                          {optList.map((opt: string, i: number) => {
                             const isCorrect = i === correctIdx;
                             return (
                               <div
@@ -649,10 +706,10 @@ export default function QuestionsControlPage() {
 
             {/* SCROLLABLE FORM BODY */}
             <form onSubmit={handleSaveQuestion} className="flex-1 overflow-y-auto max-h-[70vh] p-6 space-y-5">
-              {/* 1. ROUND SELECT & MARKS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* 1. ROUND SELECT, SUBJECT & MARKS */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Competition Round</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Target Round</label>
                   <select
                     value={formRoundId}
                     onChange={(e) => setFormRoundId(e.target.value)}
@@ -660,6 +717,19 @@ export default function QuestionsControlPage() {
                   >
                     {rounds.map((r) => (
                       <option key={r.id} value={r.id}>Round #{r.round_number}: {r.title}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Subject Name</label>
+                  <select
+                    value={formSubjectName}
+                    onChange={(e) => setFormSubjectName(e.target.value)}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
+                  >
+                    {subjects.map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
                   </select>
                 </div>

@@ -65,29 +65,48 @@ export async function POST(
   // Get questions for randomization
   const { data: questions } = await supabaseAdmin
     .from('questions')
-    .select('id, question_type, options')
+    .select('id, question_type, options, subject_name, category, marks')
     .eq('round_id', roundId);
 
   if (!questions || questions.length === 0) {
     return NextResponse.json({ error: 'No questions available for this round' }, { status: 400 });
   }
 
+  let sampledQuestions = questions;
+
+  // Equal Subject Distribution Sampling (e.g. 5 questions per subject across 10 subjects = 50 questions)
+  if (round.equal_subject_distribution && questions.length > 0) {
+    const subjectGroups: Record<string, any[]> = {};
+    questions.forEach((q) => {
+      const subKey = q.subject_name || q.category || 'General';
+      if (!subjectGroups[subKey]) subjectGroups[subKey] = [];
+      subjectGroups[subKey].push(q);
+    });
+
+    const perSubjectQuota = round.questions_per_subject || 5;
+    const finalSelected: any[] = [];
+
+    Object.values(subjectGroups).forEach((qList) => {
+      const shuffled = [...qList].sort(() => Math.random() - 0.5);
+      finalSelected.push(...shuffled.slice(0, perSubjectQuota));
+    });
+
+    if (finalSelected.length > 0) {
+      sampledQuestions = finalSelected;
+    }
+  }
+
   // Generate randomized orders
   const questionOrder = round.randomize_questions
-    ? generateQuestionOrder(questions.map((q) => q.id))
-    : questions.map((q) => q.id);
+    ? generateQuestionOrder(sampledQuestions.map((q) => q.id))
+    : sampledQuestions.map((q) => q.id);
 
   const optionOrder = round.randomize_options
-    ? generateOptionOrder(questions as any)
+    ? generateOptionOrder(sampledQuestions as any)
     : {};
 
-  // Calculate total marks
-  const { data: allQuestions } = await supabaseAdmin
-    .from('questions')
-    .select('marks')
-    .eq('round_id', roundId);
-
-  const totalMarks = allQuestions?.reduce((sum, q) => sum + (q.marks || 0), 0) || 0;
+  // Calculate total marks of sampled paper
+  const totalMarks = sampledQuestions.reduce((sum, q) => sum + (q.marks || 0), 0);
 
   // Create attempt
   const { data: attempt, error: attemptError } = await supabaseAdmin
