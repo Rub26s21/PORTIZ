@@ -54,6 +54,12 @@ export default function QuestionsControlPage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingExcel, setUploadingExcel] = useState(false);
 
+  // Auto-Generator Modal State
+  const [showAutoModal, setShowAutoModal] = useState(false);
+  const [autoTitle, setAutoTitle] = useState('Automated 50-Q ECE Weekly Test');
+  const [autoDuration, setAutoDuration] = useState(45);
+  const [autoSubmitting, setAutoSubmitting] = useState(false);
+
   // Form State
   const [formRoundId, setFormRoundId] = useState('');
   const [formSubjectName, setFormSubjectName] = useState('Digital Electronics');
@@ -385,6 +391,38 @@ export default function QuestionsControlPage() {
       toast.error('Failed to delete question');
     }
   };
+  const handleGenerateAutoRound = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAutoSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || 'admin';
+
+      const res = await fetch('/api/admin/rounds/auto-generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: autoTitle,
+          duration_minutes: autoDuration,
+          total_target_questions: 50,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to auto-generate test');
+
+      toast.success(`🎉 50-Question Automated Test Created! Combined across ${json.active_subjects_count} subjects! 🚀`);
+      setShowAutoModal(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Error generating automated test');
+    } finally {
+      setAutoSubmitting(false);
+    }
+  };
 
   // Open Modal Helpers
   const openCreateModal = () => {
@@ -453,8 +491,17 @@ export default function QuestionsControlPage() {
 
           {/* Action Bar */}
           <div className="flex flex-wrap items-center gap-3">
+            <GalaxyButton
+              variant="cyan"
+              size="sm"
+              onClick={() => setShowAutoModal(true)}
+              className="!border-[#00E5FF] !text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.3)]"
+            >
+              🚀 Auto-Generate 50-Q Test
+            </GalaxyButton>
+
             <GalaxyButton variant="secondary" size="sm" onClick={handleDownloadExcelTemplate}>
-              <Download size={14} /> Download Excel Template (.xlsx)
+              <Download size={14} /> Excel Template (.xlsx)
             </GalaxyButton>
 
             <button
@@ -462,12 +509,12 @@ export default function QuestionsControlPage() {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.2)] text-white text-xs font-[family-name:var(--font-heading)] font-semibold transition-all cursor-pointer"
             >
               <FileSpreadsheet size={14} className="text-[#00E5FF]" />
-              <span>Download CSV Template (.csv)</span>
+              <span>CSV Template (.csv)</span>
             </button>
 
             <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-[family-name:var(--font-heading)] font-bold transition-all shadow-md">
               <UploadCloud size={14} />
-              <span>{uploadingExcel ? 'Uploading Excel...' : 'Bulk Excel / CSV Upload'}</span>
+              <span>{uploadingExcel ? 'Uploading Excel...' : 'Bulk Excel Upload'}</span>
               <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" disabled={uploadingExcel} />
             </label>
 
@@ -478,6 +525,100 @@ export default function QuestionsControlPage() {
         </div>
 
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
+      </FadeIn>
+
+      {/* ═══ 10-SUBJECT QUESTION BANK GRID ═══ */}
+      <FadeIn delay={0.03}>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-[family-name:var(--font-heading)] font-bold text-sm tracking-wider text-white uppercase flex items-center gap-2">
+              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank (10 Subjects · Max 100 Qs / Subject)
+            </h2>
+            <span className="text-xs text-[#94A3B8] font-mono">
+              Active: {subjects.length} Subjects
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {subjects.slice(0, 10).map((sub, idx) => {
+              const subCount = questions.filter(
+                (q: any) => q.subject_name === sub.name || q.category === sub.name
+              ).length;
+              const percent = Math.min(100, Math.round((subCount / 100) * 100));
+              const isSelected = subjectFilter === sub.name;
+
+              return (
+                <div
+                  key={sub.id}
+                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between space-y-3 relative overflow-hidden group cursor-pointer ${
+                    isSelected
+                      ? 'bg-[rgba(0,229,255,0.15)] border-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.2)]'
+                      : 'bg-[rgba(255,255,255,0.03)] border-white/10 hover:border-white/25 hover:bg-[rgba(255,255,255,0.06)]'
+                  }`}
+                  onClick={() => setSubjectFilter(isSelected ? 'all' : sub.name)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono text-[#00E5FF] font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/20">
+                        {sub.code || `SUB #${idx + 1}`}
+                      </span>
+                      <h3 className="font-[family-name:var(--font-display)] font-bold text-xs text-white mt-1.5 line-clamp-1" title={sub.name}>
+                        {sub.name}
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Progress Meter (Max 100 Qs) */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-[10px] font-mono">
+                      <span className="text-[#94A3B8]">Capacity</span>
+                      <span className="text-white font-bold">{subCount} / 100 Qs</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#0066FF] to-[#00E5FF] transition-all duration-300 rounded-full"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <label
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFormSubjectName(sub.name);
+                      }}
+                      className="flex-1 py-1 px-2 rounded-lg bg-[#0066FF]/20 hover:bg-[#0066FF]/40 border border-[#0066FF]/40 text-white text-[10px] font-bold text-center cursor-pointer transition-all flex items-center justify-center gap-1"
+                    >
+                      <UploadCloud size={10} /> Upload
+                      <input
+                        type="file"
+                        accept=".xlsx, .xls, .csv"
+                        onChange={(e) => {
+                          setFormSubjectName(sub.name);
+                          handleFileUpload(e);
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSubjectFilter(sub.name);
+                      }}
+                      className="py-1 px-2.5 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-white text-[10px] font-medium transition-all"
+                    >
+                      Filter
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </FadeIn>
 
       {/* ═══ FILTER & SEARCH TOOLBAR ═══ */}
@@ -950,6 +1091,75 @@ export default function QuestionsControlPage() {
                 </GalaxyButton>
                 <GalaxyButton variant="primary" size="sm" type="submit" loading={submitting}>
                   {editingQ ? 'Save Changes' : 'Create Question'}
+                </GalaxyButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ AUTO-GENERATE 50-Q MULTI-SUBJECT TEST MODAL ═══ */}
+      {showAutoModal && (
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/80" onClick={() => setShowAutoModal(false)} />
+
+          <div className="relative z-10 w-full max-w-lg bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_50px_rgba(0,229,255,0.2)] overflow-hidden my-auto p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
+                <span className="text-[#00E5FF]">🚀</span> Automated 50-Q Test Generator
+              </h3>
+              <button
+                onClick={() => setShowAutoModal(false)}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-[#94A3B8] font-[family-name:var(--font-body)] leading-relaxed">
+              This will automatically scan all subjects in your Question Bank, pull a balanced 50-question paper across all subjects containing questions, and generate a new live competition round!
+            </p>
+
+            <form onSubmit={handleGenerateAutoRound} className="space-y-4">
+              <div>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Round / Test Title</label>
+                <input
+                  type="text"
+                  value={autoTitle}
+                  onChange={(e) => setAutoTitle(e.target.value)}
+                  placeholder="e.g. Weekly Department Assessment #1"
+                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Test Duration (Minutes)</label>
+                <input
+                  type="number"
+                  value={autoDuration}
+                  onChange={(e) => setAutoDuration(Number(e.target.value))}
+                  placeholder="30"
+                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                  required
+                />
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 space-y-1 text-xs text-white">
+                <div className="font-bold flex items-center gap-1.5 text-[#00E5FF]">
+                  <span>⚡ Automatic Subject Balancing:</span>
+                </div>
+                <p className="text-[11px] text-[#94A3B8]">
+                  Pulls an equal quota of random questions from each active subject (e.g. 5 Qs x 10 subjects = 50 total questions).
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowAutoModal(false)}>
+                  Cancel
+                </GalaxyButton>
+                <GalaxyButton variant="cyan" size="sm" type="submit" loading={autoSubmitting}>
+                  🚀 Generate 50-Q Exam
                 </GalaxyButton>
               </div>
             </form>
