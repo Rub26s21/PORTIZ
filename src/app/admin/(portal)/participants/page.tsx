@@ -16,37 +16,22 @@ export default function ParticipantsPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchParticipants = useCallback(async () => {
-    // Fetch participants with their attempts count and max score
-    const { data: partData, error } = await supabase
-      .from('participants')
-      .select('id, name, register_no, email, phone, created_at')
-      .order('created_at', { ascending: false });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || 'admin';
 
-    if (error || !partData) {
+      const res = await fetch('/api/admin/participants', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setParticipants(data.participants || []);
+      }
+    } catch {
+      toast.error('Failed to load participants directory');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const enriched = await Promise.all(
-      partData.map(async (p) => {
-        const { data: attempts } = await supabase
-          .from('attempts')
-          .select('score, status')
-          .eq('participant_id', p.id);
-
-        const attemptsCount = (attempts || []).length;
-        const bestScore = (attempts || []).reduce((max, a) => Math.max(max, a.score || 0), 0);
-
-        return {
-          ...p,
-          attempts_count: attemptsCount,
-          best_score: bestScore,
-        };
-      })
-    );
-
-    setParticipants(enriched);
-    setLoading(false);
   }, []);
 
   useEffect(() => { fetchParticipants(); }, [fetchParticipants]);

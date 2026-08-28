@@ -12,46 +12,61 @@ export async function GET(
   }
 
   const { roundId } = await params;
+  let targetRoundId = roundId;
 
-  // Check if leaderboard is enabled for this round
-  const { data: round } = await supabaseAdmin
-    .from('rounds')
-    .select('show_leaderboard')
-    .eq('id', roundId)
-    .single();
+  // Resolve 'latest' or 'all' to the most recent live or submitted round
+  if (targetRoundId === 'latest' || targetRoundId === 'all' || !targetRoundId) {
+    const { data: latestRound } = await supabaseAdmin
+      .from('rounds')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (!round || !round.show_leaderboard) {
-    return NextResponse.json({
-      enabled: false,
-      message: 'Leaderboard will be published by admin 📡',
-    });
+    if (latestRound) {
+      targetRoundId = latestRound.id;
+    }
   }
 
-  // Get leaderboard data
-  const { data: attempts, error } = await supabaseAdmin
+  // Get leaderboard attempts with both participant_id and user_id relations
+  let attemptsQuery = supabaseAdmin
     .from('attempts')
     .select(`
-      score, total_marks, submitted_at, status,
+      id, score, total_marks, submitted_at, status, round_id,
+      participants:participant_id (
+        name, register_no
+      ),
       profiles:user_id (
         display_name, register_number
       )
     `)
-    .eq('round_id', roundId)
     .eq('status', 'submitted')
-    .order('score', { ascending: false });
+    .order('score', { ascending: false })
+    .order('submitted_at', { ascending: true });
+
+  if (targetRoundId && targetRoundId !== 'all') {
+    attemptsQuery = attemptsQuery.eq('round_id', targetRoundId);
+  }
+
+  const { data: attempts, error } = await attemptsQuery;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const leaderboard = attempts?.map((a, index) => {
-    const profile = (Array.isArray(a.profiles) ? a.profiles[0] : a.profiles) as any;
+  const leaderboard = (attempts || []).map((a, index) => {
+    const part = (Array.isArray(a.participants) ? a.participants[0] : a.participants) as any;
+    const prof = (Array.isArray(a.profiles) ? a.profiles[0] : a.profiles) as any;
+
+    const name = part?.name || prof?.display_name || 'Participant';
+    const regNo = part?.register_no || prof?.register_number || 'N/A';
+
     return {
       rank: index + 1,
-      display_name: profile?.display_name || 'Unknown',
-      register_number: profile?.register_number || null,
-      score: a.score,
-      total_marks: a.total_marks,
+      display_name: name,
+      register_number: regNo,
+      score: a.score || 0,
+      total_marks: a.total_marks || 50,
       submitted_at: a.submitted_at,
     };
   });

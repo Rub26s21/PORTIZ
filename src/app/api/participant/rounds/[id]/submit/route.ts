@@ -53,13 +53,19 @@ export async function POST(
   // Server-side time validation (unless force disqualify)
   if (!forceDisqualify) {
     const now = new Date();
-    const startedAt = new Date(attempt.started_at);
-    const durationEnd = new Date(startedAt.getTime() + round.duration_minutes * 60 * 1000);
-    const roundEnd = new Date(round.end_time);
-    const effectiveEnd = new Date(Math.min(durationEnd.getTime(), roundEnd.getTime()));
+    const startedAt = new Date(attempt.started_at || Date.now());
+    const durationEnd = new Date(startedAt.getTime() + (round.duration_minutes || 45) * 60 * 1000);
 
-    // Allow 30 seconds grace period
-    if (now > new Date(effectiveEnd.getTime() + 30000)) {
+    let effectiveEnd = durationEnd;
+    if (round.end_time) {
+      const roundEnd = new Date(round.end_time);
+      if (!isNaN(roundEnd.getTime())) {
+        effectiveEnd = new Date(Math.min(durationEnd.getTime(), roundEnd.getTime()));
+      }
+    }
+
+    // Allow 2 minutes grace period for network latency
+    if (now.getTime() > effectiveEnd.getTime() + 120000) {
       forceDisqualify = true;
       reason = 'time_expired';
     }

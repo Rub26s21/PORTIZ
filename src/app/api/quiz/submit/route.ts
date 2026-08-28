@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch all questions for this round
     const { data: questions } = await supabaseAdmin
       .from('questions')
-      .select('id, correct_answer, marks, negative_marks')
+      .select('id, question_type, options, correct_answer, marks, negative_marks')
       .eq('round_id', attempt.round_id);
 
     // 3. Fetch all saved responses
@@ -45,17 +45,48 @@ export async function POST(req: NextRequest) {
 
     const responseMap = new Map<string, string>();
     (responses || []).forEach((r) => {
-      if (r.selected !== null) responseMap.set(r.question_id, r.selected);
+      if (r.selected !== null && r.selected !== undefined) responseMap.set(r.question_id, String(r.selected));
     });
 
     let totalScore = 0;
 
+    // Helper: Robust answer matching logic
+    const evaluateAnswer = (q: any, userSel: string): boolean => {
+      if (!userSel || userSel.trim() === '') return false;
+      let correctVal: any = q.correct_answer;
+      if (correctVal && typeof correctVal === 'object') {
+        correctVal = correctVal.value !== undefined ? correctVal.value : correctVal;
+      }
+
+      const uStr = String(userSel).trim().toLowerCase();
+      const cStr = String(correctVal).trim().toLowerCase();
+
+      if (uStr === cStr) return true;
+
+      // Check MCQ option index / text mapping
+      if (q.options && Array.isArray(q.options)) {
+        const cIdx = Number(correctVal);
+        if (!isNaN(cIdx) && cIdx >= 0 && cIdx < q.options.length) {
+          const cText = String(q.options[cIdx]).trim().toLowerCase();
+          if (uStr === cText || uStr === String(cIdx).toLowerCase()) return true;
+        }
+
+        const uIdx = Number(userSel);
+        if (!isNaN(uIdx) && uIdx >= 0 && uIdx < q.options.length) {
+          const uText = String(q.options[uIdx]).trim().toLowerCase();
+          if (uText === cStr || String(uIdx).toLowerCase() === cStr) return true;
+        }
+      }
+
+      return false;
+    };
+
     // 4. Calculate score
     (questions || []).forEach((q) => {
       const userSel = responseMap.get(q.id);
-      if (userSel !== undefined && userSel !== null && userSel !== '') {
-        const correctStr = typeof q.correct_answer === 'object' ? JSON.stringify(q.correct_answer) : String(q.correct_answer);
-        if (userSel.trim().toLowerCase() === correctStr.trim().toLowerCase()) {
+      if (userSel !== undefined && userSel !== null && userSel.trim() !== '') {
+        const isCorrect = evaluateAnswer(q, userSel);
+        if (isCorrect) {
           totalScore += Number(q.marks || 1);
         } else if (round?.negative_marking) {
           const penalty = q.negative_marks || round.negative_marks_per_wrong || 0;
