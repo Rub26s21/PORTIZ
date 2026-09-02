@@ -146,6 +146,7 @@ export async function POST(
     status,
     score: round.show_results ? scoreResult.totalScore : undefined,
     totalMarks: round.show_results ? scoreResult.totalMarks : undefined,
+    subjectBreakdown: round.show_results ? scoreResult.subjectBreakdown : undefined,
     reason: forceDisqualify ? reason : undefined,
   });
 }

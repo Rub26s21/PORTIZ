@@ -102,9 +102,19 @@ function normalizeText(text: string): string {
 }
 
 // Calculate total score for an attempt
+export interface SubjectMetric {
+  subjectName: string;
+  totalQuestions: number;
+  correctQuestions: number;
+  score: number;
+  totalMarks: number;
+  accuracyPercentage: number;
+}
+
 export interface AttemptScoreResult {
   totalScore: number;
   totalMarks: number;
+  subjectBreakdown: Record<string, SubjectMetric>;
   results: Array<{
     questionId: string;
     isCorrect: boolean;
@@ -121,11 +131,28 @@ export function calculateAttemptScore(
   let totalScore = 0;
   let totalMarks = 0;
   const results: AttemptScoreResult['results'] = [];
+  const subjectMap: Record<string, SubjectMetric> = {};
 
   for (const question of questions) {
     totalMarks += question.marks;
     const response = responses.find((r) => r.question_id === question.id);
     const selectedAnswer = response?.selected_answer ?? null;
+
+    const subName = (question as any).subject_name || question.category || 'General';
+    if (!subjectMap[subName]) {
+      subjectMap[subName] = {
+        subjectName: subName,
+        totalQuestions: 0,
+        correctQuestions: 0,
+        score: 0,
+        totalMarks: 0,
+        accuracyPercentage: 0,
+      };
+    }
+
+    const subMetric = subjectMap[subName];
+    subMetric.totalQuestions += 1;
+    subMetric.totalMarks += question.marks;
 
     const { isCorrect, marksAwarded } = scoreAnswer(
       question,
@@ -133,6 +160,11 @@ export function calculateAttemptScore(
       negativeMarking,
       negativeMarksPerWrong
     );
+
+    if (isCorrect) {
+      subMetric.correctQuestions += 1;
+    }
+    subMetric.score += marksAwarded;
 
     totalScore += marksAwarded;
     results.push({
@@ -142,7 +174,18 @@ export function calculateAttemptScore(
     });
   }
 
-  return { totalScore: Math.max(0, totalScore), totalMarks, results };
+  // Calculate percentages
+  Object.values(subjectMap).forEach((m) => {
+    m.score = Math.max(0, Math.round(m.score * 100) / 100);
+    m.accuracyPercentage = m.totalQuestions > 0 ? Math.round((m.correctQuestions / m.totalQuestions) * 100) : 0;
+  });
+
+  return {
+    totalScore: Math.max(0, Math.round(totalScore * 100) / 100),
+    totalMarks,
+    subjectBreakdown: subjectMap,
+    results,
+  };
 }
 
 // Shuffle array using Fisher-Yates algorithm
