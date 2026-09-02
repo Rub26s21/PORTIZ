@@ -8,6 +8,7 @@ import GalaxyButton from '@/components/shared/GalaxyButton';
 import FadeIn from '@/components/shared/FadeIn';
 import { formatDateIST } from '@/lib/utils';
 import { ArrowLeft, Activity, ShieldAlert, Users, Radio, AlertOctagon } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -55,6 +56,28 @@ export default function LiveMonitoringPage({ params }: PageProps) {
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchLiveData]);
+
+  const handleAdminOverride = async (attemptId: string, action: 'unlock' | 'extend_time') => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch('/api/admin/monitoring', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ attemptId, action }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      toast.success(data.message);
+      fetchLiveData();
+    } else {
+      toast.error(data.error || 'Failed to apply admin override');
+    }
+  };
 
   const inProgressCount = liveAttempts.filter(a => a.status === 'in_progress').length;
   const dqCount = liveAttempts.filter(a => a.status === 'disqualified').length;
@@ -142,8 +165,9 @@ export default function LiveMonitoringPage({ params }: PageProps) {
           {/* ACTIVE ATTEMPTS TABLE (8 COL) */}
           <div className="lg:col-span-8">
             <GlassCard variant="solid" radius={24} hover={false} noHover className="!p-0 border border-[rgba(255,255,255,0.07)]" style={{ boxShadow: skeuomorphicShadow }}>
-              <div className="p-4 px-5 border-b border-[rgba(255,255,255,0.05)] font-[family-name:var(--font-display)] font-bold text-base gradient-text">
-                Live Participant Session Monitor
+              <div className="p-4 px-5 border-b border-[rgba(255,255,255,0.05)] font-[family-name:var(--font-display)] font-bold text-base gradient-text flex items-center justify-between">
+                <span>Live Participant Session Monitor</span>
+                <span className="text-xs text-[#94A3B8] font-mono font-normal">Lab Override Controls Active</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -153,20 +177,21 @@ export default function LiveMonitoringPage({ params }: PageProps) {
                       <th className="px-4 py-3 text-center">Status</th>
                       <th className="px-4 py-3 text-center">Answers</th>
                       <th className="px-4 py-3 text-center">Violations</th>
+                      <th className="px-4 py-3 text-center">Admin Controls</th>
                     </tr>
                   </thead>
                   <tbody>
                     {liveAttempts.length === 0 ? (
-                      <tr><td colSpan={4} className="py-12 text-center text-xs text-[var(--text-dim)]">No active sessions right now.</td></tr>
+                      <tr><td colSpan={5} className="py-12 text-center text-xs text-[var(--text-dim)]">No active sessions right now.</td></tr>
                     ) : (
                       liveAttempts.map((att) => (
                         <tr key={att.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(168,85,247,0.04)] transition-colors">
                           <td className="px-4 py-3.5">
                             <span className="font-[family-name:var(--font-body)] font-semibold text-xs text-[var(--text-primary)] block">
-                              {att.profiles?.display_name || 'Student'}
+                              {att.participants?.name || att.profiles?.display_name || 'Student'}
                             </span>
                             <span className="font-[family-name:var(--font-mono)] text-[10px] text-[var(--text-dim)]">
-                              {att.profiles?.register_number || '22EC000'}
+                              {att.participants?.register_no || att.profiles?.register_number || '22EC000'}
                             </span>
                           </td>
                           <td className="px-4 py-3.5 text-center">
@@ -183,6 +208,28 @@ export default function LiveMonitoringPage({ params }: PageProps) {
                           </td>
                           <td className="px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs text-[var(--aurora-rose)] text-center font-bold">
                             {att.violation_count || 0}
+                          </td>
+                          <td className="px-4 py-3.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {att.status === 'disqualified' && (
+                                <button
+                                  onClick={() => handleAdminOverride(att.id, 'unlock')}
+                                  className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold transition-all"
+                                  title="Unlock Disqualified Exam Session"
+                                >
+                                  🔓 Unlock
+                                </button>
+                              )}
+                              {att.status === 'in_progress' && (
+                                <button
+                                  onClick={() => handleAdminOverride(att.id, 'extend_time')}
+                                  className="px-2 py-1 rounded-lg bg-[#00E5FF]/20 hover:bg-[#00E5FF]/40 border border-[#00E5FF]/40 text-[#00E5FF] text-[10px] font-bold transition-all"
+                                  title="Add +5 Minutes Extra Time"
+                                >
+                                  ⏱️ +5 Mins
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))
