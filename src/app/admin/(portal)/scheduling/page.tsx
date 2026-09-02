@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import FadeIn from '@/components/shared/FadeIn';
-import { Calendar, Clock, Sparkles, Plus, Trash2, CheckCircle2, Play, AlertCircle, FileText } from 'lucide-react';
+import { Calendar, Clock, Sparkles, Plus, Trash2, Edit3, Play, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface ScheduledTest {
@@ -24,12 +24,14 @@ export default function SchedulingDashboardPage() {
   const [tests, setTests] = useState<ScheduledTest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal State
+  // Modal State (Create / Edit)
   const [showModal, setShowModal] = useState(false);
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
   const [testTitle, setTestTitle] = useState('Weekly Test 1');
-  const [durationMinutes, setDurationMinutes] = useState(45);
+  const [durationMinutes, setDurationMinutes] = useState(60); // Default 60 Minutes (1 Hour)
   const [startTime, setStartTime] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [autoGenerating, setAutoGenerating] = useState(false);
 
   const fetchScheduledTests = useCallback(async () => {
     try {
@@ -54,9 +56,9 @@ export default function SchedulingDashboardPage() {
     fetchScheduledTests();
   }, [fetchScheduledTests]);
 
-  const handleScheduleTest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
+  // ── AUTO-GENERATE MONDAY & FRIDAY WEEKLY TESTS (6:00 PM, 1 HOUR, 50 QS) ──
+  const handleAutoGenerateMonFri = async () => {
+    setAutoGenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
@@ -67,25 +69,85 @@ export default function SchedulingDashboardPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: testTitle,
-          duration_minutes: durationMinutes,
-          start_time: startTime || new Date().toISOString(),
-          total_target_questions: 50,
-        }),
+        body: JSON.stringify({ action: 'auto_generate_mon_fri' }),
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to schedule test');
+      if (!res.ok) throw new Error(json.error || 'Failed to auto-generate tests');
 
-      toast.success(`🎉 ${json.scheduled_test.title} Scheduled! 50 Questions compiled across ${json.active_subjects_count} subjects! 🚀`);
+      toast.success(`🎉 Auto-Generated Monday & Friday Weekly Tests at 6:00 PM (1 Hour Duration, 50 Qs per test)! 🚀`);
+      fetchScheduledTests();
+    } catch (err: any) {
+      toast.error(err.message || 'Error generating weekly tests');
+    } finally {
+      setAutoGenerating(false);
+    }
+  };
+
+  // ── SAVE OR EDIT SINGLE TEST ──
+  const handleSaveOrEditTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || 'admin';
+
+      if (editingTestId) {
+        // EDIT EXISTING TEST & TIMER
+        const res = await fetch('/api/admin/scheduling', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            id: editingTestId,
+            title: testTitle,
+            duration_minutes: durationMinutes,
+            start_time: startTime || null,
+          }),
+        });
+
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to update test timer');
+        toast.success(`Updated ${testTitle}! Duration set to ${durationMinutes} minutes! ✏️`);
+      } else {
+        // SCHEDULE NEW TEST
+        const res = await fetch('/api/admin/scheduling', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: testTitle,
+            duration_minutes: durationMinutes,
+            start_time: startTime || new Date().toISOString(),
+            total_target_questions: 50,
+          }),
+        });
+
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to schedule test');
+
+        toast.success(`🎉 ${json.scheduled_test.title} Scheduled! 50 Questions compiled across subjects! 🚀`);
+      }
+
       setShowModal(false);
       fetchScheduledTests();
     } catch (err: any) {
-      toast.error(err.message || 'Error scheduling test');
+      toast.error(err.message || 'Error saving test');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleOpenEditModal = (test: ScheduledTest) => {
+    setEditingTestId(test.id);
+    setTestTitle(test.title);
+    setDurationMinutes(test.duration_minutes || 60);
+    setStartTime(test.start_time ? new Date(test.start_time).toISOString().slice(0, 16) : '');
+    setShowModal(true);
   };
 
   const handleToggleStatus = async (testId: string, currentStatus: string) => {
@@ -94,13 +156,13 @@ export default function SchedulingDashboardPage() {
       const token = session?.access_token || 'admin';
 
       const newStatus = currentStatus === 'live' ? 'draft' : 'live';
-      const res = await fetch(`/api/admin/rounds/${testId}`, {
+      const res = await fetch('/api/admin/scheduling', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ id: testId, status: newStatus }),
       });
 
       if (!res.ok) throw new Error('Failed to update status');
@@ -142,7 +204,7 @@ export default function SchedulingDashboardPage() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.2)] w-fit mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-pulse" />
               <span className="font-[family-name:var(--font-heading)] text-[10px] font-semibold tracking-widest text-[#00E5FF] uppercase">
-                TEST SCHEDULER & ASSESSMENT HUB ✦
+                TEST SCHEDULER & AUTOMATION HUB ✦
               </span>
             </div>
 
@@ -150,21 +212,36 @@ export default function SchedulingDashboardPage() {
               Weekly Test Scheduling
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              Schedule weekly department exams with 50 automated random questions drawn from your subject question bank
+              Auto-generate 50-Question Weekly Tests for Monday & Friday (6:00 PM, 1 Hour Duration) with editable timers
             </p>
           </div>
 
-          <GalaxyButton
-            variant="cyan"
-            size="sm"
-            onClick={() => {
-              setTestTitle(`Weekly Test ${tests.length + 1}`);
-              setShowModal(true);
-            }}
-            className="!border-[#00E5FF] !text-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-          >
-            <Plus size={14} /> Schedule New 50-Q Test
-          </GalaxyButton>
+          <div className="flex items-center gap-3">
+            <GalaxyButton
+              variant="gold"
+              size="sm"
+              onClick={handleAutoGenerateMonFri}
+              loading={autoGenerating}
+              className="!border-[#FFD700] !text-[#FFD700] shadow-[0_0_20px_rgba(255,215,0,0.3)]"
+            >
+              <RefreshCw size={14} /> Auto-Generate Mon & Fri Tests (6 PM)
+            </GalaxyButton>
+
+            <GalaxyButton
+              variant="cyan"
+              size="sm"
+              onClick={() => {
+                setEditingTestId(null);
+                setTestTitle(`Weekly Test ${tests.length + 1}`);
+                setDurationMinutes(60);
+                setStartTime('');
+                setShowModal(true);
+              }}
+              className="!border-[#00E5FF] !text-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
+            >
+              <Plus size={14} /> Schedule Custom Test
+            </GalaxyButton>
+          </div>
         </div>
 
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
@@ -181,11 +258,14 @@ export default function SchedulingDashboardPage() {
               No scheduled tests found
             </h3>
             <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] mt-1 max-w-md mx-auto">
-              Schedule your first Weekly Test! The system will automatically compile 50 random questions across all subjects containing questions in your Question Bank.
+              Click &quot;Auto-Generate Mon & Fri Tests&quot; to automatically create upcoming Monday and Friday tests (6:00 PM, 1 Hour, 50 Qs), or schedule a custom test paper!
             </p>
-            <div className="flex justify-center mt-5">
+            <div className="flex justify-center gap-3 mt-5">
+              <GalaxyButton variant="gold" size="sm" onClick={handleAutoGenerateMonFri}>
+                <RefreshCw size={14} /> Auto-Generate Mon & Fri Tests
+              </GalaxyButton>
               <GalaxyButton variant="cyan" size="sm" onClick={() => setShowModal(true)}>
-                <Plus size={14} /> Schedule Weekly Test
+                <Plus size={14} /> Schedule Custom Test
               </GalaxyButton>
             </div>
           </GlassCard>
@@ -215,6 +295,10 @@ export default function SchedulingDashboardPage() {
                           📝 {qCount} Questions
                         </span>
 
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(255,215,0,0.14)] border border-[rgba(255,215,0,0.3)] text-[#FFD700] uppercase">
+                          ⏱️ {test.duration_minutes || 60} Mins (1 Hour)
+                        </span>
+
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase ${
                           test.status === 'live'
                             ? 'bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.4)] text-[#10B981]'
@@ -229,7 +313,7 @@ export default function SchedulingDashboardPage() {
                       </h2>
 
                       <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8]">
-                        {test.description || 'Automated multi-subject weekly test paper.'}
+                        {test.description || 'Automated multi-subject weekly test paper compiled across active subject bank.'}
                       </p>
 
                       <div className="flex flex-wrap gap-4 text-xs font-[family-name:var(--font-mono)] text-[#00E5FF]">
@@ -237,14 +321,23 @@ export default function SchedulingDashboardPage() {
                           <Calendar size={13} />
                           {test.start_time ? new Date(test.start_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Flexible'}
                         </span>
-                        <span className="flex items-center gap-1 text-[#94A3B8]">
+                        <span className="flex items-center gap-1 text-[#FFD700]">
                           <Clock size={13} />
-                          {test.duration_minutes} Minutes
+                          Timer: {test.duration_minutes} Mins
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleOpenEditModal(test)}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center gap-1.5"
+                        title="Edit test title, date, or timer duration"
+                      >
+                        <Edit3 size={13} />
+                        <span>Edit Timer / Info</span>
+                      </button>
+
                       <button
                         onClick={() => handleToggleStatus(test.id, test.status)}
                         className={`px-3.5 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -276,7 +369,7 @@ export default function SchedulingDashboardPage() {
         )}
       </FadeIn>
 
-      {/* ═══ SCHEDULE TEST MODAL ═══ */}
+      {/* ═══ SCHEDULE / EDIT TEST MODAL ═══ */}
       {showModal && (
         <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/80" onClick={() => setShowModal(false)} />
@@ -284,7 +377,7 @@ export default function SchedulingDashboardPage() {
           <div className="relative z-10 w-full max-w-lg bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_50px_rgba(0,229,255,0.2)] overflow-hidden my-auto p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
-                <span className="text-[#00E5FF]">📅</span> Schedule Weekly Test
+                <span className="text-[#00E5FF]">📅</span> {editingTestId ? 'Edit Test & Timer' : 'Schedule Weekly Test'}
               </h3>
               <button
                 onClick={() => setShowModal(false)}
@@ -294,14 +387,14 @@ export default function SchedulingDashboardPage() {
               </button>
             </div>
 
-            <form onSubmit={handleScheduleTest} className="space-y-4">
+            <form onSubmit={handleSaveOrEditTest} className="space-y-4">
               <div>
                 <label className="form-label text-xs text-[#E2E8F0] font-bold">Test Title</label>
                 <input
                   type="text"
                   value={testTitle}
                   onChange={(e) => setTestTitle(e.target.value)}
-                  placeholder="e.g. Weekly Test 1"
+                  placeholder="e.g. Weekly Test 1 (Monday 6:00 PM)"
                   className="form-input bg-[#000000] text-white border border-white/20 text-xs"
                   required
                 />
@@ -309,7 +402,7 @@ export default function SchedulingDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Start Date & Time</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Start Date & Time (Default 6:00 PM)</label>
                   <input
                     type="datetime-local"
                     value={startTime}
@@ -319,25 +412,26 @@ export default function SchedulingDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Duration (Minutes)</label>
+                  <label className="form-label text-xs text-[#FFD700] font-bold">Timer Duration (Minutes)</label>
                   <input
                     type="number"
                     value={durationMinutes}
                     onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    placeholder="45"
-                    className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                    placeholder="60"
+                    className="form-input bg-[#000000] text-[#FFD700] border border-[#FFD700]/40 text-xs font-bold font-[family-name:var(--font-mono)]"
                     required
                   />
+                  <span className="text-[10px] text-[#94A3B8]">Default: 60 mins (1 hour)</span>
                 </div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 space-y-1 text-xs text-white">
                 <div className="font-bold flex items-center gap-1.5 text-[#00E5FF]">
                   <Sparkles size={14} />
-                  <span>Automated 50-Question Generation:</span>
+                  <span>50-Question Automated Paper Generation:</span>
                 </div>
                 <p className="text-[11px] text-[#94A3B8] leading-relaxed">
-                  When scheduled, the system automatically draws an equal random distribution of questions across all subjects containing questions in your Question Bank to assemble a 50-question test paper.
+                  The system automatically compiles an equal random quota of 50 questions across all subjects containing questions in your Question Bank. You can edit the timer anytime!
                 </p>
               </div>
 
@@ -346,7 +440,7 @@ export default function SchedulingDashboardPage() {
                   Cancel
                 </GalaxyButton>
                 <GalaxyButton variant="cyan" size="sm" type="submit" loading={submitting}>
-                  📅 Schedule Test Now
+                  {editingTestId ? '✏️ Save Timer & Details' : '📅 Schedule Test Now'}
                 </GalaxyButton>
               </div>
             </form>
