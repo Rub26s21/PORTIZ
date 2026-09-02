@@ -255,8 +255,22 @@ export default function QuestionsControlPage() {
         const optB = String(row['option 2'] || row['Option B'] || '');
         const optC = String(row['option 3'] || row['Option C'] || '');
         const optD = String(row['option 4'] || row['Option D'] || '');
-        const correctVal = row['Correct Option (1-4)'] !== undefined ? row['Correct Option (1-4)'] : row['Correct Answer'];
-        const correctIndex = typeof correctVal === 'number' ? correctVal - 1 : (Number(correctVal) ? Number(correctVal) - 1 : 0);
+        const correctVal = row['Correct Option (1-4)'] !== undefined ? row['Correct Option (1-4)'] : (row['Correct Answer'] !== undefined ? row['Correct Answer'] : row['correct_answer']);
+        let correctIndex = 0;
+        if (typeof correctVal === 'number') {
+          correctIndex = correctVal - 1;
+        } else if (typeof correctVal === 'string') {
+          const parsedNum = parseInt(correctVal.trim(), 10);
+          if (!isNaN(parsedNum)) {
+            correctIndex = parsedNum - 1;
+          } else {
+            const letter = correctVal.trim().toUpperCase();
+            if (letter === 'A' || letter === 'OPTION A') correctIndex = 0;
+            else if (letter === 'B' || letter === 'OPTION B') correctIndex = 1;
+            else if (letter === 'C' || letter === 'OPTION C') correctIndex = 2;
+            else if (letter === 'D' || letter === 'OPTION D') correctIndex = 3;
+          }
+        }
         const marks = Number(row['Marks']) || 2;
         const negMarks = Number(row['Negative Marks']) || 0.5;
         const difficulty = row['Difficulty'] || 'medium';
