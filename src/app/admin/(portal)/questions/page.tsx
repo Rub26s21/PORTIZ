@@ -506,8 +506,16 @@ export default function QuestionsControlPage() {
               Question Bank & Excel Manager
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              {questions.length} total questions configured across {rounds.length} competition rounds
+              {questions.length} total questions configured across department subject banks
             </p>
+            <div className="flex flex-wrap items-center gap-2 mt-2 font-mono text-xs">
+              <span className="px-3 py-1 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] font-bold">
+                📊 TOTAL BANK: {questions.length} Questions Uploaded
+              </span>
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
+                🎲 Equal Ratio 50-Q Shuffled Exam Generator Active
+              </span>
+            </div>
           </div>
 
           {/* Action Bar */}
