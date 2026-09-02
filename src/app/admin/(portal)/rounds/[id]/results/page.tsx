@@ -78,24 +78,35 @@ export default function ResultsPage({ params }: PageProps) {
     }
   };
 
-  // CSV EXPORT
-  const handleExportCSV = () => {
-    if (results.length === 0) {
-      toast.error('No results to export');
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [cutoffRank, setCutoffRank] = useState(10);
+
+  const handlePromoteTopN = async () => {
+    const topIds = results.slice(0, cutoffRank).map(r => r.id);
+    if (topIds.length === 0) {
+      toast.error('No participants eligible for promotion');
       return;
     }
-    const headers = ['Rank,Name,Register No,Email,Phone,Score,Time Taken (sec),Status,Submitted At'];
-    const rows = results.map((r, idx) =>
-      `"${idx + 1}","${r.participants?.name || r.profiles?.display_name || ''}","${r.participants?.register_no || r.profiles?.register_number || ''}","${r.participants?.email || ''}","${r.participants?.phone || ''}","${r.score || 0}","${r.time_taken_seconds || 0}","${r.status}","${r.submitted_at || ''}"`
-    );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `results_${roundTitle.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    toast.success('CSV Exported! 📊');
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch(`/api/admin/rounds/${roundId}/promote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ attemptIds: topIds }),
+    });
+
+    if (res.ok) {
+      toast.success(`Top ${topIds.length} rankers promoted successfully! 🏆`);
+      setShowPromoteModal(false);
+      fetchResults();
+    } else {
+      toast.error('Failed to promote rankers');
+    }
   };
 
   // EXCEL EXPORT (Multi-Sheet XLSX)
@@ -187,13 +198,10 @@ export default function ResultsPage({ params }: PageProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            <GalaxyButton variant="secondary" size="sm" onClick={handleExportCSV}>
-              <Download size={14} /> CSV Export
-            </GalaxyButton>
             <GalaxyButton variant="gold" size="sm" onClick={handleExportExcel}>
-              <FileSpreadsheet size={14} /> Excel Export
+              <FileSpreadsheet size={14} /> Official Excel Export (.xlsx)
             </GalaxyButton>
-            <GalaxyButton variant="gold" size="sm" onClick={handlePromoteSelected} disabled={selectedIds.length === 0}>
+            <GalaxyButton variant="primary" size="sm" onClick={handlePromoteSelected} disabled={selectedIds.length === 0}>
               <Trophy size={14} /> Promote Selected ({selectedIds.length})
             </GalaxyButton>
           </div>
