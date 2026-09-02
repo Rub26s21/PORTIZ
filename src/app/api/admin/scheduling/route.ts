@@ -51,7 +51,17 @@ async function generate50QuestionPaper(roundId: string) {
     selectedQuestions.push(...picked);
   });
 
-  const insertPayloads = selectedQuestions.map((q, idx) => ({
+  // Fisher-Yates Shuffle on the combined 50-question pool across subjects
+  const final50Questions = [...selectedQuestions];
+  for (let i = final50Questions.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [final50Questions[i], final50Questions[j]] = [final50Questions[j], final50Questions[i]];
+  }
+
+  // Ensure strict cap of max 50 questions
+  const capped50Questions = final50Questions.slice(0, 50);
+
+  const insertPayloads = capped50Questions.map((q, idx) => ({
     round_id: roundId,
     subject_id: q.subject_id,
     subject_name: q.subject_name || q.category,
@@ -69,7 +79,7 @@ async function generate50QuestionPaper(roundId: string) {
   }));
 
   await supabaseAdmin.from('questions').insert(insertPayloads);
-  return selectedQuestions.length;
+  return capped50Questions.length;
 }
 
 // Helper: Calculate next Monday and Friday at 6:00 PM (18:00)
