@@ -28,14 +28,14 @@ export default function LiveMonitoringPage({ params }: PageProps) {
 
     const { data: attempts } = await supabase
       .from('attempts')
-      .select('id, status, created_at, violation_count, answered_count, profiles(display_name, register_number, dept)')
+      .select('id, status, created_at, violation_count, answered_count, profiles(display_name, register_number), participants(name, register_no)')
       .eq('round_id', roundId);
 
     setLiveAttempts(attempts || []);
 
     const { data: events } = await supabase
       .from('proctor_events')
-      .select('id, event_type, created_at, details, attempts(profiles(display_name, register_number))')
+      .select('id, event_type, created_at, details, attempts(profiles(display_name, register_number), participants(name, register_no))')
       .order('created_at', { ascending: false })
       .limit(15);
 
