@@ -181,13 +181,93 @@ export default function QuizTestPage({ params }: PageProps) {
     loadQuestion(index, questionOrder, attemptId, answersMap);
   };
 
-  // Debounced Auto-Save
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
+
+  // Reconnection Auto-Sync
+  const flushOfflineQueue = useCallback(async () => {
+    if (!attemptId) return;
+    const queueKey = `quiz_offline_queue_${attemptId}`;
+    const rawQueue = localStorage.getItem(queueKey);
+    if (!rawQueue) return;
+
+    try {
+      const queue: Array<{ question_id: string; selected: string }> = JSON.parse(rawQueue);
+      if (queue.length === 0) return;
+
+      for (const item of queue) {
+        await fetch('/api/quiz/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attempt_id: attemptId,
+            question_id: item.question_id,
+            selected: item.selected,
+          }),
+        });
+      }
+
+      localStorage.removeItem(queueKey);
+      setPendingQueueCount(0);
+      setSavingStatus('saved');
+    } catch {
+      /* retry later */
+    }
+  }, [attemptId]);
+
+  // Network Listeners
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = async () => {
+      setIsOnline(true);
+      toast.success('🌐 Reconnected! Syncing offline answers...');
+      await flushOfflineQueue();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.error('📡 Offline Mode Active — Answers saved locally');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [attemptId, flushOfflineQueue]);
+
+  // Debounced Auto-Save with LocalStorage Cache & Offline Queue
   const triggerAutoSave = (qId: string, value: string) => {
+    if (!attemptId) return;
     setSavingStatus('saving');
+
+    // 1. Immediately cache in LocalStorage (Never lose student progress)
+    const cacheKey = `quiz_answers_${attemptId}`;
+    const queueKey = `quiz_offline_queue_${attemptId}`;
+
+    const existingCache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+    existingCache[qId] = value;
+    localStorage.setItem(cacheKey, JSON.stringify(existingCache));
+
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
     debounceTimer.current = setTimeout(async () => {
-      if (!attemptId) return;
+      if (!navigator.onLine) {
+        // Add to offline queue
+        const existingQueue: Array<{ question_id: string; selected: string }> = JSON.parse(localStorage.getItem(queueKey) || '[]');
+        const updatedQueue = existingQueue.filter(i => i.question_id !== qId);
+        updatedQueue.push({ question_id: qId, selected: value });
+        localStorage.setItem(queueKey, JSON.stringify(updatedQueue));
+
+        setPendingQueueCount(updatedQueue.length);
+        setSavingStatus('saved');
+        return;
+      }
+
       try {
         const res = await fetch('/api/quiz/save', {
           method: 'POST',
@@ -207,7 +287,7 @@ export default function QuizTestPage({ params }: PageProps) {
       } catch {
         setSavingStatus('idle');
       }
-    }, 800);
+    }, 600);
   };
 
   // Answer Select Handler
@@ -611,18 +691,27 @@ export default function QuizTestPage({ params }: PageProps) {
               ← Previous
             </GalaxyButton>
 
-            {/* Auto-save indicator */}
-            <div className="flex items-center gap-1.5 font-[family-name:var(--font-body)] text-xs text-[var(--text-dim)] font-light">
-              {savingStatus === 'saving' && (
+            {/* Auto-save & Network Status Indicator */}
+            <div className="flex items-center gap-2 font-[family-name:var(--font-body)] text-xs font-light">
+              {!isOnline ? (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-[10px] font-mono animate-pulse flex items-center gap-1">
+                  <span>📡 Offline Mode (Local Cache Active)</span>
+                  {pendingQueueCount > 0 && <span className="font-bold">({pendingQueueCount} queued)</span>}
+                </span>
+              ) : (
                 <>
-                  <Loader2 size={12} className="animate-spin text-[var(--aurora-cyan)]" />
-                  <span>Saving...</span>
-                </>
-              )}
-              {savingStatus === 'saved' && (
-                <>
-                  <CheckCircle size={12} className="text-[var(--aurora-green)]" />
-                  <span>Saved</span>
+                  {savingStatus === 'saving' && (
+                    <>
+                      <Loader2 size={12} className="animate-spin text-[var(--aurora-cyan)]" />
+                      <span className="text-[#94A3B8]">Syncing...</span>
+                    </>
+                  )}
+                  {savingStatus === 'saved' && (
+                    <>
+                      <CheckCircle size={12} className="text-[var(--aurora-green)]" />
+                      <span className="text-emerald-400">All Answers Synced</span>
+                    </>
+                  )}
                 </>
               )}
             </div>
