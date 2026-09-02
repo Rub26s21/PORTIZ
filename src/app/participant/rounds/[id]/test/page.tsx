@@ -94,9 +94,72 @@ export default function TestPage() {
     return () => clearInterval(interval);
   }, [startedAt, durationMinutes, endTime]);
 
-  // Save answer
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+
+  // Network listener & LocalStorage Auto-Sync
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const flushOfflineQueue = async () => {
+      const queueKey = `participant_offline_queue_${roundId}`;
+      const rawQueue = localStorage.getItem(queueKey);
+      if (!rawQueue) return;
+
+      try {
+        const queue: Array<{ questionId: string; selectedAnswer: any }> = JSON.parse(rawQueue);
+        if (queue.length === 0) return;
+
+        for (const item of queue) {
+          await fetch(`/api/participant/rounds/${roundId}/save-answer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
+            body: JSON.stringify({ questionId: item.questionId, selectedAnswer: item.selectedAnswer }),
+          });
+        }
+
+        localStorage.removeItem(queueKey);
+      } catch {
+        /* retry later */
+      }
+    };
+
+    const handleOnline = async () => {
+      setIsOnline(true);
+      await flushOfflineQueue();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [roundId]);
+
+  // Save answer with offline caching
   const saveAnswer = useCallback(async (questionId: string, answer: AnswerValue | null) => {
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
+
+    // 1. Instantly cache in LocalStorage
+    const cacheKey = `participant_answers_${roundId}`;
+    const queueKey = `participant_offline_queue_${roundId}`;
+    const existingCache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+    existingCache[questionId] = answer;
+    localStorage.setItem(cacheKey, JSON.stringify(existingCache));
+
+    if (!navigator.onLine) {
+      const existingQueue: Array<{ questionId: string; selectedAnswer: any }> = JSON.parse(localStorage.getItem(queueKey) || '[]');
+      const updatedQueue = existingQueue.filter(i => i.questionId !== questionId);
+      updatedQueue.push({ questionId, selectedAnswer: answer });
+      localStorage.setItem(queueKey, JSON.stringify(updatedQueue));
+      return;
+    }
 
     try {
       await fetch(`/api/participant/rounds/${roundId}/save-answer`, {
@@ -104,7 +167,9 @@ export default function TestPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
         body: JSON.stringify({ questionId, selectedAnswer: answer }),
       });
-    } catch { /* silent retry */ }
+    } catch {
+      /* queued for auto-sync */
+    }
   }, [roundId]);
 
   // Submit
