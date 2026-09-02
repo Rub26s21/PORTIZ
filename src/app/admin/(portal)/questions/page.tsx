@@ -244,9 +244,8 @@ export default function QuestionsControlPage() {
       for (const row of rawJson) {
         rowIndex++;
         const roundNum = Number(row['Round Number'] || 1);
-        const matchedRound = rounds.find((r) => r.round_number === roundNum) || rounds[0];
-
-        if (!matchedRound) continue;
+        const matchedRound = rounds.length > 0 ? (rounds.find((r) => r.round_number === roundNum) || rounds[0]) : null;
+        const targetRoundId = matchedRound?.id || 'default';
 
         // Support ARDUFUSION.xlsx format OR standard template format
         const qType = (row['Question Type'] || 'mcq').toLowerCase();
@@ -277,7 +276,7 @@ export default function QuestionsControlPage() {
         const optionsArray = [optA, optB, optC, optD].filter(Boolean);
 
         const newQuestionPayload = {
-          round_id: matchedRound.id,
+          round_id: targetRoundId,
           subject_name: rowSubject,
           question_type: qType,
           question_text: qText,
@@ -292,7 +291,7 @@ export default function QuestionsControlPage() {
           explanation: explanation,
         };
 
-        const res = await fetch(`/api/admin/rounds/${matchedRound.id}/questions`, {
+        const res = await fetch(`/api/admin/rounds/${targetRoundId}/questions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -304,7 +303,7 @@ export default function QuestionsControlPage() {
         if (res.ok) insertedCount++;
       }
 
-      toast.success(`Bulk Upload Complete! ${insertedCount} ARDUFUSION questions imported successfully! 🚀`);
+      toast.success(`Bulk Upload Complete! ${insertedCount} questions imported successfully! 🚀`);
       fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Error processing Excel file');
@@ -327,8 +326,10 @@ export default function QuestionsControlPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
 
+      const targetRoundId = formRoundId || (rounds.length > 0 ? rounds[0].id : 'default');
+
       const payload = {
-        round_id: formRoundId,
+        round_id: targetRoundId,
         subject_name: formSubjectName,
         question_type: formType,
         question_text: formText,
@@ -348,7 +349,7 @@ export default function QuestionsControlPage() {
       };
 
       if (editingQ) {
-        const res = await fetch(`/api/admin/rounds/${formRoundId}/questions`, {
+        const res = await fetch(`/api/admin/rounds/${targetRoundId}/questions`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({ questionId: editingQ.id, ...payload }),
@@ -357,7 +358,7 @@ export default function QuestionsControlPage() {
         if (!res.ok) throw new Error('Failed to update question');
         toast.success('Question updated successfully! ✏️');
       } else {
-        const res = await fetch(`/api/admin/rounds/${formRoundId}/questions`, {
+        const res = await fetch(`/api/admin/rounds/${targetRoundId}/questions`, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),

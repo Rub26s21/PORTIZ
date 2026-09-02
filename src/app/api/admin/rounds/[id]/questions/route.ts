@@ -12,17 +12,19 @@ export async function GET(
   }
 
   const { id } = await params;
-  const { data: questions, error } = await supabaseAdmin
-    .from('questions')
-    .select('*')
-    .eq('round_id', id)
-    .order('order_index', { ascending: true });
+  let query = supabaseAdmin.from('questions').select('*').order('created_at', { ascending: false });
+
+  if (id && id !== 'all' && id !== 'default' && id !== 'undefined') {
+    query = query.eq('round_id', id);
+  }
+
+  const { data: questions, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ questions });
+  return NextResponse.json({ questions: questions || [] });
 }
 
 export async function POST(
@@ -37,9 +39,35 @@ export async function POST(
   const { id } = await params;
   try {
     const body = await req.json();
+    let roundIdToUse = body.round_id || id;
+
+    if (!roundIdToUse || roundIdToUse === 'all' || roundIdToUse === 'default' || roundIdToUse === 'undefined') {
+      const { data: defaultRound } = await supabaseAdmin
+        .from('rounds')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (defaultRound) {
+        roundIdToUse = defaultRound.id;
+      } else {
+        const { data: newRound } = await supabaseAdmin
+          .from('rounds')
+          .insert({
+            round_number: 1,
+            title: 'Question Bank Pool',
+            duration_minutes: 45,
+            status: 'draft',
+          })
+          .select('id')
+          .single();
+        if (newRound) roundIdToUse = newRound.id;
+      }
+    }
+
     const { data: question, error } = await supabaseAdmin
       .from('questions')
-      .insert({ ...body, round_id: id })
+      .insert({ ...body, round_id: roundIdToUse })
       .select()
       .single();
 
@@ -48,8 +76,8 @@ export async function POST(
     }
 
     return NextResponse.json({ question }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Invalid request body' }, { status: 400 });
   }
 }
 
@@ -82,14 +110,12 @@ export async function PUT(
     }
 
     return NextResponse.json({ question });
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Invalid request body' }, { status: 400 });
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-) {
+export async function DELETE(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (isAuthError(auth)) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
