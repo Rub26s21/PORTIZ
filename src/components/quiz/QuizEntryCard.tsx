@@ -22,6 +22,7 @@ export default function QuizEntryCard() {
   // Form State
   const [name, setName] = useState('');
   const [registerNo, setRegisterNo] = useState('');
+  const [section, setSection] = useState<'A' | 'B' | 'C' | 'D'>('A');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
@@ -38,6 +39,7 @@ export default function QuizEntryCard() {
         const parsed = JSON.parse(saved);
         if (parsed.name) setName(parsed.name);
         if (parsed.register_no) setRegisterNo(parsed.register_no);
+        if (parsed.section) setSection(parsed.section);
         if (parsed.phone) setPhone(parsed.phone);
         if (parsed.email) setEmail(parsed.email);
       } catch {}
@@ -89,6 +91,7 @@ export default function QuizEntryCard() {
     const participantData = {
       name: name.trim(),
       register_no: registerNo.trim().toUpperCase(),
+      section: section || 'A',
       email: email.trim(),
       phone: phone.trim() || null,
     };
@@ -226,19 +229,37 @@ export default function QuizEntryCard() {
               />
             </div>
 
-            {/* 2. Register Number */}
-            <div>
-              <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
-                <Hash size={13} className="text-[#FF0033]" /> Register Number <span className="text-[#FF0033]">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={registerNo}
-                onChange={(e) => setRegisterNo(e.target.value.toUpperCase())}
-                placeholder="e.g. 22ECE001"
-                className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-mono)] uppercase tracking-wider focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none placeholder:text-[#64748B] transition-all"
-              />
+            {/* 2. Register Number & Section */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
+                  <Hash size={13} className="text-[#FF0033]" /> Register Number <span className="text-[#FF0033]">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={registerNo}
+                  onChange={(e) => setRegisterNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. 22ECE001"
+                  className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-mono)] uppercase tracking-wider focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none placeholder:text-[#64748B] transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
+                  <span>🏛️ Class Section</span> <span className="text-[#FF0033]">*</span>
+                </label>
+                <select
+                  value={section}
+                  onChange={(e) => setSection(e.target.value as any)}
+                  className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-heading)] focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none transition-all cursor-pointer"
+                >
+                  <option value="A">Section A</option>
+                  <option value="B">Section B</option>
+                  <option value="C">Section C</option>
+                  <option value="D">Section D</option>
+                </select>
+              </div>
             </div>
 
             {/* 3. Email Address (Compulsory) */}

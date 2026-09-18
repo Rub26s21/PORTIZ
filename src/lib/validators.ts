@@ -19,6 +19,9 @@ export const registerSchema = z
     year: z.enum(['1st', '2nd', '3rd', '4th'], {
       message: 'Please select your year',
     }),
+    section: z.enum(['A', 'B', 'C', 'D'], {
+      message: 'Please select your section',
+    }),
     password: z
       .string()
       .min(6, 'Password must be at least 6 characters')

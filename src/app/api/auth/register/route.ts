@@ -4,11 +4,13 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password, display_name, register_number, department, year } = body;
+    const { email, password, display_name, register_number, department, year, section } = body;
 
     if (!email || !password || !display_name || !register_number || !department || !year) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
+
+    const safeSection = (section || 'A').toUpperCase();
 
     // Check if register number already exists
     const { data: existingProfile } = await supabaseAdmin
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
       user_metadata: {
         display_name,
         role: 'participant',
+        section: safeSection,
       },
     });
 
@@ -43,6 +46,7 @@ export async function POST(req: NextRequest) {
         register_number,
         department,
         year,
+        section: safeSection,
         display_name,
       })
       .eq('id', authData.user.id);
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
         display_name,
         department,
         year,
+        section: safeSection,
         role: 'participant',
       });
     }

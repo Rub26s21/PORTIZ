@@ -9,6 +9,7 @@ export interface UserProfile {
   display_name: string;
   department: string | null;
   year: string | null;
+  section?: Section | null;
   role: UserRole;
   created_at: string;
 }
@@ -32,13 +33,16 @@ export interface RegisterData {
   register_number: string;
   department: Department;
   year: Year;
+  section: Section;
 }
 
 export type Department = 'ECE' | 'EEE' | 'CSE' | 'IT' | 'MECH' | 'CIVIL' | 'Other';
 export type Year = '1st' | '2nd' | '3rd' | '4th';
+export type Section = 'A' | 'B' | 'C' | 'D';
 
 export const DEPARTMENTS: Department[] = ['ECE', 'EEE', 'CSE', 'IT', 'MECH', 'CIVIL', 'Other'];
 export const YEARS: Year[] = ['1st', '2nd', '3rd', '4th'];
+export const SECTIONS: Section[] = ['A', 'B', 'C', 'D'];
 
 export interface AuthResponse {
   success: boolean;

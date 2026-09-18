@@ -11,8 +11,8 @@ import Logo from '@/components/shared/Logo';
 import GlowButton from '@/components/shared/GlowButton';
 import GlassCard from '@/components/shared/GlassCard';
 import { registerSchema, RegisterFormData } from '@/lib/validators';
-import { DEPARTMENTS, YEARS } from '@/types/user';
-import { Eye, EyeOff, ShieldCheck, Mail, Lock, User, Hash, School, Calendar, CheckSquare } from 'lucide-react';
+import { DEPARTMENTS, YEARS, SECTIONS } from '@/types/user';
+import { Eye, EyeOff, ShieldCheck, Mail, Lock, User, Hash, School, Calendar, CheckSquare, Layers } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -63,7 +63,7 @@ export default function RegisterPage() {
               <input {...register('register_number')} className="form-input" placeholder="e.g. 2021XXXXX" />
               {errors.register_number && <p className="form-error">{errors.register_number.message}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="form-label flex items-center gap-1.5"><School size={12} className="text-[var(--aurora-purple)]" /> Department</label>
                 <select {...register('department')} className="form-select"><option value="">Select</option>{DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}</select>
@@ -73,6 +73,13 @@ export default function RegisterPage() {
                 <label className="form-label flex items-center gap-1.5"><Calendar size={12} className="text-[var(--aurora-purple)]" /> Year</label>
                 <select {...register('year')} className="form-select"><option value="">Select</option>{YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select>
                 {errors.year && <p className="form-error">{errors.year.message}</p>}
+              </div>
+              <div>
+                <label className="form-label flex items-center gap-1.5"><Layers size={12} className="text-[var(--aurora-purple)]" /> Section</label>
+                <select {...register('section')} className="form-select">
+                  {SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}
+                </select>
+                {errors.section && <p className="form-error">{errors.section.message}</p>}
               </div>
             </div>
             <div>
