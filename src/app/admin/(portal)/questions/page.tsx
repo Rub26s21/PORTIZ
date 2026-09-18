@@ -9,7 +9,7 @@ import { formatImageUrl } from '@/lib/utils';
 import {
   HelpCircle, Plus, UploadCloud, Download, FileSpreadsheet,
   Search, Trash2, Edit3, CheckCircle2, RefreshCw, FileText,
-  Sparkles, Layers, Zap, Check, AlertCircle, ArrowRight, X
+  Sparkles, Layers, Zap, Check, AlertCircle, ArrowRight, X, BookOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -36,6 +36,43 @@ interface QuestionItem {
   difficulty?: string | null;
   explanation?: string | null;
   rounds?: { title: string; round_number: number };
+}
+
+// Helper to generate subject code if missing
+function generateCode(name: string, index: number): string {
+  const words = name.trim().split(/[\s&/_-]+/);
+  let prefix = '';
+  if (words.length >= 2) {
+    prefix = words.map((w) => w[0]?.toUpperCase() || '').slice(0, 3).join('');
+  } else if (name.length >= 3) {
+    prefix = name.substring(0, 3).toUpperCase();
+  } else {
+    prefix = 'EC';
+  }
+  return `${prefix}${301 + index}`;
+}
+
+// Case-insensitive & typo-tolerant subject matcher
+function isSubjectMatch(qSub: string | undefined | null, targetSub: string): boolean {
+  if (!qSub || !targetSub) return false;
+  const a = qSub.trim().toLowerCase();
+  const b = targetSub.trim().toLowerCase();
+  if (a === b) return true;
+
+  // Handle Ember systems / Embedded systems typos/OCR variations
+  if (
+    (a.includes('ember') || a.includes('embed')) &&
+    (b.includes('ember') || b.includes('embed'))
+  ) {
+    return true;
+  }
+
+  // Singular / Plural tolerance (e.g., "Signal & System" vs "Signals & Systems")
+  const aClean = a.replace(/s\b/g, '').replace(/[\s&_-]/g, '');
+  const bClean = b.replace(/s\b/g, '').replace(/[\s&_-]/g, '');
+  if (aClean === bClean) return true;
+
+  return false;
 }
 
 export default function QuestionsControlPage() {
@@ -98,7 +135,7 @@ export default function QuestionsControlPage() {
   const [formCategory, setCategory] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
 
-  // Fetch Rounds, Subjects & Questions
+  // ── FETCH ROUNDS, DYNAMIC SUBJECTS & QUESTIONS ──
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -113,52 +150,89 @@ export default function QuestionsControlPage() {
         if (!formRoundId) setFormRoundId(rData[0].id);
       }
 
-      // 2. Fetch Subjects (Dynamic list - not capped to 10)
-      try {
-        const subRes = await fetch('/api/admin/subjects');
-        const subJson = await subRes.json();
-        if (subJson.subjects && subJson.subjects.length > 0) {
-          setSubjects(subJson.subjects);
-          setFormSubjectName(subJson.subjects[0].name);
-        }
-      } catch (e) {
-        console.error('Error fetching subjects:', e);
-      }
-
-      // 3. Fetch Questions
+      // 2. Fetch Questions First
       const { data: qData } = await supabase
         .from('questions')
         .select('*, rounds(title, round_number)')
         .order('created_at', { ascending: false });
 
-      if (qData) {
-        setQuestions(qData);
+      const loadedQuestions = qData || [];
+      setQuestions(loadedQuestions);
+
+      // 3. Fetch Subjects from API (which auto-syncs with DB)
+      let syncedSubjects: { id: string; name: string; code?: string }[] = [];
+      try {
+        const subRes = await fetch('/api/admin/subjects');
+        const subJson = await subRes.json();
+        if (subJson.subjects && subJson.subjects.length > 0) {
+          syncedSubjects = subJson.subjects;
+        }
+      } catch (e) {
+        console.error('Error fetching subjects:', e);
+      }
+
+      // 4. Ensure ANY additional subject present in loaded questions is represented
+      const subjectMap = new Map<string, { id: string; name: string; code?: string }>();
+      syncedSubjects.forEach((s) => {
+        subjectMap.set(s.name.trim().toLowerCase(), s);
+      });
+
+      loadedQuestions.forEach((q) => {
+        const subName = (q.subject_name || q.category || '').trim();
+        if (subName && !subjectMap.has(subName.toLowerCase())) {
+          const generated = {
+            id: `sub-auto-${subjectMap.size + 1}`,
+            name: subName,
+            code: generateCode(subName, subjectMap.size),
+          };
+          subjectMap.set(subName.toLowerCase(), generated);
+        }
+      });
+
+      const finalSubjectsList = Array.from(subjectMap.values());
+      finalSubjectsList.sort((a, b) => a.name.localeCompare(b.name));
+      setSubjects(finalSubjectsList);
+
+      if (finalSubjectsList.length > 0 && !formSubjectName) {
+        setFormSubjectName(finalSubjectsList[0].name);
       }
     } catch (err) {
       console.error('fetchData error:', err);
     } finally {
       setLoading(false);
     }
-  }, [formRoundId]);
+  }, [formRoundId, formSubjectName]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // ── DYNAMIC SMART SUBJECT MATCHER (ACCEPTS UNLIMITED NEW SUBJECTS) ──
+  // ── DYNAMIC SUBJECT MATCHER (AUTO-NORMALIZE TYPOS & DISCOVER NEW SUBJECTS) ──
   const matchSubjectName = useCallback((rawSubject: any): string => {
     if (!rawSubject) return subjects[0]?.name || 'Digital Electronics';
     const str = String(rawSubject).trim();
     if (!str) return subjects[0]?.name || 'Digital Electronics';
 
-    // 1. Direct exact or case-insensitive match against all current subjects
+    // Check direct match
     const exact = subjects.find(
       (s) => s.name.toLowerCase() === str.toLowerCase() || (s.code && s.code.toLowerCase() === str.toLowerCase())
     );
     if (exact) return exact.name;
 
-    // 2. Fuzzy Keyword Matching for Standard Curricula
     const lower = str.toLowerCase();
+
+    // Typo / OCR Normalization for Embedded Systems
+    if (
+      lower.includes('ember') ||
+      lower.includes('embed') ||
+      lower.includes('iot') ||
+      lower.includes('arduino')
+    ) {
+      const foundEmbed = subjects.find((s) => s.name.toLowerCase().includes('embedded'));
+      return foundEmbed ? foundEmbed.name : 'Embedded Systems';
+    }
+
+    // Microprocessor normalization
     if (
       lower.includes('microprocessor') ||
       lower.includes('microcontroller') ||
@@ -166,86 +240,61 @@ export default function QuestionsControlPage() {
       lower.includes('8051') ||
       lower.includes('mpmc')
     ) {
-      return 'Microprocessors & Microcontrollers';
-    }
-    if (
-      lower.includes('vlsi') ||
-      lower.includes('cmos') ||
-      lower.includes('verilog') ||
-      lower.includes('vhdl')
-    ) {
-      return 'VLSI Design';
-    }
-    if (
-      lower.includes('signal') ||
-      lower.includes('dsp') ||
-      lower.includes('fourier') ||
-      lower.includes('laplace')
-    ) {
-      return 'Signals & Systems';
-    }
-    if (
-      lower.includes('analog') ||
-      lower.includes('op-amp') ||
-      lower.includes('opamp') ||
-      lower.includes('bjt') ||
-      lower.includes('diode')
-    ) {
-      return 'Analog Circuits';
-    }
-    if (
-      lower.includes('comm') ||
-      lower.includes('antenna') ||
-      lower.includes('modulation') ||
-      lower.includes('wireless') ||
-      lower.includes('telecom')
-    ) {
-      return 'Communication Systems';
-    }
-    if (
-      lower.includes('control') ||
-      lower.includes('bode') ||
-      lower.includes('nyquist') ||
-      lower.includes('root locus')
-    ) {
-      return 'Control Systems';
-    }
-    if (
-      lower.includes('electromagnetic') ||
-      lower.includes('emft') ||
-      lower.includes('maxwell') ||
-      lower.includes('waveguide')
-    ) {
-      return 'Electromagnetic Fields';
-    }
-    if (
-      lower.includes('embedded') ||
-      lower.includes('iot') ||
-      lower.includes('arduino') ||
-      lower.includes('raspberry')
-    ) {
-      return 'Embedded Systems';
-    }
-    if (
-      lower.includes('basic electrical') ||
-      lower.includes('bee') ||
-      lower.includes('kvl') ||
-      lower.includes('kcl')
-    ) {
-      return 'Basic Electrical Engineering';
-    }
-    if (
-      lower.includes('digital') ||
-      lower.includes('logic gates') ||
-      lower.includes('boolean') ||
-      lower.includes('k-map')
-    ) {
-      return 'Digital Electronics';
+      const found = subjects.find((s) => s.name.toLowerCase().includes('microprocessor'));
+      return found ? found.name : 'Microprocessors & Microcontrollers';
     }
 
-    // 3. New Subject Found: Capitalize cleanly and return as a brand new subject!
+    // VLSI normalization
+    if (lower.includes('vlsi') || lower.includes('cmos') || lower.includes('verilog')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('vlsi'));
+      return found ? found.name : 'VLSI Design';
+    }
+
+    // Signals normalization
+    if (lower.includes('signal') || lower.includes('dsp') || lower.includes('fourier')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('signal'));
+      return found ? found.name : 'Signals & Systems';
+    }
+
+    // Analog normalization
+    if (lower.includes('analog') || lower.includes('op-amp') || lower.includes('opamp') || lower.includes('bjt')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('analog'));
+      return found ? found.name : 'Analog Circuits';
+    }
+
+    // Communications normalization
+    if (lower.includes('comm') || lower.includes('antenna') || lower.includes('telecom')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('communication'));
+      return found ? found.name : 'Communication Systems';
+    }
+
+    // Control normalization
+    if (lower.includes('control') || lower.includes('bode') || lower.includes('nyquist')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('control'));
+      return found ? found.name : 'Control Systems';
+    }
+
+    // Electromagnetics normalization
+    if (lower.includes('electromagnetic') || lower.includes('emft') || lower.includes('maxwell')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('electromagnetic'));
+      return found ? found.name : 'Electromagnetic Fields';
+    }
+
+    // Basic electrical normalization
+    if (lower.includes('basic electrical') || lower.includes('bee') || lower.includes('kvl')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('electrical'));
+      return found ? found.name : 'Basic Electrical Engineering';
+    }
+
+    // Digital electronics normalization
+    if (lower.includes('digital') || lower.includes('logic gates') || lower.includes('boolean')) {
+      const found = subjects.find((s) => s.name.toLowerCase().includes('digital'));
+      return found ? found.name : 'Digital Electronics';
+    }
+
+    // Brand new subject name: Capitalize cleanly and return
     return str
-      .split(' ')
+      .split(/\s+/)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
   }, [subjects]);
@@ -338,7 +387,7 @@ export default function QuestionsControlPage() {
     };
   }, [formSubjectName, matchSubjectName]);
 
-  // ── 1. DOWNLOAD MULTI-SUBJECT EXCEL QUESTION TEMPLATE (.xlsx) ──
+  // ── DOWNLOAD MASTER EXCEL QUESTION TEMPLATE (.xlsx) ──
   const handleDownloadExcelTemplate = () => {
     const templateRows = [
       {
@@ -355,21 +404,21 @@ export default function QuestionsControlPage() {
         'Negative Marks': 0.5,
       },
       {
-        'Subject Name': 'Microprocessors & Microcontrollers',
-        'Questions': 'What is the maximum addressable memory capacity of 8086 microprocessor?',
+        'Subject Name': 'Embedded Systems',
+        'Questions': 'Which communication protocol is full-duplex and uses four wires (MOSI, MISO, SCK, SS)?',
         'Question Type': 'mcq',
         'Image Link / Drive URL': '',
-        'Option A': '64 KB',
-        'Option B': '1 MB',
-        'Option C': '4 GB',
-        'Option D': '16 MB',
+        'Option A': 'I2C',
+        'Option B': 'SPI',
+        'Option C': 'UART',
+        'Option D': 'CAN',
         'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
       },
       {
         'Subject Name': 'Robotics & Automation',
-        'Questions': 'What type of kinematics calculates the end-effector position given joint angles?',
+        'Questions': 'What type of kinematics calculates end-effector position from joint angles?',
         'Question Type': 'mcq',
         'Image Link / Drive URL': '',
         'Option A': 'Inverse Kinematics',
@@ -446,7 +495,7 @@ export default function QuestionsControlPage() {
     toast.success('Multi-Subject CSV Question Template Downloaded! 📄');
   };
 
-  // ── 2. QUICK BULK EXCEL UPLOAD ──
+  // ── QUICK BULK EXCEL UPLOAD ──
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -498,7 +547,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 3. MASTER BULK ANALYZER & PREVIEW (850 - 1600+ QS & UNLIMITED SUBJECTS) ──
+  // ── MASTER BULK ANALYZER & PREVIEW (850 - 1600+ QS) ──
   const handleMasterFileSelect = async (file: File) => {
     setMasterFile(file);
     setIsAnalyzing(true);
@@ -559,7 +608,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 4. EXECUTE MASTER BULK UPLOAD (CHUNKS OF 100 QS WITH PROGRESS) ──
+  // ── EXECUTE MASTER BULK UPLOAD ──
   const executeMasterBulkUpload = async () => {
     if (!masterParsedData || masterParsedData.totalRows === 0) {
       toast.error('No parsed questions to upload');
@@ -574,13 +623,11 @@ export default function QuestionsControlPage() {
       let questionsToUpload: any[] = [];
 
       if (masterUploadMode === 'auto_fill_100') {
-        // Take up to 100 questions per identified subject
         Object.entries(masterParsedData.subjectGroups).forEach(([subName, list]) => {
           const quota = list.slice(0, 100);
           questionsToUpload.push(...quota);
         });
       } else {
-        // Full Import: all questions
         Object.values(masterParsedData.subjectGroups).forEach((list) => {
           questionsToUpload.push(...list);
         });
@@ -651,7 +698,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 5. SAVE / ADD SINGLE QUESTION ──
+  // ── SAVE SINGLE QUESTION ──
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formText.trim()) {
@@ -715,7 +762,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 6. DELETE QUESTION ──
+  // ── DELETE QUESTION ──
   const handleDeleteQuestion = async (qId: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
     try {
@@ -781,7 +828,7 @@ export default function QuestionsControlPage() {
     setFormMarks(2);
     setFormNegativeMarks(0.5);
     setFormExplanation('');
-    setCategory('Arduino / Electronics');
+    setCategory('Electronics');
     setFormImageUrl('');
     setShowAddModal(true);
   };
@@ -803,11 +850,13 @@ export default function QuestionsControlPage() {
     setShowAddModal(true);
   };
 
-  // Filtered List
+  // Filtered List with Typo-Tolerant Match
   const filteredQuestions = questions.filter((q: any) => {
     const matchRound = selectedRoundFilter === 'all' || q.round_id === selectedRoundFilter;
     const matchSubject =
-      subjectFilter === 'all' || q.subject_name === subjectFilter || q.category === subjectFilter;
+      subjectFilter === 'all' ||
+      isSubjectMatch(q.subject_name, subjectFilter) ||
+      isSubjectMatch(q.category, subjectFilter);
     const matchType = typeFilter === 'all' || q.question_type === typeFilter;
     const matchSearch =
       q.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -838,14 +887,14 @@ export default function QuestionsControlPage() {
               Question Bank & Master Excel Manager
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              {questions.length} total questions configured across {subjects.length} department subject banks
+              {questions.length} total questions configured across {subjects.length} registered subject banks
             </p>
             <div className="flex flex-wrap items-center gap-2 mt-2 font-mono text-xs">
               <span className="px-3 py-1 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] font-bold">
                 📊 TOTAL BANK: {questions.length} Questions Uploaded
               </span>
               <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold">
-                ⚡ Dynamic Multi-Subject Generator (Unlimited Subjects)
+                ⚡ Auto-Sync Active ({subjects.length} Subjects with Codes)
               </span>
               <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
                 🎲 Equal Ratio Shuffled Exam Generator Active
@@ -909,12 +958,12 @@ export default function QuestionsControlPage() {
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
       </FadeIn>
 
-      {/* ═══ DYNAMIC SUBJECTS BANK GRID (UNLIMITED SUBJECTS) ═══ */}
+      {/* ═══ DYNAMIC SUBJECTS BANK GRID (UNLIMITED SUBJECTS WITH AUTO-CODES) ═══ */}
       <FadeIn delay={0.03}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-[family-name:var(--font-heading)] font-bold text-sm tracking-wider text-white uppercase flex items-center gap-2">
-              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank ({subjects.length} Subjects · Target 100 Qs / Subject)
+              <BookOpen size={16} className="text-[#00E5FF]" /> Department Subjects Bank ({subjects.length} Subjects · Target 100 Qs / Subject)
             </h2>
             <span className="text-xs text-[#94A3B8] font-mono">
               Active: {subjects.length} Subject Banks · Total Qs: {questions.length}
@@ -923,8 +972,9 @@ export default function QuestionsControlPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
             {subjects.map((sub, idx) => {
+              // Typo-tolerant count to prevent misses
               const subCount = questions.filter(
-                (q: any) => q.subject_name === sub.name || q.category === sub.name
+                (q: any) => isSubjectMatch(q.subject_name, sub.name) || isSubjectMatch(q.category, sub.name)
               ).length;
               const percent = Math.min(100, Math.round((subCount / 100) * 100));
               const isSelected = subjectFilter === sub.name;
@@ -942,7 +992,7 @@ export default function QuestionsControlPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-[10px] font-mono text-[#00E5FF] font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/20">
-                        {sub.code || `SUB #${idx + 1}`}
+                        {sub.code || generateCode(sub.name, idx)}
                       </span>
                       <h3
                         className="font-[family-name:var(--font-display)] font-bold text-xs text-white mt-1.5 line-clamp-1"
@@ -1068,7 +1118,7 @@ export default function QuestionsControlPage() {
               <option value="all">All Subjects ({subjects.length})</option>
               {subjects.map((sub) => (
                 <option key={sub.id} value={sub.name}>
-                  {sub.name}
+                  {sub.name} {sub.code ? `(${sub.code})` : ''}
                 </option>
               ))}
             </select>
@@ -1234,7 +1284,7 @@ export default function QuestionsControlPage() {
       </FadeIn>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* ═══ 🌟 MASTER BULK UPLOAD MODAL (UNLIMITED DYNAMIC SUBJECTS) ═══════ */}
+      {/* ═══ 🌟 MASTER BULK UPLOAD MODAL (DYNAMIC AUTO-CODES & SYNC) ═══════ */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {showMasterModal && (
         <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/95 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center">
@@ -1252,11 +1302,11 @@ export default function QuestionsControlPage() {
                   <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
                     Master Question Bank Bulk Uploader
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-normal">
-                      Dynamic Subject Creation
+                      Dynamic Subject Creation & Auto-Codes
                     </span>
                   </h3>
                   <p className="text-xs text-[#94A3B8] mt-0.5">
-                    Upload your master spreadsheet. Any new subjects detected will be automatically created and added to the subject banks without limit.
+                    Upload your master spreadsheet. Any new subjects detected in the sheet will be automatically created in the database with auto-generated course codes and added to the subject cards!
                   </p>
                 </div>
               </div>
@@ -1302,23 +1352,23 @@ export default function QuestionsControlPage() {
 
                   <h4 className="font-[family-name:var(--font-display)] font-bold text-base text-white">
                     {isAnalyzing
-                      ? 'Analyzing Master Spreadsheet & Detecting New Subjects...'
+                      ? 'Analyzing Master Spreadsheet & Auto-Detecting All Subjects...'
                       : 'Drop your 850–1600+ Questions Excel or CSV File Here'}
                   </h4>
                   <p className="text-xs text-[#94A3B8] max-w-md mt-1">
                     Supports <span className="text-white font-mono">.xlsx</span>, <span className="text-white font-mono">.xls</span>, and <span className="text-white font-mono">.csv</span>.
-                    New subjects in the <span className="text-[#00E5FF]">Subject Name</span> column will automatically create brand new subject categories.
+                    Any new subject column detected will automatically create a brand new subject card with an auto-assigned course code.
                   </p>
 
                   <div className="mt-4 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] text-[#A855F7] font-mono font-semibold flex items-center gap-2">
-                    <Sparkles size={13} /> Unlimited dynamic subject banks supported
+                    <Sparkles size={13} /> Unlimited dynamic subjects & typo-tolerant normalizer active
                   </div>
                 </label>
 
                 {/* Templates Helper */}
                 <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
                   <div className="text-[#94A3B8]">
-                    Need the formatted master Excel template to populate your own subjects?
+                    Need the formatted master Excel template with sample subjects?
                   </div>
                   <button
                     onClick={handleDownloadExcelTemplate}
@@ -1344,7 +1394,7 @@ export default function QuestionsControlPage() {
                         <span>Analysis Complete</span>
                         {masterParsedData.newSubjects.length > 0 && (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px]">
-                            +{masterParsedData.newSubjects.length} New Subjects Detected
+                            +{masterParsedData.newSubjects.length} New Subjects Will Be Auto-Created
                           </span>
                         )}
                       </div>
