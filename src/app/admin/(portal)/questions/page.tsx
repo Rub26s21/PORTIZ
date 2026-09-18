@@ -58,11 +58,11 @@ export default function QuestionsControlPage() {
 
   // Auto-Generator Modal State
   const [showAutoModal, setShowAutoModal] = useState(false);
-  const [autoTitle, setAutoTitle] = useState('Automated 50-Q ECE Weekly Test');
+  const [autoTitle, setAutoTitle] = useState('Automated Multi-Subject Weekly Test');
   const [autoDuration, setAutoDuration] = useState(45);
   const [autoSubmitting, setAutoSubmitting] = useState(false);
 
-  // ── MASTER BULK UPLOAD (850 - 1600+ QS) STATE ──
+  // ── MASTER BULK UPLOAD (850 - 1600+ QS & DYNAMIC SUBJECTS) STATE ──
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterFile, setMasterFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -70,6 +70,7 @@ export default function QuestionsControlPage() {
     totalRows: number;
     subjectGroups: Record<string, any[]>;
     detectedSubjects: string[];
+    newSubjects: string[];
     sampleQuestions: any[];
   } | null>(null);
   const [masterUploadMode, setMasterUploadMode] = useState<'auto_fill_100' | 'full_import'>('auto_fill_100');
@@ -96,7 +97,6 @@ export default function QuestionsControlPage() {
   const [formExplanation, setFormExplanation] = useState('');
   const [formCategory, setCategory] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
-  const [dragActive, setDragActive] = useState(false);
 
   // Fetch Rounds, Subjects & Questions
   const fetchData = useCallback(async () => {
@@ -113,7 +113,7 @@ export default function QuestionsControlPage() {
         if (!formRoundId) setFormRoundId(rData[0].id);
       }
 
-      // 2. Fetch Subjects
+      // 2. Fetch Subjects (Dynamic list - not capped to 10)
       try {
         const subRes = await fetch('/api/admin/subjects');
         const subJson = await subRes.json();
@@ -145,26 +145,26 @@ export default function QuestionsControlPage() {
     fetchData();
   }, [fetchData]);
 
-  // ── SMART SUBJECT MATCHER (MATCHES EXCEL TEXT TO 10 ECE SUBJECTS) ──
+  // ── DYNAMIC SMART SUBJECT MATCHER (ACCEPTS UNLIMITED NEW SUBJECTS) ──
   const matchSubjectName = useCallback((rawSubject: any): string => {
-    if (!rawSubject) return 'Digital Electronics';
+    if (!rawSubject) return subjects[0]?.name || 'Digital Electronics';
     const str = String(rawSubject).trim();
+    if (!str) return subjects[0]?.name || 'Digital Electronics';
 
-    // Direct exact or case-insensitive match
+    // 1. Direct exact or case-insensitive match against all current subjects
     const exact = subjects.find(
       (s) => s.name.toLowerCase() === str.toLowerCase() || (s.code && s.code.toLowerCase() === str.toLowerCase())
     );
     if (exact) return exact.name;
 
-    // Fuzzy Keyword Matching
+    // 2. Fuzzy Keyword Matching for Standard Curricula
     const lower = str.toLowerCase();
     if (
       lower.includes('microprocessor') ||
       lower.includes('microcontroller') ||
       lower.includes('8086') ||
       lower.includes('8051') ||
-      lower.includes('mpmc') ||
-      lower.includes('arm')
+      lower.includes('mpmc')
     ) {
       return 'Microprocessors & Microcontrollers';
     }
@@ -172,9 +172,7 @@ export default function QuestionsControlPage() {
       lower.includes('vlsi') ||
       lower.includes('cmos') ||
       lower.includes('verilog') ||
-      lower.includes('vhdl') ||
-      lower.includes('layout') ||
-      lower.includes('mosfet')
+      lower.includes('vhdl')
     ) {
       return 'VLSI Design';
     }
@@ -182,8 +180,7 @@ export default function QuestionsControlPage() {
       lower.includes('signal') ||
       lower.includes('dsp') ||
       lower.includes('fourier') ||
-      lower.includes('laplace') ||
-      lower.includes('z-transform')
+      lower.includes('laplace')
     ) {
       return 'Signals & Systems';
     }
@@ -192,8 +189,7 @@ export default function QuestionsControlPage() {
       lower.includes('op-amp') ||
       lower.includes('opamp') ||
       lower.includes('bjt') ||
-      lower.includes('diode') ||
-      lower.includes('amplifier')
+      lower.includes('diode')
     ) {
       return 'Analog Circuits';
     }
@@ -202,8 +198,7 @@ export default function QuestionsControlPage() {
       lower.includes('antenna') ||
       lower.includes('modulation') ||
       lower.includes('wireless') ||
-      lower.includes('telecom') ||
-      lower.includes('radar')
+      lower.includes('telecom')
     ) {
       return 'Communication Systems';
     }
@@ -211,8 +206,7 @@ export default function QuestionsControlPage() {
       lower.includes('control') ||
       lower.includes('bode') ||
       lower.includes('nyquist') ||
-      lower.includes('root locus') ||
-      lower.includes('transfer function')
+      lower.includes('root locus')
     ) {
       return 'Control Systems';
     }
@@ -220,8 +214,7 @@ export default function QuestionsControlPage() {
       lower.includes('electromagnetic') ||
       lower.includes('emft') ||
       lower.includes('maxwell') ||
-      lower.includes('waveguide') ||
-      lower.includes('transmission line')
+      lower.includes('waveguide')
     ) {
       return 'Electromagnetic Fields';
     }
@@ -229,9 +222,7 @@ export default function QuestionsControlPage() {
       lower.includes('embedded') ||
       lower.includes('iot') ||
       lower.includes('arduino') ||
-      lower.includes('raspberry') ||
-      lower.includes('sensor') ||
-      lower.includes('interfacing')
+      lower.includes('raspberry')
     ) {
       return 'Embedded Systems';
     }
@@ -239,24 +230,24 @@ export default function QuestionsControlPage() {
       lower.includes('basic electrical') ||
       lower.includes('bee') ||
       lower.includes('kvl') ||
-      lower.includes('kcl') ||
-      lower.includes('transformer') ||
-      lower.includes('electrical')
+      lower.includes('kcl')
     ) {
       return 'Basic Electrical Engineering';
     }
     if (
       lower.includes('digital') ||
-      lower.includes('logic') ||
+      lower.includes('logic gates') ||
       lower.includes('boolean') ||
-      lower.includes('k-map') ||
-      lower.includes('flip flop') ||
-      lower.includes('counter')
+      lower.includes('k-map')
     ) {
       return 'Digital Electronics';
     }
 
-    return str.length > 0 ? str : 'Digital Electronics';
+    // 3. New Subject Found: Capitalize cleanly and return as a brand new subject!
+    return str
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
   }, [subjects]);
 
   // ── ROW PARSER HELPER ──
@@ -377,14 +368,14 @@ export default function QuestionsControlPage() {
         'Negative Marks': 0.5,
       },
       {
-        'Subject Name': 'VLSI Design',
-        'Questions': 'In CMOS inverter, the ratio of (W/L)p to (W/L)n is chosen around 2 to 3 primarily to equalize:',
+        'Subject Name': 'Robotics & Automation',
+        'Questions': 'What type of kinematics calculates the end-effector position given joint angles?',
         'Question Type': 'mcq',
         'Image Link / Drive URL': '',
-        'Option A': 'Power dissipation',
-        'Option B': 'Rise and fall propagation delays',
-        'Option C': 'Threshold voltages',
-        'Option D': 'Leakage currents',
+        'Option A': 'Inverse Kinematics',
+        'Option B': 'Forward Kinematics',
+        'Option C': 'Differential Kinematics',
+        'Option D': 'Static Kinematics',
         'Correct Option (1-4)': 2,
         'Marks': 2,
         'Negative Marks': 0.5,
@@ -455,7 +446,7 @@ export default function QuestionsControlPage() {
     toast.success('Multi-Subject CSV Question Template Downloaded! 📄');
   };
 
-  // ── 2. QUICK BULK EXCEL UPLOAD (STANDARD) ──
+  // ── 2. QUICK BULK EXCEL UPLOAD ──
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -495,7 +486,9 @@ export default function QuestionsControlPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to upload questions');
 
-      toast.success(`Bulk Upload Complete! ${json.inserted_count} questions imported successfully! 🚀`);
+      toast.success(
+        `Bulk Upload Complete! ${json.inserted_count} questions imported (${json.new_subjects_created || 0} new subjects created)! 🚀`
+      );
       fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Error processing Excel file');
@@ -505,7 +498,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 3. MASTER BULK ANALYZER & PREVIEW (FOR 850 - 1600+ QUESTIONS) ──
+  // ── 3. MASTER BULK ANALYZER & PREVIEW (850 - 1600+ QS & UNLIMITED SUBJECTS) ──
   const handleMasterFileSelect = async (file: File) => {
     setMasterFile(file);
     setIsAnalyzing(true);
@@ -515,7 +508,6 @@ export default function QuestionsControlPage() {
       const dataBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(dataBuffer, { type: 'array' });
 
-      // Aggregate all rows across all sheets or primary sheet
       let combinedRows: any[] = [];
       workbook.SheetNames.forEach((name) => {
         const sheet = workbook.Sheets[name];
@@ -531,7 +523,7 @@ export default function QuestionsControlPage() {
         return;
       }
 
-      // Group questions by matched subject
+      // Group questions by matched/new subject
       const subjectGroups: Record<string, any[]> = {};
       const parsedQuestions: any[] = [];
 
@@ -546,16 +538,19 @@ export default function QuestionsControlPage() {
       });
 
       const detectedSubs = Object.keys(subjectGroups);
+      const existingNames = new Set(subjects.map((s) => s.name.toLowerCase()));
+      const newlyFoundSubs = detectedSubs.filter((s) => !existingNames.has(s.toLowerCase()));
 
       setMasterParsedData({
         totalRows: parsedQuestions.length,
         subjectGroups,
         detectedSubjects: detectedSubs,
+        newSubjects: newlyFoundSubs,
         sampleQuestions: parsedQuestions.slice(0, 5),
       });
 
       toast.success(
-        `⚡ Analyzed ${parsedQuestions.length} questions across ${detectedSubs.length} department subjects!`
+        `⚡ Analyzed ${parsedQuestions.length} questions across ${detectedSubs.length} subjects (${newlyFoundSubs.length} new subject banks detected)!`
       );
     } catch (err: any) {
       toast.error(`Error analyzing spreadsheet: ${err.message}`);
@@ -564,7 +559,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 4. EXECUTE MASTER BULK UPLOAD (CHUNKS OF 100 QS WITH REAL-TIME PROGRESS) ──
+  // ── 4. EXECUTE MASTER BULK UPLOAD (CHUNKS OF 100 QS WITH PROGRESS) ──
   const executeMasterBulkUpload = async () => {
     if (!masterParsedData || masterParsedData.totalRows === 0) {
       toast.error('No parsed questions to upload');
@@ -576,7 +571,6 @@ export default function QuestionsControlPage() {
     const token = session?.access_token || 'admin';
 
     try {
-      // Build final list based on selected mode
       let questionsToUpload: any[] = [];
 
       if (masterUploadMode === 'auto_fill_100') {
@@ -640,7 +634,7 @@ export default function QuestionsControlPage() {
       });
 
       toast.success(
-        `🎉 Master Import Complete! Successfully uploaded ${totalInserted} questions into department banks! 🚀`
+        `🎉 Master Import Complete! Successfully uploaded ${totalInserted} questions and created all new subject banks! 🚀`
       );
 
       setTimeout(() => {
@@ -767,7 +761,7 @@ export default function QuestionsControlPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to auto-generate test');
 
       toast.success(
-        `🎉 50-Question Automated Test Created! Combined across ${json.active_subjects_count} subjects! 🚀`
+        `🎉 50-Question Automated Test Created! Balanced across all ${json.active_subjects_count} subjects! 🚀`
       );
       setShowAutoModal(false);
       fetchData();
@@ -844,24 +838,24 @@ export default function QuestionsControlPage() {
               Question Bank & Master Excel Manager
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              {questions.length} total questions configured across department subject banks
+              {questions.length} total questions configured across {subjects.length} department subject banks
             </p>
             <div className="flex flex-wrap items-center gap-2 mt-2 font-mono text-xs">
               <span className="px-3 py-1 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] font-bold">
                 📊 TOTAL BANK: {questions.length} Questions Uploaded
               </span>
               <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold">
-                ⚡ High-Capacity 850–1600+ Qs Auto-Distributor Ready
+                ⚡ Dynamic Multi-Subject Generator (Unlimited Subjects)
               </span>
               <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
-                🎲 Equal Ratio 50-Q Shuffled Exam Generator Active
+                🎲 Equal Ratio Shuffled Exam Generator Active
               </span>
             </div>
           </div>
 
           {/* Action Bar */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* 🌟 NEW MASTER BULK UPLOAD BUTTON (850 - 1600+ QS) */}
+            {/* 🌟 MASTER BULK UPLOAD BUTTON (850 - 1600+ QS & DYNAMIC SUBJECTS) */}
             <button
               onClick={() => setShowMasterModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#EC4899] hover:opacity-95 text-white text-xs font-[family-name:var(--font-heading)] font-extrabold shadow-[0_0_25px_rgba(139,92,246,0.5)] border border-white/30 cursor-pointer transition-all transform hover:scale-105 active:scale-95"
@@ -869,7 +863,7 @@ export default function QuestionsControlPage() {
               <Zap size={15} className="text-yellow-300 animate-bounce" />
               <span>Bulk Upload (850–1600+ Qs)</span>
               <span className="px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] font-mono border border-white/20">
-                AUTO-FILL
+                DYNAMIC
               </span>
             </button>
 
@@ -915,20 +909,20 @@ export default function QuestionsControlPage() {
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
       </FadeIn>
 
-      {/* ═══ 10-SUBJECT QUESTION BANK GRID ═══ */}
+      {/* ═══ DYNAMIC SUBJECTS BANK GRID (UNLIMITED SUBJECTS) ═══ */}
       <FadeIn delay={0.03}>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-[family-name:var(--font-heading)] font-bold text-sm tracking-wider text-white uppercase flex items-center gap-2">
-              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank (10 Subjects · Target 100 Qs / Subject)
+              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank ({subjects.length} Subjects · Target 100 Qs / Subject)
             </h2>
             <span className="text-xs text-[#94A3B8] font-mono">
-              Active: {subjects.length} Subjects · Total Qs: {questions.length}
+              Active: {subjects.length} Subject Banks · Total Qs: {questions.length}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            {subjects.slice(0, 10).map((sub, idx) => {
+            {subjects.map((sub, idx) => {
               const subCount = questions.filter(
                 (q: any) => q.subject_name === sub.name || q.category === sub.name
               ).length;
@@ -937,7 +931,7 @@ export default function QuestionsControlPage() {
 
               return (
                 <div
-                  key={sub.id}
+                  key={sub.id || idx}
                   className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between space-y-3 relative overflow-hidden group cursor-pointer ${
                     isSelected
                       ? 'bg-[rgba(0,229,255,0.15)] border-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.2)]'
@@ -1071,7 +1065,7 @@ export default function QuestionsControlPage() {
               onChange={(e) => setSubjectFilter(e.target.value)}
               className="bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs px-3 py-1.5 rounded-xl font-[family-name:var(--font-heading)] outline-none"
             >
-              <option value="all">All Subjects</option>
+              <option value="all">All Subjects ({subjects.length})</option>
               {subjects.map((sub) => (
                 <option key={sub.id} value={sub.name}>
                   {sub.name}
@@ -1112,7 +1106,7 @@ export default function QuestionsControlPage() {
               No questions found
             </h3>
             <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] mt-1">
-              Upload your 850–1600+ questions master sheet to automatically populate all subject banks!
+              Upload your 850–1600+ questions master sheet to automatically populate existing and new subject banks!
             </p>
             <div className="flex flex-wrap justify-center gap-3 mt-5">
               <button
@@ -1240,7 +1234,7 @@ export default function QuestionsControlPage() {
       </FadeIn>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* ═══ 🌟 MASTER BULK UPLOAD MODAL (850 - 1600+ QUESTIONS) ═══════════ */}
+      {/* ═══ 🌟 MASTER BULK UPLOAD MODAL (UNLIMITED DYNAMIC SUBJECTS) ═══════ */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {showMasterModal && (
         <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/95 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center">
@@ -1258,11 +1252,11 @@ export default function QuestionsControlPage() {
                   <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
                     Master Question Bank Bulk Uploader
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-normal">
-                      850–1600+ Qs Optimized
+                      Dynamic Subject Creation
                     </span>
                   </h3>
                   <p className="text-xs text-[#94A3B8] mt-0.5">
-                    Upload your master spreadsheet. The system will auto-detect subjects from columns and evenly distribute questions across all department banks.
+                    Upload your master spreadsheet. Any new subjects detected will be automatically created and added to the subject banks without limit.
                   </p>
                 </div>
               </div>
@@ -1308,23 +1302,23 @@ export default function QuestionsControlPage() {
 
                   <h4 className="font-[family-name:var(--font-display)] font-bold text-base text-white">
                     {isAnalyzing
-                      ? 'Analyzing Master Spreadsheet & Subject Mapping...'
+                      ? 'Analyzing Master Spreadsheet & Detecting New Subjects...'
                       : 'Drop your 850–1600+ Questions Excel or CSV File Here'}
                   </h4>
                   <p className="text-xs text-[#94A3B8] max-w-md mt-1">
-                    Supports <span className="text-white font-mono">.xlsx</span>, <span className="text-white font-mono">.xls</span>, and <span className="text-white font-mono">.csv</span> files.
-                    Detects subject columns (<span className="text-[#00E5FF]">Subject Name</span>, <span className="text-[#00E5FF]">Subject</span>, <span className="text-[#00E5FF]">Category</span>, etc.) automatically.
+                    Supports <span className="text-white font-mono">.xlsx</span>, <span className="text-white font-mono">.xls</span>, and <span className="text-white font-mono">.csv</span>.
+                    New subjects in the <span className="text-[#00E5FF]">Subject Name</span> column will automatically create brand new subject categories.
                   </p>
 
                   <div className="mt-4 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] text-[#A855F7] font-mono font-semibold flex items-center gap-2">
-                    <Sparkles size={13} /> High-speed batch streaming engine activated
+                    <Sparkles size={13} /> Unlimited dynamic subject banks supported
                   </div>
                 </label>
 
                 {/* Templates Helper */}
                 <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
                   <div className="text-[#94A3B8]">
-                    Need the formatted master Excel template with all 10 ECE subjects pre-configured?
+                    Need the formatted master Excel template to populate your own subjects?
                   </div>
                   <button
                     onClick={handleDownloadExcelTemplate}
@@ -1346,11 +1340,16 @@ export default function QuestionsControlPage() {
                       {masterParsedData.detectedSubjects.length}
                     </div>
                     <div>
-                      <div className="text-xs text-purple-300 font-mono font-bold uppercase tracking-wider">
-                        Spreadsheet Analysis Complete
+                      <div className="text-xs text-purple-300 font-mono font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span>Analysis Complete</span>
+                        {masterParsedData.newSubjects.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px]">
+                            +{masterParsedData.newSubjects.length} New Subjects Detected
+                          </span>
+                        )}
                       </div>
                       <div className="text-base font-extrabold text-white">
-                        {masterParsedData.totalRows} Total Questions Found in {masterFile?.name}
+                        {masterParsedData.totalRows} Total Questions Found across {masterParsedData.detectedSubjects.length} Subjects
                       </div>
                     </div>
                   </div>
@@ -1395,7 +1394,7 @@ export default function QuestionsControlPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-[#94A3B8]">
-                          Takes up to 100 questions from each detected subject to balance all 10 department banks perfectly.
+                          Takes up to 100 questions from each detected subject to balance all subject banks evenly.
                         </p>
                       </div>
                     </div>
@@ -1419,7 +1418,7 @@ export default function QuestionsControlPage() {
                           Full Bulk Import (All {masterParsedData.totalRows} Questions)
                         </div>
                         <p className="text-[11px] text-[#94A3B8]">
-                          Uploads every single row without capping, ideal for massive archives (850–1,600+ questions).
+                          Uploads every single row without capping, ideal for massive question archives (850–1,600+ questions).
                         </p>
                       </div>
                     </div>
@@ -1449,7 +1448,7 @@ export default function QuestionsControlPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-white uppercase tracking-wider">
-                      📊 Auto-Detected Subjects ({masterParsedData.detectedSubjects.length}):
+                      📊 Detected Subjects Breakdown ({masterParsedData.detectedSubjects.length}):
                     </span>
                     <span className="text-[#94A3B8] font-mono text-[11px]">
                       {masterUploadMode === 'auto_fill_100'
@@ -1463,17 +1462,29 @@ export default function QuestionsControlPage() {
                       const count = list.length;
                       const willUpload = masterUploadMode === 'auto_fill_100' ? Math.min(100, count) : count;
                       const percent = Math.min(100, Math.round((willUpload / 100) * 100));
+                      const isNew = masterParsedData.newSubjects.includes(subName);
 
                       return (
                         <div
                           key={subName}
-                          className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-2"
+                          className={`p-3 rounded-xl border space-y-2 ${
+                            isNew
+                              ? 'bg-purple-950/30 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.15)]'
+                              : 'bg-white/[0.04] border-white/10'
+                          }`}
                         >
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white truncate max-w-[170px]" title={subName}>
-                              {subName}
-                            </span>
-                            <span className="font-mono text-[#00E5FF] font-bold">
+                          <div className="flex items-center justify-between text-xs gap-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-bold text-white truncate" title={subName}>
+                                {subName}
+                              </span>
+                              {isNew && (
+                                <span className="px-1 py-0.2 rounded bg-purple-500/30 text-purple-200 text-[8px] font-mono flex-shrink-0">
+                                  NEW ✨
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono text-[#00E5FF] font-bold flex-shrink-0">
                               {willUpload} Qs
                             </span>
                           </div>
@@ -1554,7 +1565,7 @@ export default function QuestionsControlPage() {
                 </div>
 
                 <p className="text-[11px] text-[#64748B] font-mono">
-                  Streaming in high-speed batches of 100 to ensure zero server timeouts. Please keep this modal open.
+                  Streaming in high-speed batches of 100 with dynamic subject auto-registration. Please keep this modal open.
                 </p>
               </div>
             )}
@@ -1755,7 +1766,7 @@ export default function QuestionsControlPage() {
           <div className="relative z-10 w-full max-w-lg bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_50px_rgba(0,229,255,0.2)] overflow-hidden my-auto p-6 space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
-                <span className="text-[#00E5FF]">🚀</span> Automated 50-Q Test Generator
+                <span className="text-[#00E5FF]">🚀</span> Automated Multi-Subject Test Generator
               </h3>
               <button
                 onClick={() => setShowAutoModal(false)}
@@ -1799,7 +1810,7 @@ export default function QuestionsControlPage() {
                   <span>⚡ Automatic Subject Balancing:</span>
                 </div>
                 <p className="text-[11px] text-[#94A3B8]">
-                  Pulls an equal quota of random questions from each active subject (e.g. 5 Qs x 10 subjects = 50 total questions).
+                  Pulls an equal quota of random questions from each active subject across all {subjects.length} registered subject banks.
                 </p>
               </div>
 
@@ -1808,7 +1819,7 @@ export default function QuestionsControlPage() {
                   Cancel
                 </GalaxyButton>
                 <GalaxyButton variant="cyan" size="sm" type="submit" loading={autoSubmitting}>
-                  🚀 Generate 50-Q Exam
+                  🚀 Generate Exam
                 </GalaxyButton>
               </div>
             </form>
