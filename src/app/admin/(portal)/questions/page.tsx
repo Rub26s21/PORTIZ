@@ -9,7 +9,8 @@ import { formatImageUrl } from '@/lib/utils';
 import {
   HelpCircle, Plus, UploadCloud, Download, FileSpreadsheet,
   Search, Trash2, Edit3, CheckCircle2, RefreshCw, FileText,
-  Sparkles, Layers, Zap, Check, AlertCircle, ArrowRight, X, BookOpen
+  Sparkles, Layers, Zap, Check, AlertCircle, ArrowRight, X, BookOpen,
+  AlertTriangle, Info, ChevronDown, ChevronUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -37,6 +38,71 @@ interface QuestionItem {
   explanation?: string | null;
   rounds?: { title: string; round_number: number };
 }
+
+// ── SUBJECT DOMAIN KEYWORD SIGNATURES FOR INTELLIGENT RE-CHECKING ──
+const SUBJECT_KEYWORDS: Record<string, string[]> = {
+  'Microprocessors & Microcontrollers': [
+    '8086', '8051', 'microprocessor', 'microcontroller', 'interrupt', 'accumulator',
+    'instruction set', 'assembly', 'addressing mode', 'flag register', 'alu',
+    'pic microcontroller', 'arm', 'cortex', 'baud rate', 'timer 0', 'timer 1',
+    'mpmc', 'sfr', 'stack pointer', 'program counter', 'opcode', 'mnemonic', '8255', '8259'
+  ],
+  'Embedded Systems': [
+    'embedded', 'iot', 'arduino', 'raspberry pi', 'esp32', 'esp8266', 'rtos',
+    'freertos', 'can bus', 'spi', 'i2c', 'uart', 'usart', 'sensor', 'actuator',
+    'pwm', 'adc', 'dac', 'ember', 'firmware', 'gpio', 'soc', 'watchdog timer'
+  ],
+  'VLSI Design': [
+    'vlsi', 'cmos', 'verilog', 'vhdl', 'fpga', 'asic', 'layout', 'stick diagram',
+    'setup time', 'hold time', 'propagation delay', 'mosfet', 'finfet', 'drc',
+    'lvs', 'nmos', 'pmos', 'drain', 'source', 'gate oxide', 'threshold voltage', 'vth'
+  ],
+  'Signals & Systems': [
+    'fourier', 'laplace', 'z-transform', 'z transform', 'convolution', 'impulse response',
+    'frequency response', 'sampling', 'nyquist', 'dtft', 'dft', 'fft', 'continuous-time',
+    'discrete-time', 'lti system', 'causal', 'stable', 'transfer function', 'butterworth', 'chebyshev'
+  ],
+  'Analog Circuits': [
+    'op-amp', 'opamp', 'operational amplifier', 'bjt', 'bipolar junction transistor',
+    'diode', 'zener', 'rectifier', 'clipper', 'clamper', 'biasing', 'ce amplifier',
+    'emitter follower', 'differential amplifier', 'cmrr', 'slew rate', 'feedback amplifier',
+    'oscillator', 'wien bridge', 'hartley', 'colpitts', '555 timer', 'multivibrator'
+  ],
+  'Digital Electronics': [
+    'logic gate', 'boolean algebra', 'karnaugh map', 'k-map', 'flip-flop', 'flip flop',
+    'jk flip-flop', 'd flip-flop', 't flip-flop', 'sr flip-flop', 'multiplexer', 'mux',
+    'demux', 'decoder', 'encoder', 'shift register', 'counter', 'ripple counter',
+    'synchronous counter', 'combinational circuit', 'sequential circuit', 'propagation delay', 'ttl', 'ecl'
+  ],
+  'Communication Systems': [
+    'modulation', 'demodulation', 'am', 'fm', 'pm', 'pam', 'pwm', 'ppm', 'pcm',
+    'ask', 'fsk', 'psk', 'qam', 'qpsk', 'antenna', 'radiation pattern', 'carrier frequency',
+    'bandwidth', 'noise figure', 'snr', 'shannon', 'channel capacity', 'superheterodyne',
+    'fading', 'cellular', 'gsm', 'cdma', 'ofdm'
+  ],
+  'Control Systems': [
+    'transfer function', 'open loop', 'closed loop', 'bode plot', 'nyquist plot',
+    'root locus', 'routh-hurwitz', 'routh hurwitz', 'state space', 'controllability',
+    'observability', 'gain margin', 'phase margin', 'pid controller', 'lead compensator',
+    'lag compensator', 'steady state error', 'damping ratio', 'natural frequency'
+  ],
+  'Electromagnetic Fields': [
+    'maxwell', 'poynting vector', 'transmission line', 'waveguide', 'dielectric',
+    'permeability', 'permittivity', 'magnetic flux', 'electric field', 'magnetic field',
+    'smith chart', 'reflection coefficient', 'vswr', 'characteristic impedance', 'coulomb',
+    'gauss law', 'biot-savart', 'faraday law', 'ampere law'
+  ],
+  'Basic Electrical Engineering': [
+    'kvl', 'kcl', 'thevenin', 'norton', 'superposition', 'mesh analysis', 'nodal analysis',
+    'rlc circuit', 'three phase', 'transformer', 'induction motor', 'dc motor',
+    'synchronous motor', 'power factor', 'active power', 'reactive power', 'apparent power', 'impedance'
+  ],
+  'Robotics & Automation': [
+    'robot', 'kinematics', 'forward kinematics', 'inverse kinematics', 'dh parameter',
+    'jacobian', 'end effector', 'stepper motor', 'servo motor', 'lidar', 'slam',
+    'path planning', 'manipulator', 'scara', 'trajectory', 'vision system', 'plc', 'scada'
+  ],
+};
 
 // Helper to generate subject code if missing
 function generateCode(name: string, index: number): string {
@@ -75,6 +141,36 @@ function isSubjectMatch(qSub: string | undefined | null, targetSub: string): boo
   return false;
 }
 
+// Calculate match score of a question text/options against a subject's keywords
+function scoreQuestionForSubject(text: string, targetSubject: string): { score: number; matchedKeywords: string[] } {
+  const lower = text.toLowerCase();
+  const keywords = SUBJECT_KEYWORDS[targetSubject] || [];
+  let score = 0;
+  const matchedKeywords: string[] = [];
+
+  for (const kw of keywords) {
+    if (lower.includes(kw.toLowerCase())) {
+      score += kw.length > 4 ? 3 : 2;
+      matchedKeywords.push(kw);
+    }
+  }
+
+  // Check subject title words
+  const titleWords = targetSubject
+    .toLowerCase()
+    .split(/[\s&/_-]+/)
+    .filter((w) => w.length > 3 && !['and', 'the', 'for', 'with', 'systems', 'engineering', 'design', 'circuits'].includes(w));
+
+  for (const tw of titleWords) {
+    if (lower.includes(tw)) {
+      score += 2;
+      if (!matchedKeywords.includes(tw)) matchedKeywords.push(tw);
+    }
+  }
+
+  return { score, matchedKeywords };
+}
+
 export default function QuestionsControlPage() {
   const [rounds, setRounds] = useState<RoundItem[]>([]);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
@@ -99,15 +195,34 @@ export default function QuestionsControlPage() {
   const [autoDuration, setAutoDuration] = useState(45);
   const [autoSubmitting, setAutoSubmitting] = useState(false);
 
-  // ── MASTER BULK UPLOAD (850 - 1600+ QS & DYNAMIC SUBJECTS) STATE ──
+  // ── MASTER BULK UPLOAD (850 - 1600+ QS & FIXED 100-SLOT RECHECKER) STATE ──
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterFile, setMasterFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showReallocationDetails, setShowReallocationDetails] = useState(false);
   const [masterParsedData, setMasterParsedData] = useState<{
     totalRows: number;
     subjectGroups: Record<string, any[]>;
+    rawSubjectCounts: Record<string, number>;
     detectedSubjects: string[];
     newSubjects: string[];
+    reallocations: Array<{
+      questionSnippet: string;
+      fromSubject: string;
+      toSubject: string;
+      matchedKeywords: string[];
+    }>;
+    excessSubjects: Array<{
+      subjectName: string;
+      rawCount: number;
+      excessCount: number;
+      finalAllotted: number;
+    }>;
+    underfilledSubjects: Array<{
+      subjectName: string;
+      finalCount: number;
+      deficit: number;
+    }>;
     sampleQuestions: any[];
   } | null>(null);
   const [masterUploadMode, setMasterUploadMode] = useState<'auto_fill_100' | 'full_import'>('auto_fill_100');
@@ -495,6 +610,131 @@ export default function QuestionsControlPage() {
     toast.success('Multi-Subject CSV Question Template Downloaded! 📄');
   };
 
+  // ── FIXED 100-QUESTION SLOT REBALANCER & EXCESS RE-CHECKER ENGINE ──
+  const rebalanceAndVerifyFixedSlots = useCallback((
+    initialGroups: Record<string, any[]>
+  ) => {
+    const subjectGroups: Record<string, any[]> = {};
+    const rawSubjectCounts: Record<string, number> = {};
+
+    Object.entries(initialGroups).forEach(([sub, list]) => {
+      subjectGroups[sub] = [...list];
+      rawSubjectCounts[sub] = list.length;
+    });
+
+    const detectedSubjects = Object.keys(subjectGroups);
+    const reallocations: Array<{
+      questionSnippet: string;
+      fromSubject: string;
+      toSubject: string;
+      matchedKeywords: string[];
+    }> = [];
+
+    // Step 1: Identify Excess (>100) and Underfilled (<100) subjects
+    const excessSubjectsList = detectedSubjects.filter((s) => subjectGroups[s].length > 100);
+    const underfilledSubjectsList = detectedSubjects.filter((s) => subjectGroups[s].length < 100);
+
+    // Step 2: For each excess subject, recheck questions against underfilled subjects
+    for (const excessSub of excessSubjectsList) {
+      const qList = subjectGroups[excessSub];
+      const retainedList: any[] = [];
+      const overflowCandidates: any[] = [];
+
+      qList.forEach((q, idx) => {
+        if (idx < 100) {
+          retainedList.push(q);
+        } else {
+          overflowCandidates.push(q);
+        }
+      });
+
+      // Try to reallocate each overflow question to an underfilled subject
+      const unallocatedOverflow: any[] = [];
+
+      for (const q of overflowCandidates) {
+        const fullContent = `${q.question_text || ''} ${(q.options || []).join(' ')} ${q.explanation || ''}`;
+        let bestTargetSub: string | null = null;
+        let highestScore = 0;
+        let bestKeywords: string[] = [];
+
+        // Check against all underfilled subjects that still need questions (< 100)
+        for (const candidateSub of underfilledSubjectsList) {
+          if (candidateSub === excessSub) continue;
+          if (subjectGroups[candidateSub].length >= 100) continue; // slot is already full
+
+          const { score, matchedKeywords } = scoreQuestionForSubject(fullContent, candidateSub);
+          if (score > highestScore && score >= 2) {
+            highestScore = score;
+            bestTargetSub = candidateSub;
+            bestKeywords = matchedKeywords;
+          }
+        }
+
+        if (bestTargetSub && subjectGroups[bestTargetSub].length < 100) {
+          // Reallocate to underfilled subject
+          const reallocatedQ = {
+            ...q,
+            subject_name: bestTargetSub,
+            category: bestTargetSub,
+          };
+          subjectGroups[bestTargetSub].push(reallocatedQ);
+          reallocations.push({
+            questionSnippet: (q.question_text || 'Question').slice(0, 75) + '...',
+            fromSubject: excessSub,
+            toSubject: bestTargetSub,
+            matchedKeywords: bestKeywords,
+          });
+        } else {
+          unallocatedOverflow.push(q);
+        }
+      }
+
+      subjectGroups[excessSub] = [...retainedList, ...unallocatedOverflow];
+    }
+
+    // Step 3: Compute final audit metadata
+    const excessSubjects: Array<{
+      subjectName: string;
+      rawCount: number;
+      excessCount: number;
+      finalAllotted: number;
+    }> = [];
+
+    const underfilledSubjects: Array<{
+      subjectName: string;
+      finalCount: number;
+      deficit: number;
+    }> = [];
+
+    detectedSubjects.forEach((sub) => {
+      const rawCount = rawSubjectCounts[sub] || 0;
+      const finalCount = subjectGroups[sub].length;
+      if (finalCount > 100) {
+        excessSubjects.push({
+          subjectName: sub,
+          rawCount,
+          excessCount: finalCount - 100,
+          finalAllotted: 100,
+        });
+      }
+      if (finalCount < 100) {
+        underfilledSubjects.push({
+          subjectName: sub,
+          finalCount,
+          deficit: 100 - finalCount,
+        });
+      }
+    });
+
+    return {
+      subjectGroups,
+      rawSubjectCounts,
+      reallocations,
+      excessSubjects,
+      underfilledSubjects,
+    };
+  }, []);
+
   // ── QUICK BULK EXCEL UPLOAD ──
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -518,7 +758,23 @@ export default function QuestionsControlPage() {
       const token = session?.access_token || 'admin';
 
       const targetRoundId = formRoundId || (rounds.length > 0 ? rounds[0].id : 'bank');
-      const formattedList = rawJson.map((row, idx) => parseQuestionRow(row, idx + 1, targetRoundId));
+      const initialGroups: Record<string, any[]> = {};
+      rawJson.forEach((row, idx) => {
+        const parsed = parseQuestionRow(row, idx + 1, targetRoundId);
+        if (parsed.question_text && parsed.question_text.trim()) {
+          const sub = parsed.subject_name || formSubjectName;
+          if (!initialGroups[sub]) initialGroups[sub] = [];
+          initialGroups[sub].push(parsed);
+        }
+      });
+
+      const { subjectGroups, excessSubjects } = rebalanceAndVerifyFixedSlots(initialGroups);
+
+      // Extract up to 100 questions per subject slot
+      const formattedList: any[] = [];
+      Object.values(subjectGroups).forEach((list) => {
+        formattedList.push(...list.slice(0, 100));
+      });
 
       const res = await fetch('/api/admin/questions/bulk-upload', {
         method: 'POST',
@@ -535,8 +791,12 @@ export default function QuestionsControlPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to upload questions');
 
+      const excessMsg = excessSubjects.length > 0
+        ? ` (⚠️ ${excessSubjects.length} subjects exceeded 100 questions and were safely capped at 100)`
+        : '';
+
       toast.success(
-        `Bulk Upload Complete! ${json.inserted_count} questions imported (${json.new_subjects_created || 0} new subjects created)! 🚀`
+        `Bulk Upload Complete! ${json.inserted_count} questions imported into fixed 100-question slots${excessMsg}! 🚀`
       );
       fetchData();
     } catch (err: any) {
@@ -547,11 +807,12 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── MASTER BULK ANALYZER & PREVIEW (850 - 1600+ QS) ──
+  // ── MASTER BULK ANALYZER & PREVIEW (850 - 1600+ QS & 100-SLOT RECHECKER) ──
   const handleMasterFileSelect = async (file: File) => {
     setMasterFile(file);
     setIsAnalyzing(true);
     setMasterParsedData(null);
+    setShowReallocationDetails(false);
 
     try {
       const dataBuffer = await file.arrayBuffer();
@@ -573,7 +834,7 @@ export default function QuestionsControlPage() {
       }
 
       // Group questions by matched/new subject
-      const subjectGroups: Record<string, any[]> = {};
+      const initialGroups: Record<string, any[]> = {};
       const parsedQuestions: any[] = [];
 
       combinedRows.forEach((row, idx) => {
@@ -581,10 +842,19 @@ export default function QuestionsControlPage() {
         if (parsed.question_text && parsed.question_text.trim()) {
           parsedQuestions.push(parsed);
           const sub = parsed.subject_name || 'Digital Electronics';
-          if (!subjectGroups[sub]) subjectGroups[sub] = [];
-          subjectGroups[sub].push(parsed);
+          if (!initialGroups[sub]) initialGroups[sub] = [];
+          initialGroups[sub].push(parsed);
         }
       });
+
+      // Execute fixed-slot rebalance & excess rechecker
+      const {
+        subjectGroups,
+        rawSubjectCounts,
+        reallocations,
+        excessSubjects,
+        underfilledSubjects,
+      } = rebalanceAndVerifyFixedSlots(initialGroups);
 
       const detectedSubs = Object.keys(subjectGroups);
       const existingNames = new Set(subjects.map((s) => s.name.toLowerCase()));
@@ -593,14 +863,26 @@ export default function QuestionsControlPage() {
       setMasterParsedData({
         totalRows: parsedQuestions.length,
         subjectGroups,
+        rawSubjectCounts,
         detectedSubjects: detectedSubs,
         newSubjects: newlyFoundSubs,
+        reallocations,
+        excessSubjects,
+        underfilledSubjects,
         sampleQuestions: parsedQuestions.slice(0, 5),
       });
 
-      toast.success(
-        `⚡ Analyzed ${parsedQuestions.length} questions across ${detectedSubs.length} subjects (${newlyFoundSubs.length} new subject banks detected)!`
-      );
+      if (excessSubjects.length > 0) {
+        const totalExcess = excessSubjects.reduce((acc, e) => acc + e.excessCount, 0);
+        toast(
+          `⚠️ Notice: ${excessSubjects.length} subject(s) exceeded the fixed 100-slot quota (+${totalExcess} excess). Rechecked and balanced!`,
+          { icon: '⚠️', duration: 5500 }
+        );
+      } else {
+        toast.success(
+          `⚡ Analyzed ${parsedQuestions.length} questions across ${detectedSubs.length} subjects! All 100-question slots ready! 🎯`
+        );
+      }
     } catch (err: any) {
       toast.error(`Error analyzing spreadsheet: ${err.message}`);
     } finally {
@@ -680,8 +962,13 @@ export default function QuestionsControlPage() {
         currentSubject: 'Complete',
       });
 
+      const excessNote =
+        masterParsedData.excessSubjects.length > 0 && masterUploadMode === 'auto_fill_100'
+          ? ` (${masterParsedData.excessSubjects.reduce((acc, e) => acc + e.excessCount, 0)} excess questions capped to 100 slots)`
+          : '';
+
       toast.success(
-        `🎉 Master Import Complete! Successfully uploaded ${totalInserted} questions and created all new subject banks! 🚀`
+        `🎉 Master Import Complete! Successfully uploaded ${totalInserted} questions into fixed 100-question slots${excessNote}! 🚀`
       );
 
       setTimeout(() => {
@@ -1382,7 +1669,7 @@ export default function QuestionsControlPage() {
 
             {/* Step 2: Analysis Results & Auto-Distribution Config */}
             {masterParsedData && !masterUploading && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 {/* Summary Metrics Banner */}
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6366F1]/20 via-[#8B5CF6]/20 to-[#EC4899]/20 border border-purple-500/30 flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -1391,15 +1678,15 @@ export default function QuestionsControlPage() {
                     </div>
                     <div>
                       <div className="text-xs text-purple-300 font-mono font-bold uppercase tracking-wider flex items-center gap-2">
-                        <span>Analysis Complete</span>
+                        <span>Fixed 100-Slot Analysis Complete</span>
                         {masterParsedData.newSubjects.length > 0 && (
                           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px]">
-                            +{masterParsedData.newSubjects.length} New Subjects Will Be Auto-Created
+                            +{masterParsedData.newSubjects.length} New Subjects Auto-Created
                           </span>
                         )}
                       </div>
                       <div className="text-base font-extrabold text-white">
-                        {masterParsedData.totalRows} Total Questions Found across {masterParsedData.detectedSubjects.length} Subjects
+                        {masterParsedData.totalRows} Total Questions Analyzed Across {masterParsedData.detectedSubjects.length} Subject Slots
                       </div>
                     </div>
                   </div>
@@ -1408,12 +1695,93 @@ export default function QuestionsControlPage() {
                     onClick={() => {
                       setMasterFile(null);
                       setMasterParsedData(null);
+                      setShowReallocationDetails(false);
                     }}
                     className="text-xs text-[#94A3B8] hover:text-white underline cursor-pointer"
                   >
                     Upload different file
                   </button>
                 </div>
+
+                {/* ── EXCESS DEVIATION & RECHECK NOTIFICATION BANNER ── */}
+                {masterParsedData.excessSubjects.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="text-amber-400 mt-0.5 flex-shrink-0" size={18} />
+                        <div>
+                          <div className="text-xs font-bold text-amber-300 font-mono uppercase tracking-wider flex items-center gap-2">
+                            <span>⚠️ Fixed-Slot Deviation Detected & Re-checked</span>
+                            <span className="px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-200 text-[10px]">
+                              {masterParsedData.excessSubjects.length} Subject(s) Exceeded 100 Qs
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#E2E8F0] mt-1 leading-relaxed">
+                            Some subjects in the uploaded Excel contained more than 100 questions (e.g. 200 questions). 
+                            The engine re-verified question content keywords against underfilled subjects (<span className="text-emerald-400 font-bold">&lt;100 Qs</span>), 
+                            reallocated <span className="text-purple-300 font-bold">{masterParsedData.reallocations.length} mislabeled questions</span>, 
+                            and strictly capped each bank at the <span className="text-amber-300 font-bold">fixed 100-question slot</span>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Stat Tags */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-500/20 text-[11px] font-mono">
+                      <span className="px-2.5 py-1 rounded-lg bg-black/40 text-amber-300 border border-amber-500/30">
+                        Total Excess Beyond 100: +{masterParsedData.excessSubjects.reduce((acc, e) => acc + e.excessCount, 0)} Qs
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-black/40 text-purple-300 border border-purple-500/30">
+                        Re-routed to Underfilled Banks: {masterParsedData.reallocations.length} Qs
+                      </span>
+                      <span className="px-2.5 py-1 rounded-lg bg-black/40 text-emerald-300 border border-emerald-500/30">
+                        Fixed Slot Target: 100 Qs / Subject
+                      </span>
+
+                      {masterParsedData.reallocations.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowReallocationDetails(!showReallocationDetails)}
+                          className="ml-auto px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-200 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                          {showReallocationDetails ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                          <span>{showReallocationDetails ? 'Hide' : 'View'} Recheck Audit ({masterParsedData.reallocations.length})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Collapsible Reallocation Details Log */}
+                    {showReallocationDetails && masterParsedData.reallocations.length > 0 && (
+                      <div className="p-3 rounded-xl bg-black/60 border border-purple-500/30 space-y-2 max-h-40 overflow-y-auto">
+                        <div className="text-[11px] font-mono font-bold text-purple-300 uppercase">
+                          📋 Detailed Question Re-routing Audit:
+                        </div>
+                        <div className="space-y-1.5">
+                          {masterParsedData.reallocations.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="p-2 rounded-lg bg-white/[0.03] border border-white/10 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+                            >
+                              <div className="text-white truncate max-w-sm" title={item.questionSnippet}>
+                                <span className="text-purple-400 font-mono font-bold mr-1">#{idx + 1}</span>
+                                {item.questionSnippet}
+                              </div>
+                              <div className="flex items-center gap-1.5 font-mono text-[10px] flex-shrink-0">
+                                <span className="text-red-300 bg-red-950/40 px-1.5 py-0.5 rounded border border-red-500/30">
+                                  {item.fromSubject}
+                                </span>
+                                <ArrowRight size={10} className="text-white" />
+                                <span className="text-emerald-300 bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                                  {item.toSubject}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Mode Selector */}
                 <div className="space-y-2">
@@ -1422,7 +1790,7 @@ export default function QuestionsControlPage() {
                   </label>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* Option 1: Auto-Fill 100 Qs */}
+                    {/* Option 1: Fixed Slot 100 Qs */}
                     <div
                       onClick={() => setMasterUploadMode('auto_fill_100')}
                       className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
@@ -1438,13 +1806,13 @@ export default function QuestionsControlPage() {
                       </div>
                       <div className="space-y-1">
                         <div className="font-bold text-xs text-white flex items-center gap-1.5">
-                          <span>Auto-Fill Subject Banks (Up to 100 Qs / Subject)</span>
+                          <span>Fixed 100-Question Slots (Balanced & Re-checked)</span>
                           <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono">
                             RECOMMENDED
                           </span>
                         </div>
                         <p className="text-[11px] text-[#94A3B8]">
-                          Takes up to 100 questions from each detected subject to balance all subject banks evenly.
+                          Strictly caps every subject at 100 questions. Discards or reallocates overflow beyond 100 to avoid deviation.
                         </p>
                       </div>
                     </div>
@@ -1465,10 +1833,10 @@ export default function QuestionsControlPage() {
                       </div>
                       <div className="space-y-1">
                         <div className="font-bold text-xs text-white">
-                          Full Bulk Import (All {masterParsedData.totalRows} Questions)
+                          Full Raw Import (All {masterParsedData.totalRows} Questions)
                         </div>
                         <p className="text-[11px] text-[#94A3B8]">
-                          Uploads every single row without capping, ideal for massive question archives (850–1,600+ questions).
+                          Uploads every single row without the 100-slot cap (ideal for massive unconstrained archives).
                         </p>
                       </div>
                     </div>
@@ -1498,27 +1866,32 @@ export default function QuestionsControlPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-white uppercase tracking-wider">
-                      📊 Detected Subjects Breakdown ({masterParsedData.detectedSubjects.length}):
+                      📊 Fixed Subject Slots Breakdown ({masterParsedData.detectedSubjects.length}):
                     </span>
                     <span className="text-[#94A3B8] font-mono text-[11px]">
                       {masterUploadMode === 'auto_fill_100'
-                        ? 'Capped at 100 Qs / Subject'
-                        : 'Full counts importing'}
+                        ? 'Target: 100 Qs / Subject Slot'
+                        : 'Full unconstrained count'}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
                     {Object.entries(masterParsedData.subjectGroups).map(([subName, list]) => {
                       const count = list.length;
+                      const rawCount = masterParsedData.rawSubjectCounts[subName] || count;
                       const willUpload = masterUploadMode === 'auto_fill_100' ? Math.min(100, count) : count;
                       const percent = Math.min(100, Math.round((willUpload / 100) * 100));
                       const isNew = masterParsedData.newSubjects.includes(subName);
+                      const hasExcess = rawCount > 100;
+                      const reallocatedIn = masterParsedData.reallocations.filter((r) => r.toSubject === subName).length;
 
                       return (
                         <div
                           key={subName}
                           className={`p-3 rounded-xl border space-y-2 ${
-                            isNew
+                            hasExcess
+                              ? 'bg-amber-950/20 border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.1)]'
+                              : isNew
                               ? 'bg-purple-950/30 border-purple-500/40 shadow-[0_0_10px_rgba(168,85,247,0.15)]'
                               : 'bg-white/[0.04] border-white/10'
                           }`}
@@ -1541,15 +1914,31 @@ export default function QuestionsControlPage() {
 
                           <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-[#6366F1] to-[#00E5FF] rounded-full"
+                              className={`h-full rounded-full ${
+                                willUpload >= 100
+                                  ? 'bg-gradient-to-r from-emerald-500 to-[#00E5FF]'
+                                  : 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6]'
+                              }`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
 
-                          <div className="flex justify-between text-[10px] font-mono text-[#94A3B8]">
-                            <span>Found in file: {count}</span>
-                            <span>{count >= 100 ? '100% capacity' : `${percent}% bank fill`}</span>
+                          <div className="flex flex-wrap items-center justify-between text-[10px] font-mono text-[#94A3B8] gap-1">
+                            <span>Found in file: {rawCount}</span>
+                            {hasExcess && masterUploadMode === 'auto_fill_100' ? (
+                              <span className="text-amber-300 font-bold">⚠️ +{rawCount - 100} Excess Capped</span>
+                            ) : willUpload >= 100 ? (
+                              <span className="text-emerald-400 font-bold">✅ 100/100 Slot Full</span>
+                            ) : (
+                              <span className="text-sky-300 font-bold">{willUpload}/100 ({100 - willUpload} deficit)</span>
+                            )}
                           </div>
+
+                          {reallocatedIn > 0 && (
+                            <div className="text-[9px] font-mono text-purple-300 bg-purple-900/30 px-1.5 py-0.5 rounded border border-purple-500/20">
+                              ⚡ +{reallocatedIn} re-routed from excess subjects
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1580,7 +1969,7 @@ export default function QuestionsControlPage() {
                             0
                           )
                         : masterParsedData.totalRows}{' '}
-                      Questions Now
+                      Questions into Fixed Slots
                     </span>
                   </button>
                 </div>
