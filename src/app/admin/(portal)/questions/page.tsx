@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
@@ -8,7 +8,8 @@ import FadeIn from '@/components/shared/FadeIn';
 import { formatImageUrl } from '@/lib/utils';
 import {
   HelpCircle, Plus, UploadCloud, Download, FileSpreadsheet,
-  Search, Trash2, Edit3, CheckCircle2, RefreshCw, FileText
+  Search, Trash2, Edit3, CheckCircle2, RefreshCw, FileText,
+  Sparkles, Layers, Zap, Check, AlertCircle, ArrowRight, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -31,6 +32,7 @@ interface QuestionItem {
   marks: number;
   negative_marks?: number;
   category?: string | null;
+  subject_name?: string | null;
   difficulty?: string | null;
   explanation?: string | null;
   rounds?: { title: string; round_number: number };
@@ -59,6 +61,28 @@ export default function QuestionsControlPage() {
   const [autoTitle, setAutoTitle] = useState('Automated 50-Q ECE Weekly Test');
   const [autoDuration, setAutoDuration] = useState(45);
   const [autoSubmitting, setAutoSubmitting] = useState(false);
+
+  // ── MASTER BULK UPLOAD (850 - 1600+ QS) STATE ──
+  const [showMasterModal, setShowMasterModal] = useState(false);
+  const [masterFile, setMasterFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [masterParsedData, setMasterParsedData] = useState<{
+    totalRows: number;
+    subjectGroups: Record<string, any[]>;
+    detectedSubjects: string[];
+    sampleQuestions: any[];
+  } | null>(null);
+  const [masterUploadMode, setMasterUploadMode] = useState<'auto_fill_100' | 'full_import'>('auto_fill_100');
+  const [masterTargetRound, setMasterTargetRound] = useState<string>('bank');
+  const [masterUploading, setMasterUploading] = useState(false);
+  const [masterProgress, setMasterProgress] = useState<{
+    currentChunk: number;
+    totalChunks: number;
+    uploadedCount: number;
+    totalToUpload: number;
+    percentage: number;
+    currentSubject: string;
+  } | null>(null);
 
   // Form State
   const [formRoundId, setFormRoundId] = useState('');
@@ -121,8 +145,209 @@ export default function QuestionsControlPage() {
     fetchData();
   }, [fetchData]);
 
-  // ── 1. DOWNLOAD MULTI-SUBJECT EXCEL QUESTION TEMPLATE (.xlsx) ──
+  // ── SMART SUBJECT MATCHER (MATCHES EXCEL TEXT TO 10 ECE SUBJECTS) ──
+  const matchSubjectName = useCallback((rawSubject: any): string => {
+    if (!rawSubject) return 'Digital Electronics';
+    const str = String(rawSubject).trim();
 
+    // Direct exact or case-insensitive match
+    const exact = subjects.find(
+      (s) => s.name.toLowerCase() === str.toLowerCase() || (s.code && s.code.toLowerCase() === str.toLowerCase())
+    );
+    if (exact) return exact.name;
+
+    // Fuzzy Keyword Matching
+    const lower = str.toLowerCase();
+    if (
+      lower.includes('microprocessor') ||
+      lower.includes('microcontroller') ||
+      lower.includes('8086') ||
+      lower.includes('8051') ||
+      lower.includes('mpmc') ||
+      lower.includes('arm')
+    ) {
+      return 'Microprocessors & Microcontrollers';
+    }
+    if (
+      lower.includes('vlsi') ||
+      lower.includes('cmos') ||
+      lower.includes('verilog') ||
+      lower.includes('vhdl') ||
+      lower.includes('layout') ||
+      lower.includes('mosfet')
+    ) {
+      return 'VLSI Design';
+    }
+    if (
+      lower.includes('signal') ||
+      lower.includes('dsp') ||
+      lower.includes('fourier') ||
+      lower.includes('laplace') ||
+      lower.includes('z-transform')
+    ) {
+      return 'Signals & Systems';
+    }
+    if (
+      lower.includes('analog') ||
+      lower.includes('op-amp') ||
+      lower.includes('opamp') ||
+      lower.includes('bjt') ||
+      lower.includes('diode') ||
+      lower.includes('amplifier')
+    ) {
+      return 'Analog Circuits';
+    }
+    if (
+      lower.includes('comm') ||
+      lower.includes('antenna') ||
+      lower.includes('modulation') ||
+      lower.includes('wireless') ||
+      lower.includes('telecom') ||
+      lower.includes('radar')
+    ) {
+      return 'Communication Systems';
+    }
+    if (
+      lower.includes('control') ||
+      lower.includes('bode') ||
+      lower.includes('nyquist') ||
+      lower.includes('root locus') ||
+      lower.includes('transfer function')
+    ) {
+      return 'Control Systems';
+    }
+    if (
+      lower.includes('electromagnetic') ||
+      lower.includes('emft') ||
+      lower.includes('maxwell') ||
+      lower.includes('waveguide') ||
+      lower.includes('transmission line')
+    ) {
+      return 'Electromagnetic Fields';
+    }
+    if (
+      lower.includes('embedded') ||
+      lower.includes('iot') ||
+      lower.includes('arduino') ||
+      lower.includes('raspberry') ||
+      lower.includes('sensor') ||
+      lower.includes('interfacing')
+    ) {
+      return 'Embedded Systems';
+    }
+    if (
+      lower.includes('basic electrical') ||
+      lower.includes('bee') ||
+      lower.includes('kvl') ||
+      lower.includes('kcl') ||
+      lower.includes('transformer') ||
+      lower.includes('electrical')
+    ) {
+      return 'Basic Electrical Engineering';
+    }
+    if (
+      lower.includes('digital') ||
+      lower.includes('logic') ||
+      lower.includes('boolean') ||
+      lower.includes('k-map') ||
+      lower.includes('flip flop') ||
+      lower.includes('counter')
+    ) {
+      return 'Digital Electronics';
+    }
+
+    return str.length > 0 ? str : 'Digital Electronics';
+  }, [subjects]);
+
+  // ── ROW PARSER HELPER ──
+  const parseQuestionRow = useCallback((row: any, rowIndex: number, targetRoundId: string) => {
+    const rawSub =
+      row['Subject Name'] ||
+      row['Subject'] ||
+      row['Department Subject'] ||
+      row['Subject / Topic'] ||
+      row['Category'] ||
+      row['Course'] ||
+      row['Topic'] ||
+      formSubjectName;
+
+    const matchedSubject = matchSubjectName(rawSub);
+    const qType = (row['Question Type'] || row['Type'] || 'mcq').toLowerCase();
+    const qText = row['Questions'] || row['Question Text'] || row['Question'] || row['QuestionDescription'] || '';
+
+    const optA = String(row['option 1'] || row['Option A'] || row['option A'] || row['Option 1'] || row['A'] || '');
+    const optB = String(row['option 2'] || row['Option B'] || row['option B'] || row['Option 2'] || row['B'] || '');
+    const optC = String(row['option 3'] || row['Option C'] || row['option C'] || row['Option 3'] || row['C'] || '');
+    const optD = String(row['option 4'] || row['Option D'] || row['option D'] || row['Option 4'] || row['D'] || '');
+
+    const correctVal =
+      row['Correct Option (1-4)'] !== undefined
+        ? row['Correct Option (1-4)']
+        : row['Correct Answer'] !== undefined
+        ? row['Correct Answer']
+        : row['correct_answer'] !== undefined
+        ? row['correct_answer']
+        : row['Answer'];
+
+    let correctIndex = 0;
+    if (typeof correctVal === 'number') {
+      correctIndex = correctVal >= 1 && correctVal <= 4 ? correctVal - 1 : correctVal;
+    } else if (typeof correctVal === 'string') {
+      const parsedNum = parseInt(correctVal.trim(), 10);
+      if (!isNaN(parsedNum) && parsedNum >= 1 && parsedNum <= 4) {
+        correctIndex = parsedNum - 1;
+      } else {
+        const letter = correctVal.trim().toUpperCase();
+        if (letter === 'A' || letter === 'OPTION A' || letter === 'OPTION 1') correctIndex = 0;
+        else if (letter === 'B' || letter === 'OPTION B' || letter === 'OPTION 2') correctIndex = 1;
+        else if (letter === 'C' || letter === 'OPTION C' || letter === 'OPTION 3') correctIndex = 2;
+        else if (letter === 'D' || letter === 'OPTION D' || letter === 'OPTION 4') correctIndex = 3;
+      }
+    }
+
+    const marks = Number(row['Marks'] || row['Mark'] || row['Points']) || 2;
+    const negMarks = Number(row['Negative Marks'] || row['Negative Mark'] || row['Negative']) || 0.5;
+    const difficulty = row['Difficulty'] || 'medium';
+    const category = row['Category'] || matchedSubject;
+    const explanation = row['Explanation'] || row['Solution'] || '';
+
+    let rawImageUrl =
+      row['Image Link / Drive URL'] ||
+      row['Image Link'] ||
+      row['Drive Link'] ||
+      row['image_url'] ||
+      row['Figure'] ||
+      row['Image'] ||
+      null;
+    let imageUrl: string | null = null;
+    if (rawImageUrl && String(rawImageUrl).trim() !== '' && String(rawImageUrl).trim() !== 'null') {
+      const formatted = formatImageUrl(String(rawImageUrl).trim());
+      if (formatted && formatted.trim()) {
+        imageUrl = formatted;
+      }
+    }
+
+    const optionsArray = [optA, optB, optC, optD].filter(Boolean);
+
+    return {
+      round_id: targetRoundId,
+      subject_name: matchedSubject,
+      question_type: qType,
+      question_text: qText,
+      options: optionsArray,
+      image_url: imageUrl,
+      image_alt: imageUrl ? `Question Diagram ${rowIndex}` : null,
+      correct_answer: { type: qType, value: qType === 'mcq' ? correctIndex : String(correctVal || '') },
+      marks: marks,
+      negative_marks: negMarks,
+      difficulty: difficulty,
+      category: category,
+      explanation: explanation,
+      order_index: rowIndex,
+    };
+  }, [formSubjectName, matchSubjectName]);
+
+  // ── 1. DOWNLOAD MULTI-SUBJECT EXCEL QUESTION TEMPLATE (.xlsx) ──
   const handleDownloadExcelTemplate = () => {
     const templateRows = [
       {
@@ -152,6 +377,19 @@ export default function QuestionsControlPage() {
         'Negative Marks': 0.5,
       },
       {
+        'Subject Name': 'VLSI Design',
+        'Questions': 'In CMOS inverter, the ratio of (W/L)p to (W/L)n is chosen around 2 to 3 primarily to equalize:',
+        'Question Type': 'mcq',
+        'Image Link / Drive URL': '',
+        'Option A': 'Power dissipation',
+        'Option B': 'Rise and fall propagation delays',
+        'Option C': 'Threshold voltages',
+        'Option D': 'Leakage currents',
+        'Correct Option (1-4)': 2,
+        'Marks': 2,
+        'Negative Marks': 0.5,
+      },
+      {
         'Subject Name': 'Signals & Systems',
         'Questions': 'The Fourier Transform of a unit impulse delta function delta(t) is _____',
         'Question Type': 'fill_blank',
@@ -176,15 +414,15 @@ export default function QuestionsControlPage() {
       { wch: 20 },
       { wch: 20 },
       { wch: 20 },
-      { wch: 20 },
+      { wch: 10 },
       { wch: 10 },
       { wch: 15 },
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'MultiSubject_Question_Template');
-    XLSX.writeFile(workbook, 'ECE_MultiSubject_Question_Template.xlsx');
-    toast.success('Multi-Subject Excel Question Template Downloaded! 📊');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Master_Question_Template');
+    XLSX.writeFile(workbook, 'ECE_Master_Question_Template.xlsx');
+    toast.success('Master Question Template Downloaded! 📊');
   };
 
   const handleDownloadCSVTemplate = () => {
@@ -217,7 +455,7 @@ export default function QuestionsControlPage() {
     toast.success('Multi-Subject CSV Question Template Downloaded! 📄');
   };
 
-  // ── 2. BULK EXCEL QUESTION UPLOAD (.xlsx / .csv) ──
+  // ── 2. QUICK BULK EXCEL UPLOAD (STANDARD) ──
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -239,85 +477,25 @@ export default function QuestionsControlPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
 
-      let insertedCount = 0;
-      let rowIndex = 0;
-      for (const row of rawJson) {
-        rowIndex++;
-        const roundNum = Number(row['Round Number'] || 1);
-        const matchedRound = rounds.length > 0 ? (rounds.find((r) => r.round_number === roundNum) || rounds[0]) : null;
-        const targetRoundId = matchedRound?.id || 'default';
+      const targetRoundId = formRoundId || (rounds.length > 0 ? rounds[0].id : 'bank');
+      const formattedList = rawJson.map((row, idx) => parseQuestionRow(row, idx + 1, targetRoundId));
 
-        // Support ARDUFUSION.xlsx format OR standard template format
-        const qType = (row['Question Type'] || 'mcq').toLowerCase();
-        const qText = row['Questions'] || row['Question Text'] || '';
-        const rowSubject = row['Subject Name'] || row['Subject'] || formSubjectName;
-        const optA = String(row['option 1'] || row['Option A'] || '');
-        const optB = String(row['option 2'] || row['Option B'] || '');
-        const optC = String(row['option 3'] || row['Option C'] || '');
-        const optD = String(row['option 4'] || row['Option D'] || '');
-        const correctVal = row['Correct Option (1-4)'] !== undefined ? row['Correct Option (1-4)'] : (row['Correct Answer'] !== undefined ? row['Correct Answer'] : row['correct_answer']);
-        let correctIndex = 0;
-        if (typeof correctVal === 'number') {
-          correctIndex = correctVal - 1;
-        } else if (typeof correctVal === 'string') {
-          const parsedNum = parseInt(correctVal.trim(), 10);
-          if (!isNaN(parsedNum)) {
-            correctIndex = parsedNum - 1;
-          } else {
-            const letter = correctVal.trim().toUpperCase();
-            if (letter === 'A' || letter === 'OPTION A') correctIndex = 0;
-            else if (letter === 'B' || letter === 'OPTION B') correctIndex = 1;
-            else if (letter === 'C' || letter === 'OPTION C') correctIndex = 2;
-            else if (letter === 'D' || letter === 'OPTION D') correctIndex = 3;
-          }
-        }
-        const marks = Number(row['Marks']) || 2;
-        const negMarks = Number(row['Negative Marks']) || 0.5;
-        const difficulty = row['Difficulty'] || 'medium';
-        const category = row['Category'] || rowSubject || 'Electronics';
-        const explanation = row['Explanation'] || '';
-
-        // Auto-assign image link from Excel/CSV column: Strict parsing (No image collision)
-        let rawImageUrl = row['Image Link / Drive URL'] || row['Image Link'] || row['Drive Link'] || row['image_url'] || null;
-        let imageUrl: string | null = null;
-        if (rawImageUrl && String(rawImageUrl).trim() !== '' && String(rawImageUrl).trim() !== 'null') {
-          const formatted = formatImageUrl(String(rawImageUrl).trim());
-          if (formatted && formatted.trim()) {
-            imageUrl = formatted;
-          }
-        }
-
-        const optionsArray = [optA, optB, optC, optD].filter(Boolean);
-
-        const newQuestionPayload = {
+      const res = await fetch('/api/admin/questions/bulk-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          questions: formattedList,
           round_id: targetRoundId,
-          subject_name: rowSubject,
-          question_type: qType,
-          question_text: qText,
-          options: optionsArray,
-          image_url: imageUrl,
-          image_alt: imageUrl ? `Question Diagram ${rowIndex}` : null,
-          correct_answer: { type: qType, value: qType === 'mcq' ? correctIndex : String(correctVal || '') },
-          marks: marks,
-          negative_marks: negMarks,
-          difficulty: difficulty,
-          category: category,
-          explanation: explanation,
-        };
+        }),
+      });
 
-        const res = await fetch(`/api/admin/rounds/${targetRoundId}/questions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(newQuestionPayload),
-        });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to upload questions');
 
-        if (res.ok) insertedCount++;
-      }
-
-      toast.success(`Bulk Upload Complete! ${insertedCount} questions imported successfully! 🚀`);
+      toast.success(`Bulk Upload Complete! ${json.inserted_count} questions imported successfully! 🚀`);
       fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Error processing Excel file');
@@ -327,7 +505,159 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 3. SAVE / ADD SINGLE QUESTION ──
+  // ── 3. MASTER BULK ANALYZER & PREVIEW (FOR 850 - 1600+ QUESTIONS) ──
+  const handleMasterFileSelect = async (file: File) => {
+    setMasterFile(file);
+    setIsAnalyzing(true);
+    setMasterParsedData(null);
+
+    try {
+      const dataBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(dataBuffer, { type: 'array' });
+
+      // Aggregate all rows across all sheets or primary sheet
+      let combinedRows: any[] = [];
+      workbook.SheetNames.forEach((name) => {
+        const sheet = workbook.Sheets[name];
+        const sheetJson: any[] = XLSX.utils.sheet_to_json(sheet);
+        if (sheetJson && sheetJson.length > 0) {
+          combinedRows = combinedRows.concat(sheetJson);
+        }
+      });
+
+      if (combinedRows.length === 0) {
+        toast.error('The uploaded Excel spreadsheet contains no question rows.');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Group questions by matched subject
+      const subjectGroups: Record<string, any[]> = {};
+      const parsedQuestions: any[] = [];
+
+      combinedRows.forEach((row, idx) => {
+        const parsed = parseQuestionRow(row, idx + 1, 'bank');
+        if (parsed.question_text && parsed.question_text.trim()) {
+          parsedQuestions.push(parsed);
+          const sub = parsed.subject_name || 'Digital Electronics';
+          if (!subjectGroups[sub]) subjectGroups[sub] = [];
+          subjectGroups[sub].push(parsed);
+        }
+      });
+
+      const detectedSubs = Object.keys(subjectGroups);
+
+      setMasterParsedData({
+        totalRows: parsedQuestions.length,
+        subjectGroups,
+        detectedSubjects: detectedSubs,
+        sampleQuestions: parsedQuestions.slice(0, 5),
+      });
+
+      toast.success(
+        `⚡ Analyzed ${parsedQuestions.length} questions across ${detectedSubs.length} department subjects!`
+      );
+    } catch (err: any) {
+      toast.error(`Error analyzing spreadsheet: ${err.message}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // ── 4. EXECUTE MASTER BULK UPLOAD (CHUNKS OF 100 QS WITH REAL-TIME PROGRESS) ──
+  const executeMasterBulkUpload = async () => {
+    if (!masterParsedData || masterParsedData.totalRows === 0) {
+      toast.error('No parsed questions to upload');
+      return;
+    }
+
+    setMasterUploading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || 'admin';
+
+    try {
+      // Build final list based on selected mode
+      let questionsToUpload: any[] = [];
+
+      if (masterUploadMode === 'auto_fill_100') {
+        // Take up to 100 questions per identified subject
+        Object.entries(masterParsedData.subjectGroups).forEach(([subName, list]) => {
+          const quota = list.slice(0, 100);
+          questionsToUpload.push(...quota);
+        });
+      } else {
+        // Full Import: all questions
+        Object.values(masterParsedData.subjectGroups).forEach((list) => {
+          questionsToUpload.push(...list);
+        });
+      }
+
+      const totalToUpload = questionsToUpload.length;
+      const CHUNK_SIZE = 100;
+      const totalChunks = Math.ceil(totalToUpload / CHUNK_SIZE);
+      let totalInserted = 0;
+
+      for (let c = 0; c < totalChunks; c++) {
+        const chunk = questionsToUpload.slice(c * CHUNK_SIZE, (c + 1) * CHUNK_SIZE);
+        const currentSub = chunk[0]?.subject_name || 'Multiple Subjects';
+
+        setMasterProgress({
+          currentChunk: c + 1,
+          totalChunks,
+          uploadedCount: totalInserted,
+          totalToUpload,
+          percentage: Math.round((totalInserted / totalToUpload) * 100),
+          currentSubject: currentSub,
+        });
+
+        const res = await fetch('/api/admin/questions/bulk-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            questions: chunk,
+            round_id: masterTargetRound,
+          }),
+        });
+
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || `Batch ${c + 1} failed to upload`);
+        }
+
+        totalInserted += chunk.length;
+      }
+
+      setMasterProgress({
+        currentChunk: totalChunks,
+        totalChunks,
+        uploadedCount: totalInserted,
+        totalToUpload,
+        percentage: 100,
+        currentSubject: 'Complete',
+      });
+
+      toast.success(
+        `🎉 Master Import Complete! Successfully uploaded ${totalInserted} questions into department banks! 🚀`
+      );
+
+      setTimeout(() => {
+        setShowMasterModal(false);
+        setMasterFile(null);
+        setMasterParsedData(null);
+        setMasterProgress(null);
+        fetchData();
+      }, 1200);
+    } catch (err: any) {
+      toast.error(err.message || 'Error executing master upload');
+    } finally {
+      setMasterUploading(false);
+    }
+  };
+
+  // ── 5. SAVE / ADD SINGLE QUESTION ──
   const handleSaveQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formText.trim()) {
@@ -391,7 +721,7 @@ export default function QuestionsControlPage() {
     }
   };
 
-  // ── 4. DELETE QUESTION ──
+  // ── 6. DELETE QUESTION ──
   const handleDeleteQuestion = async (qId: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
     try {
@@ -412,6 +742,7 @@ export default function QuestionsControlPage() {
       toast.error('Failed to delete question');
     }
   };
+
   const handleGenerateAutoRound = async (e: React.FormEvent) => {
     e.preventDefault();
     setAutoSubmitting(true);
@@ -435,7 +766,9 @@ export default function QuestionsControlPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to auto-generate test');
 
-      toast.success(`🎉 50-Question Automated Test Created! Combined across ${json.active_subjects_count} subjects! 🚀`);
+      toast.success(
+        `🎉 50-Question Automated Test Created! Combined across ${json.active_subjects_count} subjects! 🚀`
+      );
       setShowAutoModal(false);
       fetchData();
     } catch (err: any) {
@@ -465,7 +798,9 @@ export default function QuestionsControlPage() {
     setFormType(q.question_type || 'mcq');
     setFormText(q.question_text || '');
     setFormOptions(q.options && q.options.length > 0 ? q.options : ['', '', '', '']);
-    setFormCorrectIndex(typeof q.correct_answer === 'object' ? q.correct_answer?.value ?? 0 : Number(q.correct_answer) || 0);
+    setFormCorrectIndex(
+      typeof q.correct_answer === 'object' ? q.correct_answer?.value ?? 0 : Number(q.correct_answer) || 0
+    );
     setFormMarks(q.marks || 2);
     setFormNegativeMarks(q.negative_marks || 0.5);
     setFormExplanation(q.explanation || '');
@@ -477,7 +812,8 @@ export default function QuestionsControlPage() {
   // Filtered List
   const filteredQuestions = questions.filter((q: any) => {
     const matchRound = selectedRoundFilter === 'all' || q.round_id === selectedRoundFilter;
-    const matchSubject = subjectFilter === 'all' || q.subject_name === subjectFilter || q.category === subjectFilter;
+    const matchSubject =
+      subjectFilter === 'all' || q.subject_name === subjectFilter || q.category === subjectFilter;
     const matchType = typeFilter === 'all' || q.question_type === typeFilter;
     const matchSearch =
       q.question_text?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -489,21 +825,23 @@ export default function QuestionsControlPage() {
   const cleanShadow = '0 4px 20px rgba(0,0,0,0.8)';
 
   return (
-    <div className="p-6 md:p-8 space-y-8 max-w-[1600px] mx-auto relative z-10" style={{ background: '#000000', minHeight: '100vh', color: '#FFFFFF' }}>
-
+    <div
+      className="p-6 md:p-8 space-y-8 max-w-[1600px] mx-auto relative z-10"
+      style={{ background: '#000000', minHeight: '100vh', color: '#FFFFFF' }}
+    >
       {/* ═══ HEADER ═══ */}
       <FadeIn delay={0}>
         <div className="flex flex-wrap justify-between items-center gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.2)] w-fit mb-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FFFFFF] animate-pulse" />
-              <span className="font-[family-name:var(--font-heading)] text-[10px] font-semibold tracking-widest text-[#FFFFFF] uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-pulse" />
+              <span className="font-[family-name:var(--font-heading)] text-[10px] font-semibold tracking-widest text-[#00E5FF] uppercase">
                 QUESTION CONTROL CENTER ✦
               </span>
             </div>
 
             <h1 className="font-[family-name:var(--font-display)] font-extrabold text-2xl md:text-3xl text-[#FFFFFF]">
-              Question Bank & Excel Manager
+              Question Bank & Master Excel Manager
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
               {questions.length} total questions configured across department subject banks
@@ -512,6 +850,9 @@ export default function QuestionsControlPage() {
               <span className="px-3 py-1 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] font-bold">
                 📊 TOTAL BANK: {questions.length} Questions Uploaded
               </span>
+              <span className="px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold">
+                ⚡ High-Capacity 850–1600+ Qs Auto-Distributor Ready
+              </span>
               <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold">
                 🎲 Equal Ratio 50-Q Shuffled Exam Generator Active
               </span>
@@ -519,7 +860,19 @@ export default function QuestionsControlPage() {
           </div>
 
           {/* Action Bar */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 🌟 NEW MASTER BULK UPLOAD BUTTON (850 - 1600+ QS) */}
+            <button
+              onClick={() => setShowMasterModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#EC4899] hover:opacity-95 text-white text-xs font-[family-name:var(--font-heading)] font-extrabold shadow-[0_0_25px_rgba(139,92,246,0.5)] border border-white/30 cursor-pointer transition-all transform hover:scale-105 active:scale-95"
+            >
+              <Zap size={15} className="text-yellow-300 animate-bounce" />
+              <span>Bulk Upload (850–1600+ Qs)</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-black/40 text-[9px] font-mono border border-white/20">
+                AUTO-FILL
+              </span>
+            </button>
+
             <GalaxyButton
               variant="cyan"
               size="sm"
@@ -535,16 +888,22 @@ export default function QuestionsControlPage() {
 
             <button
               onClick={handleDownloadCSVTemplate}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.2)] text-white text-xs font-[family-name:var(--font-heading)] font-semibold transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.2)] text-white text-xs font-[family-name:var(--font-heading)] font-semibold transition-all cursor-pointer"
             >
               <FileSpreadsheet size={14} className="text-[#00E5FF]" />
-              <span>CSV Template (.csv)</span>
+              <span>CSV Template</span>
             </button>
 
-            <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-[family-name:var(--font-heading)] font-bold transition-all shadow-md">
+            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-[family-name:var(--font-heading)] font-bold transition-all shadow-md">
               <UploadCloud size={14} />
-              <span>{uploadingExcel ? 'Uploading Excel...' : 'Bulk Excel Upload'}</span>
-              <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" disabled={uploadingExcel} />
+              <span>{uploadingExcel ? 'Uploading...' : 'Quick Excel'}</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploadingExcel}
+              />
             </label>
 
             <GalaxyButton variant="primary" size="sm" onClick={openCreateModal}>
@@ -561,10 +920,10 @@ export default function QuestionsControlPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-[family-name:var(--font-heading)] font-bold text-sm tracking-wider text-white uppercase flex items-center gap-2">
-              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank (10 Subjects · Max 100 Qs / Subject)
+              <span className="text-[#00E5FF]">📚</span> Department Subjects Bank (10 Subjects · Target 100 Qs / Subject)
             </h2>
             <span className="text-xs text-[#94A3B8] font-mono">
-              Active: {subjects.length} Subjects
+              Active: {subjects.length} Subjects · Total Qs: {questions.length}
             </span>
           </div>
 
@@ -591,21 +950,30 @@ export default function QuestionsControlPage() {
                       <span className="text-[10px] font-mono text-[#00E5FF] font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/20">
                         {sub.code || `SUB #${idx + 1}`}
                       </span>
-                      <h3 className="font-[family-name:var(--font-display)] font-bold text-xs text-white mt-1.5 line-clamp-1" title={sub.name}>
+                      <h3
+                        className="font-[family-name:var(--font-display)] font-bold text-xs text-white mt-1.5 line-clamp-1"
+                        title={sub.name}
+                      >
                         {sub.name}
                       </h3>
                     </div>
                   </div>
 
-                  {/* Progress Meter (Max 100 Qs) */}
+                  {/* Progress Meter (Target 100 Qs) */}
                   <div className="space-y-1">
                     <div className="flex justify-between items-center text-[10px] font-mono">
-                      <span className="text-[#94A3B8]">Capacity</span>
-                      <span className="text-white font-bold">{subCount} / 100 Qs</span>
+                      <span className="text-[#94A3B8]">Target Bank</span>
+                      <span className={`font-bold ${subCount >= 100 ? 'text-emerald-400' : 'text-white'}`}>
+                        {subCount} / 100 Qs {subCount >= 100 && '✅'}
+                      </span>
                     </div>
                     <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-[#0066FF] to-[#00E5FF] transition-all duration-300 rounded-full"
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          subCount >= 100
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            : 'bg-gradient-to-r from-[#0066FF] to-[#00E5FF]'
+                        }`}
                         style={{ width: `${percent}%` }}
                       />
                     </div>
@@ -652,10 +1020,19 @@ export default function QuestionsControlPage() {
 
       {/* ═══ FILTER & SEARCH TOOLBAR ═══ */}
       <FadeIn delay={0.06}>
-        <GlassCard variant="solid" radius={20} hover={false} noHover className="!p-4 border border-[rgba(255,255,255,0.12)] flex flex-col md:flex-row items-center justify-between gap-4" style={{ background: '#000000', boxShadow: cleanShadow }}>
+        <GlassCard
+          variant="solid"
+          radius={20}
+          hover={false}
+          noHover
+          className="!p-4 border border-[rgba(255,255,255,0.12)] flex flex-col md:flex-row items-center justify-between gap-4"
+          style={{ background: '#000000', boxShadow: cleanShadow }}
+        >
           {/* Round Filter Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto no-scrollbar">
-            <span className="text-xs text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase mr-1">Round:</span>
+            <span className="text-xs text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase mr-1">
+              Round:
+            </span>
             <button
               onClick={() => setSelectedRoundFilter('all')}
               className={`px-3 py-1.5 rounded-full font-[family-name:var(--font-heading)] text-xs transition-all cursor-pointer ${
@@ -686,7 +1063,9 @@ export default function QuestionsControlPage() {
 
           {/* Subject Filter Selector */}
           <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto no-scrollbar">
-            <span className="text-xs text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase mr-1">Subject:</span>
+            <span className="text-xs text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase mr-1">
+              Subject:
+            </span>
             <select
               value={subjectFilter}
               onChange={(e) => setSubjectFilter(e.target.value)}
@@ -720,20 +1099,31 @@ export default function QuestionsControlPage() {
         {loading ? (
           <div className="py-20 text-center text-xs text-[#94A3B8]">Loading question bank...</div>
         ) : filteredQuestions.length === 0 ? (
-          <GlassCard variant="solid" radius={24} hover={false} noHover className="!p-16 text-center border border-[rgba(255,255,255,0.12)]" style={{ background: '#000000' }}>
+          <GlassCard
+            variant="solid"
+            radius={24}
+            hover={false}
+            noHover
+            className="!p-16 text-center border border-[rgba(255,255,255,0.12)]"
+            style={{ background: '#000000' }}
+          >
             <HelpCircle size={48} className="mx-auto text-[#64748B] opacity-40 mb-3" />
             <h3 className="font-[family-name:var(--font-display)] font-bold text-lg text-[#FFFFFF]">
               No questions found
             </h3>
             <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] mt-1">
-              Create a question manually or upload using the Multi-Subject Excel Question Template.
+              Upload your 850–1600+ questions master sheet to automatically populate all subject banks!
             </p>
-            <div className="flex justify-center gap-3 mt-5">
+            <div className="flex flex-wrap justify-center gap-3 mt-5">
+              <button
+                onClick={() => setShowMasterModal(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white text-xs font-bold shadow-lg cursor-pointer"
+              >
+                <Zap size={14} className="text-yellow-300" />
+                <span>Upload Master Bulk Sheet (850–1600+ Qs)</span>
+              </button>
               <GalaxyButton variant="secondary" size="sm" onClick={handleDownloadExcelTemplate}>
-                <Download size={14} /> Download Excel Format
-              </GalaxyButton>
-              <GalaxyButton variant="primary" size="sm" onClick={openCreateModal}>
-                <Plus size={14} /> Create Question
+                <Download size={14} /> Download Format Template
               </GalaxyButton>
             </div>
           </GlassCard>
@@ -741,7 +1131,8 @@ export default function QuestionsControlPage() {
           <div className="space-y-4">
             {filteredQuestions.map((q: any, index: number) => {
               const optList = q.options || [];
-              const correctIdx = typeof q.correct_answer === 'object' ? q.correct_answer?.value : Number(q.correct_answer);
+              const correctIdx =
+                typeof q.correct_answer === 'object' ? q.correct_answer?.value : Number(q.correct_answer);
               const subjectTag = q.subject_name || q.category || 'General';
 
               return (
@@ -781,7 +1172,9 @@ export default function QuestionsControlPage() {
                       {/* Circuit Diagram Image Preview in Admin List */}
                       {q.image_url && (
                         <div className="mt-2.5 p-2 rounded-xl bg-black/60 border border-white/12 inline-block max-w-md">
-                          <span className="text-[10px] text-[#94A3B8] font-mono block mb-1">⚡ Circuit Schematic / Figure:</span>
+                          <span className="text-[10px] text-[#94A3B8] font-mono block mb-1">
+                            ⚡ Circuit Schematic / Figure:
+                          </span>
                           <img
                             src={formatImageUrl(q.image_url)}
                             alt={q.image_alt || 'Circuit Schematic'}
@@ -799,19 +1192,19 @@ export default function QuestionsControlPage() {
                                 key={i}
                                 className={`p-2.5 px-3 rounded-xl border text-xs font-[family-name:var(--font-body)] flex items-center justify-between gap-2 ${
                                   isCorrect
-                                    ? 'border-[rgba(0,229,255,0.5)] bg-[rgba(0,229,255,0.08)] text-white font-medium'
-                                    : 'border-[rgba(255,255,255,0.08)] bg-[#000000] text-[#94A3B8]'
+                                    ? 'bg-[rgba(18,255,128,0.1)] border-[rgba(18,255,128,0.4)] text-[#12FF80]'
+                                    : 'bg-[rgba(255,255,255,0.03)] border-[rgba(255,255,255,0.08)] text-[#94A3B8]'
                                 }`}
                               >
-                                <span>
-                                  <strong className="font-[family-name:var(--font-mono)] text-white mr-1.5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-[family-name:var(--font-mono)] font-bold text-xs opacity-60">
                                     {String.fromCharCode(65 + i)}.
-                                  </strong>
-                                  {opt}
-                                </span>
+                                  </span>
+                                  <span className="truncate">{opt}</span>
+                                </div>
                                 {isCorrect && (
-                                  <span className="text-[10px] font-[family-name:var(--font-heading)] font-bold text-[#00E5FF] uppercase flex items-center gap-1">
-                                    <CheckCircle2 size={12} /> Correct
+                                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#12FF80]/20 text-[#12FF80] flex-shrink-0">
+                                    ✓ Correct
                                   </span>
                                 )}
                               </div>
@@ -819,28 +1212,23 @@ export default function QuestionsControlPage() {
                           })}
                         </div>
                       )}
-
-                      {q.explanation && (
-                        <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] font-light pt-1">
-                          💡 <strong>Explanation:</strong> {q.explanation}
-                        </p>
-                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 self-end md:self-start">
                       <button
                         onClick={() => openEditModal(q)}
-                        className="p-2 rounded-xl bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.18)] border border-[rgba(255,255,255,0.2)] text-white transition-colors cursor-pointer"
-                        title="Edit question"
+                        className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all cursor-pointer"
+                        title="Edit Question"
                       >
-                        <Edit3 size={15} />
+                        <Edit3 size={14} />
                       </button>
                       <button
                         onClick={() => handleDeleteQuestion(q.id)}
-                        className="p-2 rounded-xl bg-[rgba(255,0,51,0.14)] hover:bg-[rgba(255,0,51,0.25)] border border-[rgba(255,0,51,0.3)] text-[#FF4569] transition-colors cursor-pointer"
-                        title="Delete question"
+                        className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 transition-all cursor-pointer"
+                        title="Delete Question"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
@@ -851,214 +1239,461 @@ export default function QuestionsControlPage() {
         )}
       </FadeIn>
 
-      {/* ═══ CREATE / EDIT QUESTION MODAL ═══ */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* ═══ 🌟 MASTER BULK UPLOAD MODAL (850 - 1600+ QUESTIONS) ═══════════ */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {showMasterModal && (
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/95 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/80" onClick={() => !masterUploading && setShowMasterModal(false)} />
+
+          <div className="relative z-10 w-full max-w-4xl bg-[#090A10] border border-[#8B5CF6]/50 rounded-3xl shadow-[0_0_60px_rgba(139,92,246,0.25)] overflow-hidden my-auto p-6 md:p-8 space-y-6">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-gradient-to-tr from-[#6366F1] to-[#EC4899] text-white shadow-lg">
+                  <Zap size={22} className="text-yellow-300" />
+                </div>
+                <div>
+                  <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
+                    Master Question Bank Bulk Uploader
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-normal">
+                      850–1600+ Qs Optimized
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] mt-0.5">
+                    Upload your master spreadsheet. The system will auto-detect subjects from columns and evenly distribute questions across all department banks.
+                  </p>
+                </div>
+              </div>
+
+              {!masterUploading && (
+                <button
+                  onClick={() => setShowMasterModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Step 1: File Drop Zone */}
+            {!masterParsedData && (
+              <div className="space-y-4">
+                <label
+                  className={`p-8 md:p-12 rounded-3xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center cursor-pointer relative overflow-hidden group ${
+                    isAnalyzing
+                      ? 'border-[#00E5FF] bg-[#00E5FF]/5'
+                      : 'border-white/20 hover:border-purple-400 bg-white/[0.02] hover:bg-purple-900/10'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    className="hidden"
+                    disabled={isAnalyzing}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleMasterFileSelect(file);
+                    }}
+                  />
+
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6366F1]/20 to-[#A855F7]/30 border border-purple-400/30 flex items-center justify-center text-purple-300 mb-4 group-hover:scale-110 transition-transform">
+                    {isAnalyzing ? (
+                      <RefreshCw size={28} className="animate-spin text-[#00E5FF]" />
+                    ) : (
+                      <UploadCloud size={28} />
+                    )}
+                  </div>
+
+                  <h4 className="font-[family-name:var(--font-display)] font-bold text-base text-white">
+                    {isAnalyzing
+                      ? 'Analyzing Master Spreadsheet & Subject Mapping...'
+                      : 'Drop your 850–1600+ Questions Excel or CSV File Here'}
+                  </h4>
+                  <p className="text-xs text-[#94A3B8] max-w-md mt-1">
+                    Supports <span className="text-white font-mono">.xlsx</span>, <span className="text-white font-mono">.xls</span>, and <span className="text-white font-mono">.csv</span> files.
+                    Detects subject columns (<span className="text-[#00E5FF]">Subject Name</span>, <span className="text-[#00E5FF]">Subject</span>, <span className="text-[#00E5FF]">Category</span>, etc.) automatically.
+                  </p>
+
+                  <div className="mt-4 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] text-[#A855F7] font-mono font-semibold flex items-center gap-2">
+                    <Sparkles size={13} /> High-speed batch streaming engine activated
+                  </div>
+                </label>
+
+                {/* Templates Helper */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-xs">
+                  <div className="text-[#94A3B8]">
+                    Need the formatted master Excel template with all 10 ECE subjects pre-configured?
+                  </div>
+                  <button
+                    onClick={handleDownloadExcelTemplate}
+                    className="px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download size={13} /> Download Master Template (.xlsx)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Analysis Results & Auto-Distribution Config */}
+            {masterParsedData && !masterUploading && (
+              <div className="space-y-6">
+                {/* Summary Metrics Banner */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6366F1]/20 via-[#8B5CF6]/20 to-[#EC4899]/20 border border-purple-500/30 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/30 border border-purple-400/40 flex items-center justify-center text-purple-200 font-bold font-mono">
+                      {masterParsedData.detectedSubjects.length}
+                    </div>
+                    <div>
+                      <div className="text-xs text-purple-300 font-mono font-bold uppercase tracking-wider">
+                        Spreadsheet Analysis Complete
+                      </div>
+                      <div className="text-base font-extrabold text-white">
+                        {masterParsedData.totalRows} Total Questions Found in {masterFile?.name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setMasterFile(null);
+                      setMasterParsedData(null);
+                    }}
+                    className="text-xs text-[#94A3B8] hover:text-white underline cursor-pointer"
+                  >
+                    Upload different file
+                  </button>
+                </div>
+
+                {/* Mode Selector */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>⚙️ Choose Import & Distribution Mode:</span>
+                  </label>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Option 1: Auto-Fill 100 Qs */}
+                    <div
+                      onClick={() => setMasterUploadMode('auto_fill_100')}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                        masterUploadMode === 'auto_fill_100'
+                          ? 'bg-[#8B5CF6]/20 border-[#8B5CF6] shadow-[0_0_20px_rgba(139,92,246,0.3)]'
+                          : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className={`mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                        masterUploadMode === 'auto_fill_100' ? 'border-[#8B5CF6] bg-[#8B5CF6] text-white' : 'border-white/30'
+                      }`}>
+                        {masterUploadMode === 'auto_fill_100' && <Check size={12} />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-bold text-xs text-white flex items-center gap-1.5">
+                          <span>Auto-Fill Subject Banks (Up to 100 Qs / Subject)</span>
+                          <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono">
+                            RECOMMENDED
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#94A3B8]">
+                          Takes up to 100 questions from each detected subject to balance all 10 department banks perfectly.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Option 2: Full Bank Import */}
+                    <div
+                      onClick={() => setMasterUploadMode('full_import')}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
+                        masterUploadMode === 'full_import'
+                          ? 'bg-[#8B5CF6]/20 border-[#8B5CF6] shadow-[0_0_20px_rgba(139,92,246,0.3)]'
+                          : 'bg-white/[0.03] border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <div className={`mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                        masterUploadMode === 'full_import' ? 'border-[#8B5CF6] bg-[#8B5CF6] text-white' : 'border-white/30'
+                      }`}>
+                        {masterUploadMode === 'full_import' && <Check size={12} />}
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-bold text-xs text-white">
+                          Full Bulk Import (All {masterParsedData.totalRows} Questions)
+                        </div>
+                        <p className="text-[11px] text-[#94A3B8]">
+                          Uploads every single row without capping, ideal for massive archives (850–1,600+ questions).
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Target Destination Round Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-white uppercase tracking-wider">
+                    🎯 Target Destination:
+                  </label>
+                  <select
+                    value={masterTargetRound}
+                    onChange={(e) => setMasterTargetRound(e.target.value)}
+                    className="w-full bg-[#000000] text-white border border-white/20 text-xs px-3.5 py-2.5 rounded-xl font-[family-name:var(--font-heading)] outline-none"
+                  >
+                    <option value="bank">Central Master Question Bank (Available for Auto-Test Generator)</option>
+                    {rounds.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        Round #{r.round_number}: {r.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subject Distribution Breakdown Grid */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-white uppercase tracking-wider">
+                      📊 Auto-Detected Subjects ({masterParsedData.detectedSubjects.length}):
+                    </span>
+                    <span className="text-[#94A3B8] font-mono text-[11px]">
+                      {masterUploadMode === 'auto_fill_100'
+                        ? 'Capped at 100 Qs / Subject'
+                        : 'Full counts importing'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
+                    {Object.entries(masterParsedData.subjectGroups).map(([subName, list]) => {
+                      const count = list.length;
+                      const willUpload = masterUploadMode === 'auto_fill_100' ? Math.min(100, count) : count;
+                      const percent = Math.min(100, Math.round((willUpload / 100) * 100));
+
+                      return (
+                        <div
+                          key={subName}
+                          className="p-3 rounded-xl bg-white/[0.04] border border-white/10 space-y-2"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white truncate max-w-[170px]" title={subName}>
+                              {subName}
+                            </span>
+                            <span className="font-mono text-[#00E5FF] font-bold">
+                              {willUpload} Qs
+                            </span>
+                          </div>
+
+                          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-[#6366F1] to-[#00E5FF] rounded-full"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-[10px] font-mono text-[#94A3B8]">
+                            <span>Found in file: {count}</span>
+                            <span>{count >= 100 ? '100% capacity' : `${percent}% bank fill`}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                  <GalaxyButton
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={() => setShowMasterModal(false)}
+                  >
+                    Cancel
+                  </GalaxyButton>
+
+                  <button
+                    onClick={executeMasterBulkUpload}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#EC4899] hover:opacity-95 text-white text-xs font-bold shadow-[0_0_30px_rgba(139,92,246,0.6)] cursor-pointer transition-all transform hover:scale-105 active:scale-95"
+                  >
+                    <Zap size={14} className="text-yellow-300" />
+                    <span>
+                      Import{' '}
+                      {masterUploadMode === 'auto_fill_100'
+                        ? Object.values(masterParsedData.subjectGroups).reduce(
+                            (acc, list) => acc + Math.min(100, list.length),
+                            0
+                          )
+                        : masterParsedData.totalRows}{' '}
+                      Questions Now
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Real-Time Animated Batch Upload Progress */}
+            {masterUploading && masterProgress && (
+              <div className="py-8 space-y-6 text-center">
+                <div className="relative w-24 h-24 mx-auto">
+                  <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 animate-pulse" />
+                  <div className="absolute inset-0 rounded-full border-4 border-t-[#00E5FF] border-r-[#8B5CF6] animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center font-mono font-extrabold text-xl text-white">
+                    {masterProgress.percentage}%
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-[family-name:var(--font-display)] font-bold text-lg text-white">
+                    Uploading Batch {masterProgress.currentChunk} of {masterProgress.totalChunks}...
+                  </h4>
+                  <p className="text-xs text-[#94A3B8] font-mono">
+                    {masterProgress.uploadedCount} / {masterProgress.totalToUpload} questions saved to Supabase · Current: <span className="text-[#00E5FF]">{masterProgress.currentSubject}</span>
+                  </p>
+                </div>
+
+                <div className="max-w-md mx-auto w-full h-3 rounded-full bg-white/10 overflow-hidden border border-white/10 p-0.5">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#6366F1] via-[#8B5CF6] to-[#00E5FF] rounded-full transition-all duration-300"
+                    style={{ width: `${masterProgress.percentage}%` }}
+                  />
+                </div>
+
+                <p className="text-[11px] text-[#64748B] font-mono">
+                  Streaming in high-speed batches of 100 to ensure zero server timeouts. Please keep this modal open.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CREATE / EDIT SINGLE QUESTION MODAL ═══ */}
       {showAddModal && (
-        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-start justify-center pt-6 pb-28">
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/80" onClick={() => setShowAddModal(false)} />
-          
-          <div className="relative z-10 w-full max-w-2xl bg-[#08080C] border border-white/20 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
-            {/* STICKY HEADER */}
-            <div className="flex items-center justify-between p-5 px-6 bg-[#0B0B10] border-b border-white/12 flex-shrink-0">
+
+          <div className="relative z-10 w-full max-w-3xl bg-[#08080C] border border-[rgba(255,255,255,0.2)] rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.9)] overflow-hidden my-auto p-6 md:p-8 space-y-6 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 flex-shrink-0">
               <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-white flex items-center gap-2">
-                <span className="text-[#00E5FF]">⚡</span> {editingQ ? 'Edit Question' : 'Create New Question'}
+                <span className="text-[#00E5FF]">{editingQ ? '✏️' : '➕'}</span>
+                {editingQ ? 'Edit Question' : 'Create New Question'}
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
               >
                 ✕
               </button>
             </div>
 
-            {/* SCROLLABLE FORM BODY */}
-            <form onSubmit={handleSaveQuestion} className="flex-1 overflow-y-auto max-h-[70vh] p-6 space-y-5">
-              {/* 1. SUBJECT & MARKS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form onSubmit={handleSaveQuestion} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Target Round & Subject */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Subject Name</label>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Round Destination</label>
                   <select
-                    value={formSubjectName}
-                    onChange={(e) => setFormSubjectName(e.target.value)}
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-medium"
+                    value={formRoundId}
+                    onChange={(e) => setFormRoundId(e.target.value)}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                   >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.name}>{s.name}</option>
+                    {rounds.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        Round #{r.round_number}: {r.title}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Marks & Negative Penalty</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      placeholder="Marks (+)"
-                      value={formMarks}
-                      onChange={(e) => setFormMarks(Number(e.target.value))}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
-                    />
-                    <input
-                      type="number"
-                      placeholder="Negative (-)"
-                      value={formNegativeMarks}
-                      onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
-                      className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
-                    />
-                  </div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Department Subject</label>
+                  <select
+                    value={formSubjectName}
+                    onChange={(e) => setFormSubjectName(e.target.value)}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs font-semibold text-[#00E5FF]"
+                  >
+                    {subjects.map((sub) => (
+                      <option key={sub.id} value={sub.name}>
+                        {sub.name} {sub.code ? `(${sub.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* 2. QUESTION STATEMENT */}
+              {/* Question Text */}
               <div>
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Statement / Problem Text</label>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Description / Problem</label>
                 <textarea
-                  rows={3}
                   value={formText}
                   onChange={(e) => setFormText(e.target.value)}
-                  placeholder="Enter complete question text or problem statement..."
-                  className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-sm"
+                  placeholder="Enter detailed question statement..."
+                  className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs h-24"
                   required
                 />
               </div>
 
-              {/* 3. PROMINENT QUESTION DIAGRAM / GOOGLE DRIVE LINK / IMAGE UPLOAD */}
-              <div 
-                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(true); }}
-                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setDragActive(false);
-                  const file = e.dataTransfer.files?.[0];
-                  if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                      if (evt.target?.result) {
-                        setFormImageUrl(evt.target.result as string);
-                        toast.success('Image dropped & attached successfully! 🖼️');
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                  } else {
-                    toast.error('Only image files are supported');
-                  }
-                }}
-                className={`p-4 rounded-2xl transition-all duration-200 space-y-3 shadow-xl ${
-                  dragActive 
-                    ? 'bg-[rgba(0,229,255,0.15)] border-2 border-dashed border-[#00E5FF] scale-[1.01]' 
-                    : 'bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.4)]'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <label className="form-label text-xs text-white font-bold flex items-center gap-2">
-                    <span className="p-1 rounded bg-[#00E5FF]/20 text-[#00E5FF]">⚡</span>
-                    <span>Question Image / Circuit Diagram / Google Drive Link (Optional)</span>
-                  </label>
-                  <span className="text-[10px] text-[#00E5FF] font-mono font-bold px-2 py-0.5 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30">
-                    Drag & Drop Active
-                  </span>
+              {/* Marks & Neg Marks */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Question Type</label>
+                  <select
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value)}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                  >
+                    <option value="mcq">Multiple Choice (MCQ)</option>
+                    <option value="true_false">True / False</option>
+                    <option value="fill_blank">Fill in the Blank</option>
+                  </select>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Marks (+)</label>
                   <input
-                    type="text"
-                    value={formImageUrl}
-                    onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
-                    placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or drag image file here..."
-                    className="form-input bg-black text-white border border-white/20 text-xs flex-1"
+                    type="number"
+                    step="0.5"
+                    value={formMarks}
+                    onChange={(e) => setFormMarks(Number(e.target.value))}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                   />
-                  <label className="px-3.5 py-2.5 rounded-xl bg-[#0066FF] hover:bg-[#0055DD] text-white text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 flex-shrink-0 shadow-md">
-                    <UploadCloud size={14} />
-                    <span>Upload Local Image</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (evt) => {
-                            if (evt.target?.result) {
-                              setFormImageUrl(evt.target.result as string);
-                              toast.success('Image attached successfully! 🖼️');
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                  </label>
                 </div>
 
-                {/* Thumbnail Preview Area */}
-                {formImageUrl && (
-                  <div className="relative mt-2 p-2 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/20 bg-black flex items-center justify-center">
-                        <img src={formImageUrl} alt="Preview" className="max-w-full max-h-full object-contain" />
-                      </div>
-                      <div className="text-[10px] text-[#94A3B8] font-mono truncate max-w-[200px]">
-                        {formImageUrl.startsWith('data:') ? 'Local file uploaded' : formImageUrl}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormImageUrl('')}
-                      className="px-2.5 py-1.5 rounded-lg bg-[rgba(255,0,51,0.15)] hover:bg-[rgba(255,0,51,0.25)] border border-[rgba(255,0,51,0.3)] text-[#FF4569] text-[10px] font-bold transition-all cursor-pointer"
-                    >
-                      Clear Image
-                    </button>
-                  </div>
-                )}
-
-                {/* Quick Select Presets */}
-                <div className="flex flex-wrap gap-1.5 pt-1 items-center">
-                  <span className="text-[10px] text-[#94A3B8] font-mono mr-1">Preset Schematics:</span>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setFormImageUrl(`/uploads/questions/image${num}.png`)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
-                        formImageUrl === `/uploads/questions/image${num}.png`
-                          ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-white font-bold'
-                          : 'bg-white/5 border-white/10 text-[#94A3B8] hover:text-white'
-                      }`}
-                    >
-                      Img #{num}
-                    </button>
-                  ))}
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Negative Marks (-)</label>
+                  <input
+                    type="number"
+                    step="0.25"
+                    value={formNegativeMarks}
+                    onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
+                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                  />
                 </div>
+              </div>
 
-                {/* Live Diagram Image Preview */}
+              {/* Question Diagram / Image URL */}
+              <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                <label className="form-label text-xs text-white font-bold flex items-center gap-1.5">
+                  <span className="text-[#00E5FF]">⚡</span> Image / Circuit Diagram URL (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={formImageUrl}
+                  onChange={(e) => setFormImageUrl(formatImageUrl(e.target.value))}
+                  placeholder="Paste Google Drive share link (e.g. https://drive.google.com/...) or image URL..."
+                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                />
+
                 {formImageUrl && (
-                  <div className="mt-2 p-3 rounded-xl bg-black border border-[rgba(0,229,255,0.5)] text-center space-y-2">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[10px] text-[#00E5FF] font-mono font-bold flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Image Attached & Ready Preview:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setFormImageUrl('')}
-                        className="text-xs text-[#FF0033] hover:underline font-bold cursor-pointer"
-                      >
-                        ✕ Clear Image
-                      </button>
-                    </div>
+                  <div className="mt-2 p-2 rounded-xl bg-black border border-[#00E5FF]/40 text-center">
                     <img
                       src={formatImageUrl(formImageUrl)}
-                      alt="Circuit Diagram Preview"
-                      className="max-h-44 mx-auto object-contain rounded-lg border border-white/10 bg-black/80 p-1"
+                      alt="Preview"
+                      className="max-h-36 mx-auto object-contain rounded-lg border border-white/10"
                     />
                   </div>
                 )}
               </div>
 
-              {/* 4. MULTIPLE CHOICE OPTIONS */}
+              {/* Multiple Choice Options */}
               <div className="space-y-2">
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Multiple Choice Options (Select Correct Answer Radio)</label>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">
+                  Multiple Choice Options (Select Correct Option Radio)
+                </label>
                 {formOptions.map((opt, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <input
@@ -1068,7 +1703,9 @@ export default function QuestionsControlPage() {
                       onChange={() => setFormCorrectIndex(idx)}
                       className="w-4 h-4 accent-[#00E5FF] cursor-pointer"
                     />
-                    <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6 font-bold">{String.fromCharCode(65 + idx)}.</span>
+                    <span className="font-[family-name:var(--font-mono)] text-xs text-white w-6 font-bold">
+                      {String.fromCharCode(65 + idx)}.
+                    </span>
                     <input
                       type="text"
                       value={opt}
@@ -1084,20 +1721,20 @@ export default function QuestionsControlPage() {
                 ))}
               </div>
 
-              {/* 5. EXPLANATION */}
+              {/* Explanation */}
               <div>
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Explanation / Solution Reference (Optional)</label>
+                <label className="form-label text-xs text-[#E2E8F0] font-bold">Explanation / Solution (Optional)</label>
                 <input
                   type="text"
                   value={formExplanation}
                   onChange={(e) => setFormExplanation(e.target.value)}
-                  placeholder="Provide solution breakdown or reference..."
+                  placeholder="Provide reference explanation..."
                   className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
                 />
               </div>
 
-              {/* STICKY FOOTER INSIDE FORM */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/12 flex-shrink-0">
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10 flex-shrink-0">
                 <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowAddModal(false)}>
                   Cancel
                 </GalaxyButton>
@@ -1110,7 +1747,7 @@ export default function QuestionsControlPage() {
         </div>
       )}
 
-      {/* ═══ AUTO-GENERATE 50-Q MULTI-SUBJECT TEST MODAL ═══ */}
+      {/* ═══ AUTO-GENERATE 50-Q TEST MODAL ═══ */}
       {showAutoModal && (
         <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/80" onClick={() => setShowAutoModal(false)} />
