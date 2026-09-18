@@ -55,7 +55,58 @@ export default function SettingsPage() {
 
   // ── RESET STATE ──
   const [confirmResetText, setConfirmResetText] = useState('');
+  const [wipeQuestions, setWipeQuestions] = useState(false);
+  const [wipeRounds, setWipeRounds] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  // ── FULL COMPETITION RESET ──
+  const handleFullReset = async () => {
+    if (confirmResetText.trim().toUpperCase() !== 'RESET') {
+      toast.error('Please type RESET to confirm');
+      return;
+    }
+
+    const warningPrompt = wipeQuestions || wipeRounds
+      ? 'FINAL WARNING: This will delete ALL participant data, attempts, and your selected questions/rounds. Proceed?'
+      : 'FINAL WARNING: This will delete ALL participant data, attempts, responses, and scores. Proceed?';
+
+    if (!confirm(warningPrompt)) {
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || localStorage.getItem('admin_token') || 'admin';
+
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          wipeQuestions,
+          wipeRounds,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('Competition data has been completely reset to zero! 🧹');
+        setConfirmResetText('');
+        fetchRoundsData();
+        fetchParticipantsData();
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast.error(data.error || 'Failed to perform reset');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Error executing competition reset');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   // ── INITIAL DATA FETCHING ──
   const fetchRoundsData = useCallback(async () => {
@@ -237,49 +288,6 @@ export default function SettingsPage() {
       toast.error('Failed to save profile');
     } finally {
       setSavingProfile(false);
-    }
-  };
-
-  // ── FULL COMPETITION RESET ──
-  const handleFullReset = async () => {
-    if (confirmResetText !== 'RESET') {
-      toast.error('Please type RESET to confirm');
-      return;
-    }
-
-    if (!confirm('FINAL WARNING: This will delete ALL participant data, attempts, responses, and scores. Proceed?')) {
-      return;
-    }
-
-    setResetting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Admin authentication required');
-        setResetting(false);
-        return;
-      }
-
-      const res = await fetch('/api/admin/reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast.success('Competition data has been reset to zero! 🧹');
-        setConfirmResetText('');
-        setTimeout(() => window.location.reload(), 1500);
-      } else {
-        toast.error(data.error || 'Failed to perform reset');
-      }
-    } catch {
-      toast.error('Error executing competition reset');
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -695,6 +703,35 @@ export default function SettingsPage() {
             ))}
           </GlassCard>
 
+          {/* Optional Full Wipe Options */}
+          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+            <div className="text-xs font-[family-name:var(--font-heading)] font-bold text-white uppercase tracking-wider">
+              Optional Full System Wipes:
+            </div>
+            
+            <div className="space-y-2">
+              <label className="flex items-center gap-2.5 text-xs text-[#E2E8F0] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wipeQuestions}
+                  onChange={(e) => setWipeQuestions(e.target.checked)}
+                  className="w-4 h-4 accent-[#FF0033] rounded cursor-pointer"
+                />
+                <span>Also wipe all questions from Question Bank</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 text-xs text-[#E2E8F0] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wipeRounds}
+                  onChange={(e) => setWipeRounds(e.target.checked)}
+                  className="w-4 h-4 accent-[#FF0033] rounded cursor-pointer"
+                />
+                <span>Also wipe all created competition rounds</span>
+              </label>
+            </div>
+          </div>
+
           <div className="space-y-3 pt-2">
             <label className="font-[family-name:var(--font-heading)] text-xs text-[#E2E8F0] block">
               Type <span className="font-[family-name:var(--font-mono)] font-bold text-[#FF0033]">RESET</span> to confirm:
@@ -714,7 +751,7 @@ export default function SettingsPage() {
                 size="md"
                 onClick={handleFullReset}
                 loading={resetting}
-                disabled={confirmResetText !== 'RESET' || resetting}
+                disabled={confirmResetText.trim().toUpperCase() !== 'RESET' || resetting}
                 className="whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {resetting ? 'Executing Reset...' : '⚠ RESET ALL COMPETITION DATA'}
