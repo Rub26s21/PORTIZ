@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/server';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, register_no, email, phone, round_id } = body;
+    const { name, register_no, email, phone, round_id, section } = body;
 
     if (!name || !register_no || !email) {
       return NextResponse.json(
@@ -14,15 +14,16 @@ export async function POST(req: NextRequest) {
     }
 
     const regNoUpper = register_no.trim().toUpperCase();
+    const studentSection = (section || 'A').toUpperCase();
 
     // 1. Fetch active/live/published round
     let roundIdToUse = round_id;
-    let targetRound = null;
+    let targetRound: any = null;
 
     if (roundIdToUse) {
       const { data: round } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, randomize_questions, show_results')
+        .select('id, status, title, description, randomize_questions, show_results')
         .eq('id', roundIdToUse)
         .maybeSingle();
 
@@ -30,18 +31,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (!targetRound) {
-      // Find any live/active/published round
-      const { data: liveRound } = await supabaseAdmin
+      // Find all live/active/published rounds
+      const { data: liveRounds } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, randomize_questions, show_results')
+        .select('id, status, title, description, randomize_questions, show_results')
         .in('status', ['active', 'live', 'published', 'ongoing'])
-        .order('round_number', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+        .order('round_number', { ascending: true });
 
-      targetRound = liveRound;
-      if (liveRound) {
-        roundIdToUse = liveRound.id;
+      if (liveRounds && liveRounds.length > 0) {
+        // Try to match student's section first (e.g. Section A, Section B, etc.)
+        const sectionMatch = liveRounds.find((r) => {
+          const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+          return t.includes(`SECTION ${studentSection}`) || t.includes(`SEC ${studentSection}`);
+        });
+
+        targetRound = sectionMatch || liveRounds[0];
+        roundIdToUse = targetRound.id;
       }
     }
 

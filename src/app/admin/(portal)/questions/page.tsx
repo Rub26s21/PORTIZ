@@ -189,10 +189,11 @@ export default function QuestionsControlPage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingExcel, setUploadingExcel] = useState(false);
 
-  // Auto-Generator Modal State
+  // Auto-Generator Modal State (50-Question Batches & 4-Section Distributor)
   const [showAutoModal, setShowAutoModal] = useState(false);
-  const [autoTitle, setAutoTitle] = useState('Automated Multi-Subject Weekly Test');
+  const [autoTitle, setAutoTitle] = useState('Department Weekly Assessment');
   const [autoDuration, setAutoDuration] = useState(45);
+  const [autoMode, setAutoMode] = useState<'multi_section_4' | 'single'>('multi_section_4');
   const [autoSubmitting, setAutoSubmitting] = useState(false);
 
   // ── MASTER BULK UPLOAD (850 - 1600+ QS & FIXED 100-SLOT RECHECKER) STATE ──
@@ -1087,6 +1088,7 @@ export default function QuestionsControlPage() {
         body: JSON.stringify({
           title: autoTitle,
           duration_minutes: autoDuration,
+          mode: autoMode,
           total_target_questions: 50,
         }),
       });
@@ -1094,9 +1096,16 @@ export default function QuestionsControlPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to auto-generate test');
 
-      toast.success(
-        `🎉 50-Question Automated Test Created! Balanced across all ${json.active_subjects_count} subjects! 🚀`
-      );
+      if (autoMode === 'multi_section_4') {
+        toast.success(
+          `🎉 4-Section Test Cycle #${json.test_cycle} Created! 4 distinct 50-question non-overlapping batches assigned to Sections A, B, C, & D with zero repetition! 🚀`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(
+          `🎉 50-Question Automated Test Created! Ready for students to attempt! 🚀`
+        );
+      }
       setShowAutoModal(false);
       fetchData();
     } catch (err: any) {
@@ -2197,68 +2206,178 @@ export default function QuestionsControlPage() {
         </div>
       )}
 
-      {/* ═══ AUTO-GENERATE 50-Q TEST MODAL ═══ */}
+      {/* ═══ AUTO-GENERATE 50-Q MULTI-SECTION TEST MODAL (4 SECTIONS & ZERO REPETITION) ═══ */}
       {showAutoModal && (
         <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/80" onClick={() => setShowAutoModal(false)} />
 
-          <div className="relative z-10 w-full max-w-lg bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_50px_rgba(0,229,255,0.2)] overflow-hidden my-auto p-6 space-y-5">
+          <div className="relative z-10 w-full max-w-2xl bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_60px_rgba(0,229,255,0.25)] overflow-hidden my-auto p-6 md:p-8 space-y-5">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
-                <span className="text-[#00E5FF]">🚀</span> Automated Multi-Subject Test Generator
-              </h3>
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-[#00E5FF]/20 border border-[#00E5FF]/40 text-[#00E5FF] shadow-lg">
+                  <Zap size={22} className="text-yellow-300" />
+                </div>
+                <div>
+                  <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
+                    Automated 50-Question Multi-Section Test Generator
+                  </h3>
+                  <p className="text-xs text-[#94A3B8] mt-0.5">
+                    Divides your question bank into 50-question batches and dispatches 4 non-overlapping sets to Sections A, B, C, & D.
+                  </p>
+                </div>
+              </div>
+
               <button
                 onClick={() => setShowAutoModal(false)}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-[#94A3B8] font-[family-name:var(--font-body)] leading-relaxed">
-              This will automatically scan all subjects in your Question Bank, pull a balanced 50-question paper across all subjects containing questions, and generate a new live competition round!
-            </p>
+            {/* Quick Metrics Banner */}
+            <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+              <div className="p-2 rounded-xl bg-black/40 border border-white/5">
+                <div className="text-[10px] font-mono text-[#94A3B8] uppercase">Bank Questions</div>
+                <div className="text-base font-extrabold text-white font-mono">{questions.length}</div>
+              </div>
+              <div className="p-2 rounded-xl bg-black/40 border border-[#00E5FF]/20">
+                <div className="text-[10px] font-mono text-[#00E5FF] uppercase">Total 50-Q Batches</div>
+                <div className="text-base font-extrabold text-[#00E5FF] font-mono">{Math.floor(questions.length / 50)} Batches</div>
+              </div>
+              <div className="p-2 rounded-xl bg-black/40 border border-purple-500/20">
+                <div className="text-[10px] font-mono text-purple-300 uppercase">Sections Served</div>
+                <div className="text-base font-extrabold text-purple-300 font-mono">4 (A, B, C, D)</div>
+              </div>
+            </div>
 
             <form onSubmit={handleGenerateAutoRound} className="space-y-4">
-              <div>
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Round / Test Title</label>
-                <input
-                  type="text"
-                  value={autoTitle}
-                  onChange={(e) => setAutoTitle(e.target.value)}
-                  placeholder="e.g. Weekly Department Assessment #1"
-                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
-                  required
-                />
-              </div>
+              {/* Generation Mode Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-white uppercase tracking-wider">
+                  ⚙️ Select Distribution Mode:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Mode 1: 4-Section Multi Test */}
+                  <div
+                    onClick={() => setAutoMode('multi_section_4')}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                      autoMode === 'multi_section_4'
+                        ? 'bg-[#00E5FF]/15 border-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.25)]'
+                        : 'bg-white/[0.02] border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                      autoMode === 'multi_section_4' ? 'border-[#00E5FF] bg-[#00E5FF] text-black' : 'border-white/30'
+                    }`}>
+                      {autoMode === 'multi_section_4' && <Check size={10} />}
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-xs text-white flex items-center gap-1.5">
+                        <span>4-Section Test Cycle (A, B, C, D)</span>
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-mono">
+                          RECOMMENDED
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#94A3B8]">
+                        4 non-overlapping 50-Q batches with zero question repetition across sections.
+                      </p>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Test Duration (Minutes)</label>
-                <input
-                  type="number"
-                  value={autoDuration}
-                  onChange={(e) => setAutoDuration(Number(e.target.value))}
-                  placeholder="30"
-                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
-                  required
-                />
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 space-y-1 text-xs text-white">
-                <div className="font-bold flex items-center gap-1.5 text-[#00E5FF]">
-                  <span>⚡ Automatic Subject Balancing:</span>
+                  {/* Mode 2: Single Test */}
+                  <div
+                    onClick={() => setAutoMode('single')}
+                    className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-2.5 ${
+                      autoMode === 'single'
+                        ? 'bg-[#00E5FF]/15 border-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.25)]'
+                        : 'bg-white/[0.02] border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                      autoMode === 'single' ? 'border-[#00E5FF] bg-[#00E5FF] text-black' : 'border-white/30'
+                    }`}>
+                      {autoMode === 'single' && <Check size={10} />}
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="font-bold text-xs text-white">Single 50-Question Round</div>
+                      <p className="text-[11px] text-[#94A3B8]">
+                        Generates a single standalone 50-question test for all students.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[11px] text-[#94A3B8]">
-                  Pulls an equal quota of random questions from each active subject across all {subjects.length} registered subject banks.
-                </p>
               </div>
+
+              {/* Title & Duration */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Base Assessment Title</label>
+                  <input
+                    type="text"
+                    value={autoTitle}
+                    onChange={(e) => setAutoTitle(e.target.value)}
+                    placeholder="e.g. Weekly Department Assessment #1"
+                    className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Test Duration (Minutes)</label>
+                  <input
+                    type="number"
+                    value={autoDuration}
+                    onChange={(e) => setAutoDuration(Number(e.target.value))}
+                    placeholder="45"
+                    className="form-input bg-[#000000] text-white border border-white/20 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* 4-Section Distribution Preview */}
+              {autoMode === 'multi_section_4' && (
+                <div className="p-4 rounded-2xl bg-purple-950/20 border border-purple-500/30 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-purple-300 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={14} /> 4-Section Non-Overlapping Batch Allocation Preview:
+                    </span>
+                    <span className="text-emerald-300 font-mono text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      Zero-Repetition Guaranteed
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { sec: 'A', batch: 'Batch #1', count: '50 Qs' },
+                      { sec: 'B', batch: 'Batch #2', count: '50 Qs' },
+                      { sec: 'C', batch: 'Batch #3', count: '50 Qs' },
+                      { sec: 'D', batch: 'Batch #4', count: '50 Qs' },
+                    ].map((item) => (
+                      <div key={item.sec} className="p-2.5 rounded-xl bg-black/60 border border-purple-500/20 text-center space-y-1">
+                        <div className="text-xs font-bold text-white font-[family-name:var(--font-heading)]">
+                          🏛️ Section {item.sec}
+                        </div>
+                        <div className="text-[10px] font-mono text-[#00E5FF] font-semibold">{item.count}</div>
+                        <div className="text-[9px] font-mono text-purple-300">{item.batch}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="text-[11px] text-[#94A3B8] font-mono flex items-center gap-2 pt-1 border-t border-purple-500/20">
+                    <Sparkles size={12} className="text-[#00E5FF]" />
+                    <span>Anti-Cheating active: Questions and MCQ option orders will be uniquely randomized per student attempt.</span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-3 pt-2">
                 <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowAutoModal(false)}>
                   Cancel
                 </GalaxyButton>
                 <GalaxyButton variant="cyan" size="sm" type="submit" loading={autoSubmitting}>
-                  🚀 Generate Exam
+                  🚀 {autoMode === 'multi_section_4' ? 'Generate 4 Section Tests' : 'Generate 50-Q Test'}
                 </GalaxyButton>
               </div>
             </form>
