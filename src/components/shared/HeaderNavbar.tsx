@@ -87,23 +87,11 @@ export default function HeaderNavbar({ activeTab }: HeaderNavbarProps) {
               </span>
             </div>
 
-            {/* ═══ RIGHTMOST: RED ADMIN BUTTON ═══ */}
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <Link href="/admin/login">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-5 py-2 rounded-full font-bold text-xs text-white bg-gradient-to-r from-[#FF0033] via-[#E6002E] to-[#C62828] border border-[#FF6680]/40 shadow-none cursor-pointer whitespace-nowrap transition-all flex items-center justify-center"
-                  style={{ fontFamily: '"Times New Roman", Times, serif' }}
-                >
-                  Admin Button
-                </motion.button>
-              </Link>
-
-              {/* Mobile Menu Toggle Button */}
+            {/* ═══ RIGHTMOST: Mobile Menu Toggle Button (when on mobile) ═══ */}
+            <div className="flex lg:hidden items-center gap-3 flex-shrink-0">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 rounded-xl bg-white/10 border border-white/15 text-white"
+                className="p-2 rounded-xl bg-white/10 border border-white/15 text-white"
                 aria-label="Toggle navigation menu"
               >
                 {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -156,18 +144,6 @@ export default function HeaderNavbar({ activeTab }: HeaderNavbarProps) {
                   {link.label}
                 </Link>
               ))}
-            </div>
-
-            {/* Mobile Action Buttons */}
-            <div className="pt-2 border-t border-white/10">
-              <Link href="/admin/login" onClick={() => setMobileMenuOpen(false)} className="w-full">
-                <button 
-                  className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-[#FF0033] to-[#C62828] border border-[#FF6680]/50 shadow-[0_0_16px_rgba(255,0,51,0.5)]"
-                  style={{ fontFamily: '"Times New Roman", Times, serif' }}
-                >
-                  Admin Button
-                </button>
-              </Link>
             </div>
           </motion.div>
         )}
