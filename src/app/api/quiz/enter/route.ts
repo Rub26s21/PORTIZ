@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { MASTER_QUESTION_POOL } from '@/lib/question-seed';
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,18 +33,18 @@ export async function POST(req: NextRequest) {
     if (roundIdToUse) {
       const { data: round } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results, total_questions')
+        .select('id, status, title, description, randomize_questions, show_results')
         .eq('id', roundIdToUse)
         .maybeSingle();
 
       targetRound = round;
     }
 
+    // 1b. If no specific round supplied or found, search for live/active/published rounds
     if (!targetRound) {
-      // 1. Find all live/active/published rounds
       const { data: liveRounds } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results, total_questions')
+        .select('id, status, title, description, randomize_questions, show_results')
         .in('status', ['active', 'live', 'published', 'ongoing'])
         .order('round_number', { ascending: true });
 
@@ -50,28 +60,55 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. If still no active round found, pick any existing round from DB so student can immediately start
+    // 1c. If still no active round found, search ANY round in DB
     if (!targetRound) {
       const { data: anyRounds } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results, total_questions')
+        .select('id, status, title, description, randomize_questions, show_results')
         .order('round_number', { ascending: true })
         .limit(1);
 
       if (anyRounds && anyRounds.length > 0) {
         targetRound = anyRounds[0];
         roundIdToUse = targetRound.id;
+
+        // Auto-activate this round to 'live'
+        await supabaseAdmin
+          .from('rounds')
+          .update({ status: 'live' })
+          .eq('id', targetRound.id);
       }
     }
 
+    // 1d. If no rounds exist in DB at all, auto-create one on-the-fly!
     if (!targetRound || !roundIdToUse) {
-      return NextResponse.json({
-        error: 'No assessment is currently available. Please contact your coordinator.'
-      }, { status: 404 });
+      const { data: createdRound, error: createErr } = await supabaseAdmin
+        .from('rounds')
+        .insert({
+          round_number: 1,
+          title: `Weekly Assessment #1 - Section ${studentSection}`,
+          description: `Department Assessment (50 Questions | Section ${studentSection})`,
+          duration_minutes: 45,
+          status: 'live',
+          randomize_questions: true,
+          randomize_options: true,
+          show_results: true,
+        })
+        .select()
+        .single();
+
+      if (createErr || !createdRound) {
+        return NextResponse.json({
+          error: 'No assessment is currently available. Please contact your coordinator.'
+        }, { status: 500 });
+      }
+
+      targetRound = createdRound;
+      roundIdToUse = createdRound.id;
     }
 
     // 2. Upsert participant in participants table
-    const { data: participant, error: partErr } = await supabaseAdmin
+    const { data: participant } = await supabaseAdmin
       .from('participants')
       .upsert(
         {
@@ -140,14 +177,49 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Fetch question IDs for this round
-    const { data: questions } = await supabaseAdmin
+    let { data: questions } = await supabaseAdmin
       .from('questions')
       .select('id, order_index, subject_name, category')
       .eq('round_id', roundIdToUse)
       .order('order_index', { ascending: true });
 
+    // 4b. Fallback: If round has 0 questions assigned, fetch all available questions or seed from master pool
+    if (!questions || questions.length === 0) {
+      const { data: allAvailableQs } = await supabaseAdmin
+        .from('questions')
+        .select('id, order_index, subject_name, category')
+        .limit(200);
+
+      if (allAvailableQs && allAvailableQs.length >= 50) {
+        questions = allAvailableQs;
+      } else {
+        // Auto-seed from master pool
+        const seedPayloads = MASTER_QUESTION_POOL.map((q, idx) => ({
+          round_id: roundIdToUse,
+          subject_name: q.subject_name,
+          category: q.category,
+          question_type: q.question_type,
+          question_text: q.question_text,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          marks: q.marks,
+          negative_marks: q.negative_marks,
+          difficulty: q.difficulty,
+          explanation: q.explanation || null,
+          order_index: idx + 1,
+        }));
+
+        const { data: seededQs } = await supabaseAdmin
+          .from('questions')
+          .insert(seedPayloads)
+          .select('id, order_index, subject_name, category');
+
+        questions = seededQs || [];
+      }
+    }
+
     const rawQuestions = questions || [];
-    const targetCount = targetRound.total_questions && targetRound.total_questions > 0 ? targetRound.total_questions : 50;
+    const targetCount = 50;
 
     let selectedQIds: string[] = [];
 
@@ -190,10 +262,7 @@ export async function POST(req: NextRequest) {
 
     // Shuffle if round config specifies randomize_questions (default true)
     if (targetRound.randomize_questions !== false && questionOrderIds.length > 1) {
-      for (let i = questionOrderIds.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [questionOrderIds[i], questionOrderIds[j]] = [questionOrderIds[j], questionOrderIds[i]];
-      }
+      questionOrderIds = shuffleArray(questionOrderIds);
     }
 
     // 5. Create new attempt

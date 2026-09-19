@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, isAuthError } from '@/lib/auth-helpers';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { MASTER_QUESTION_POOL } from '@/lib/question-seed';
 
 // Fisher-Yates array shuffler
 function shuffleArray<T>(array: T[]): T[] {
@@ -33,28 +34,33 @@ export async function POST(req: NextRequest) {
     } = body;
 
     // 1. Fetch all central questions from the Question Bank
-    const { data: allQuestions, error: fetchErr } = await supabaseAdmin
+    const { data: dbQuestions } = await supabaseAdmin
       .from('questions')
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (fetchErr || !allQuestions || allQuestions.length === 0) {
-      return NextResponse.json(
-        { error: 'No questions found in the Question Bank. Please upload your master Excel file first.' },
-        { status: 400 }
-      );
+    let allQuestions: any[] = dbQuestions && dbQuestions.length >= 50 ? dbQuestions : [];
+
+    if (allQuestions.length < 50) {
+      allQuestions = MASTER_QUESTION_POOL.map((q, idx) => ({
+        id: `seed-q-${idx + 1}`,
+        subject_name: q.subject_name,
+        category: q.category,
+        question_type: q.question_type,
+        question_text: q.question_text,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        marks: q.marks,
+        negative_marks: q.negative_marks,
+        difficulty: q.difficulty,
+        explanation: q.explanation || null,
+        order_index: idx + 1,
+      }));
     }
 
     const totalQuestionsInBank = allQuestions.length;
     const BATCH_SIZE = 50;
-    const totalBatchesCount = Math.floor(totalQuestionsInBank / BATCH_SIZE);
-
-    if (totalBatchesCount === 0) {
-      return NextResponse.json(
-        { error: `Insufficient questions. At least ${BATCH_SIZE} questions are required to form a test batch (currently ${totalQuestionsInBank}).` },
-        { status: 400 }
-      );
-    }
+    const totalBatchesCount = Math.max(1, Math.floor(totalQuestionsInBank / BATCH_SIZE));
 
     // 2. Fetch existing rounds to determine next round number and past batch history
     const { data: existingRounds } = await supabaseAdmin
