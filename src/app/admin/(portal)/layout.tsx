@@ -161,15 +161,17 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
   const navItems: { label: string; href: string; icon: any; isLive?: boolean }[] = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Faculty Analytics 📊', href: '/admin/analytics', icon: BarChart3 },
     { label: 'Scheduling 📅', href: '/admin/scheduling', icon: Calendar },
     { label: 'Questions Bank', href: '/admin/questions', icon: HelpCircle },
     { label: 'Participants', href: '/admin/participants', icon: Users2 },
-    { label: 'Leaderboard', href: '/admin/leaderboard', icon: BarChart3 },
+    { label: 'Leaderboard', href: '/admin/leaderboard', icon: Trophy },
     { label: 'Certificates', href: '/admin/certificates', icon: Award },
     { label: 'Settings', href: '/admin/settings', icon: Settings2 },
   ];
 
   const getBreadcrumbName = () => {
+    if (pathname.includes('/admin/analytics')) return 'Faculty & Department Analytics';
     if (pathname.includes('/admin/dashboard')) return 'Dashboard';
     if (pathname.includes('/admin/rounds/create')) return 'Create Round';
     if (pathname.includes('/admin/rounds') && pathname.includes('/questions')) return 'Question Bank';
