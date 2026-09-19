@@ -11,7 +11,7 @@ import Logo from '@/components/shared/Logo';
 import { formatImageUrl } from '@/lib/utils';
 import {
   Bookmark, CheckCircle2, XCircle, CheckCircle, Loader2,
-  AlertTriangle, HelpCircle, FileText
+  AlertTriangle, HelpCircle, FileText, ShieldAlert, ShieldCheck, Maximize, AlertOctagon, Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -59,9 +59,76 @@ export default function QuizTestPage({ params }: PageProps) {
   const [submittingFinal, setSubmittingFinal] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
 
+  // Anti-Cheat & Security Proctoring States
+  const [strikes, setStrikes] = useState<number>(0);
+  const [warningModal, setWarningModal] = useState<{ open: boolean; reason: string; strikes: number } | null>(null);
+  const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
+  const MAX_STRIKES = 3;
+  const antiCheatArmed = useRef(false);
+
+  // Network & Offline Queue States
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
+
   // Cache & Debounce Refs
   const cachedQuestions = useRef<Map<string, QuestionPayload>>(new Map());
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Reconnection Auto-Sync
+  const flushOfflineQueue = useCallback(async () => {
+    if (!attemptId) return;
+    const queueKey = `quiz_offline_queue_${attemptId}`;
+    const rawQueue = typeof window !== 'undefined' ? localStorage.getItem(queueKey) : null;
+    if (!rawQueue) return;
+
+    try {
+      const queue: Array<{ question_id: string; selected: string }> = JSON.parse(rawQueue);
+      if (queue.length === 0) return;
+
+      for (const item of queue) {
+        await fetch('/api/quiz/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attempt_id: attemptId,
+            question_id: item.question_id,
+            selected: item.selected,
+          }),
+        });
+      }
+
+      localStorage.removeItem(queueKey);
+      setPendingQueueCount(0);
+      setSavingStatus('saved');
+    } catch {
+      /* retry later */
+    }
+  }, [attemptId]);
+
+  // Network listeners
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = async () => {
+      setIsOnline(true);
+      toast.success('🌐 Reconnected! Syncing offline answers...');
+      await flushOfflineQueue();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.error('📡 Offline Mode Active — Answers saved locally');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [flushOfflineQueue]);
 
   // 1. Initialize Exam Session
   useEffect(() => {
@@ -184,64 +251,156 @@ export default function QuizTestPage({ params }: PageProps) {
     loadQuestion(index, questionOrder, attemptId, answersMap);
   };
 
-  const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [pendingQueueCount, setPendingQueueCount] = useState<number>(0);
+  // ── ANTI-CHEAT PROCTORING CORE ──
+  const recordViolation = useCallback(
+    async (reason: string) => {
+      if (!attemptId || !antiCheatArmed.current) return;
 
-  // Reconnection Auto-Sync
-  const flushOfflineQueue = useCallback(async () => {
-    if (!attemptId) return;
-    const queueKey = `quiz_offline_queue_${attemptId}`;
-    const rawQueue = localStorage.getItem(queueKey);
-    if (!rawQueue) return;
+      setStrikes((prev) => {
+        const nextStrikes = prev + 1;
 
-    try {
-      const queue: Array<{ question_id: string; selected: string }> = JSON.parse(rawQueue);
-      if (queue.length === 0) return;
-
-      for (const item of queue) {
-        await fetch('/api/quiz/save', {
+        // Log proctoring event to database
+        fetch('/api/quiz/proctor-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attempt_id: attemptId,
-            question_id: item.question_id,
-            selected: item.selected,
-          }),
-        });
+          body: JSON.stringify({ attempt_id: attemptId, eventType: reason }),
+        }).catch(() => {});
+
+        if (nextStrikes >= MAX_STRIKES) {
+          // Auto-disqualify on max strikes
+          fetch('/api/quiz/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attempt_id: attemptId,
+              forceDisqualify: true,
+              reason: reason,
+            }),
+          }).finally(() => {
+            sessionStorage.removeItem('quiz_session');
+            router.push(`/quiz/disqualified?reason=${reason}`);
+          });
+        } else {
+          setWarningModal({
+            open: true,
+            reason: reason,
+            strikes: nextStrikes,
+          });
+        }
+
+        return nextStrikes;
+      });
+    },
+    [attemptId, router]
+  );
+
+  const requestFullscreenMode = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
       }
-
-      localStorage.removeItem(queueKey);
-      setPendingQueueCount(0);
-      setSavingStatus('saved');
+      setShowFullscreenPrompt(false);
+      antiCheatArmed.current = true;
     } catch {
-      /* retry later */
+      toast.error('Please allow fullscreen to proceed with the exam.');
     }
-  }, [attemptId]);
+  };
 
-  // Network Listeners
+  // ── ANTI-CHEAT EVENT LISTENERS ──
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setIsOnline(navigator.onLine);
+    if (loading || !attemptId) return;
 
-    const handleOnline = async () => {
-      setIsOnline(true);
-      toast.success('🌐 Reconnected! Syncing offline answers...');
-      await flushOfflineQueue();
+    // Prompt for fullscreen if not currently in fullscreen
+    if (!document.fullscreenElement) {
+      setShowFullscreenPrompt(true);
+    } else {
+      antiCheatArmed.current = true;
+    }
+
+    // 1. Block Context Menu (Right Click)
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      toast.error('🔒 Right-click is strictly disabled during the exam.');
     };
+    document.addEventListener('contextmenu', handleContextMenu);
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.error('📡 Offline Mode Active — Answers saved locally');
+    // 2. Block Copy, Paste, Cut, Selection
+    const handleCopyPaste = (e: Event) => {
+      e.preventDefault();
+      toast.error('🔒 Copy/Paste operations are blocked.');
     };
+    ['copy', 'paste', 'cut', 'selectstart'].forEach((ev) => {
+      document.addEventListener(ev, handleCopyPaste);
+    });
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    // 3. Block Developer Tools & Hotkeys
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const isDevTools =
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(key)) ||
+        (e.ctrlKey && key === 'u');
+
+      const isForbiddenAction =
+        (e.ctrlKey && ['c', 'v', 'x', 'a', 'p', 's', 'r'].includes(key)) ||
+        e.key === 'F5' ||
+        e.key === 'PrintScreen' ||
+        (e.altKey && e.key === 'Tab');
+
+      if (isDevTools || isForbiddenAction) {
+        e.preventDefault();
+        e.stopPropagation();
+        recordViolation(isDevTools ? 'devtools_detected' : 'keyboard_shortcut');
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+
+    // 4. Tab Switch & Visibility Change Detection
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        recordViolation('tab_switch');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 5. Window Blur Detection
+    const handleBlur = () => {
+      recordViolation('window_blur');
+    };
+    window.addEventListener('blur', handleBlur);
+
+    // 6. Fullscreen Exit Detection
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && antiCheatArmed.current) {
+        recordViolation('fullscreen_exit');
+        setShowFullscreenPrompt(true);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    // 7. DevTools Dimension Anomaly Check
+    const devToolsInterval = setInterval(() => {
+      const threshold = 160;
+      if (
+        window.outerWidth - window.innerWidth > threshold ||
+        window.outerHeight - window.innerHeight > threshold
+      ) {
+        recordViolation('devtools_detected');
+      }
+    }, 1500);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      ['copy', 'paste', 'cut', 'selectstart'].forEach((ev) => {
+        document.removeEventListener(ev, handleCopyPaste);
+      });
+      document.removeEventListener('keydown', handleKeyDown, { capture: true });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      clearInterval(devToolsInterval);
     };
-  }, [attemptId, flushOfflineQueue]);
+  }, [loading, attemptId, recordViolation]);
 
   // Debounced Auto-Save with LocalStorage Cache & Offline Queue
   const triggerAutoSave = (qId: string, value: string) => {
@@ -376,16 +535,32 @@ export default function QuizTestPage({ params }: PageProps) {
             </span>
           </div>
 
-          {/* Center Progress Counter */}
-          <div className="hidden sm:flex items-center gap-3">
-            <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--text-muted)]">
-              {currentIndex + 1} of {questionOrder.length} Questions
-            </span>
-            <div className="w-[120px] h-1.5 rounded-full bg-[rgba(255,255,255,0.08)] overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#A855F7] to-[#06B6D4] transition-all duration-300"
-                style={{ width: `${((currentIndex + 1) / questionOrder.length) * 100}%` }}
-              />
+          {/* Center Progress Counter & Proctor Badge */}
+          <div className="hidden sm:flex items-center gap-4">
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.3)] text-xs text-[#10B981] font-[family-name:var(--font-mono)]">
+              {strikes > 0 ? (
+                <>
+                  <ShieldAlert size={13} className="text-[#F43F5E] animate-pulse" />
+                  <span className="text-[#F43F5E] font-bold">⚠️ Strikes: {strikes}/{MAX_STRIKES}</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck size={13} className="text-[#10B981]" />
+                  <span>Proctor Active</span>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="font-[family-name:var(--font-mono)] text-xs text-[var(--text-muted)]">
+                {currentIndex + 1} of {questionOrder.length} Qs
+              </span>
+              <div className="w-[100px] h-1.5 rounded-full bg-[rgba(255,255,255,0.08)] overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#A855F7] to-[#06B6D4] transition-all duration-300"
+                  style={{ width: `${((currentIndex + 1) / questionOrder.length) * 100}%` }}
+                />
+              </div>
             </div>
           </div>
 
@@ -780,6 +955,74 @@ export default function QuizTestPage({ params }: PageProps) {
         </aside>
 
       </div>
+
+      {/* FULLSCREEN PROMPT MODAL */}
+      {showFullscreenPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md">
+          <GlassCard variant="pink" radius={24} hover={false} noHover className="!p-8 max-w-md w-full border border-[rgba(244,63,94,0.4)] text-center space-y-5 shadow-[0_0_50px_rgba(244,63,94,0.25)]">
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-[rgba(244,63,94,0.15)] border border-[rgba(244,63,94,0.4)]">
+              <Lock size={30} className="text-[#F43F5E]" />
+            </div>
+
+            <h3 className="font-[family-name:var(--font-display)] font-extrabold text-2xl text-white">
+              🔒 Fullscreen Mode Required
+            </h3>
+
+            <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] leading-relaxed">
+              This competition is protected by live proctoring. You must remain in <strong className="text-white">Fullscreen mode</strong> throughout the assessment. Switching tabs, exiting fullscreen, or using developer tools will result in security strikes and potential disqualification.
+            </p>
+
+            <GalaxyButton variant="primary" fullWidth size="lg" onClick={requestFullscreenMode} className="flex items-center justify-center gap-2">
+              <Maximize size={18} /> Enter Fullscreen & Begin 🚀
+            </GalaxyButton>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ANTI-CHEAT STRIKE WARNING MODAL */}
+      {warningModal?.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <GlassCard variant="pink" radius={24} hover={false} noHover className="!p-8 max-w-md w-full border-2 border-[#F43F5E] text-center space-y-4 shadow-[0_0_60px_rgba(244,63,94,0.4)] animate-shake">
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-[rgba(244,63,94,0.2)] border-2 border-[#F43F5E]">
+              <AlertOctagon size={36} className="text-[#F43F5E]" />
+            </div>
+
+            <div>
+              <span className="px-3 py-1 rounded-full bg-[rgba(244,63,94,0.2)] text-[#FDA4AF] font-[family-name:var(--font-mono)] font-bold text-xs uppercase tracking-wider">
+                Security Strike {warningModal.strikes} of {MAX_STRIKES}
+              </span>
+              <h3 className="font-[family-name:var(--font-display)] font-extrabold text-2xl text-[#F43F5E] mt-2">
+                ⚠️ Security Violation Detected
+              </h3>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[rgba(244,63,94,0.1)] border border-[rgba(244,63,94,0.3)] font-[family-name:var(--font-mono)] text-xs text-[#FDA4AF]">
+              {warningModal.reason === 'tab_switch' && 'Tab switching or window minimization detected.'}
+              {warningModal.reason === 'window_blur' && 'Window focus lost / application switch detected.'}
+              {warningModal.reason === 'fullscreen_exit' && 'Fullscreen mode was exited.'}
+              {warningModal.reason === 'devtools_detected' && 'Developer tools inspection detected.'}
+              {warningModal.reason === 'keyboard_shortcut' && 'Blocked shortcut used (Ctrl+C, Ctrl+V, F12, etc.).'}
+            </div>
+
+            <p className="font-[family-name:var(--font-body)] text-xs text-[#E2E8F0] leading-relaxed">
+              If you reach <strong className="text-[#F43F5E] font-bold">3 strikes</strong>, your test will be instantly terminated, disqualified, and submitted with zero tolerance.
+            </p>
+
+            <GalaxyButton
+              variant="primary"
+              fullWidth
+              size="md"
+              onClick={async () => {
+                setWarningModal(null);
+                await requestFullscreenMode();
+              }}
+              className="!bg-[#F43F5E] hover:!bg-[#E11D48] text-white font-bold"
+            >
+              I Understand — Return to Exam 🛡️
+            </GalaxyButton>
+          </GlassCard>
+        </div>
+      )}
 
       {/* SUBMIT CONFIRMATION MODAL */}
       {showSubmitModal && (
