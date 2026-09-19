@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!targetRound) {
-      // Find all live/active/published rounds
+      // 1. Find all live/active/published rounds
       const { data: liveRounds } = await supabaseAdmin
         .from('rounds')
         .select('id, status, title, description, randomize_questions, show_results, total_questions')
@@ -50,12 +50,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 2. If still no active round found, pick any existing round from DB so student can immediately start
+    if (!targetRound) {
+      const { data: anyRounds } = await supabaseAdmin
+        .from('rounds')
+        .select('id, status, title, description, randomize_questions, show_results, total_questions')
+        .order('round_number', { ascending: true })
+        .limit(1);
+
+      if (anyRounds && anyRounds.length > 0) {
+        targetRound = anyRounds[0];
+        roundIdToUse = targetRound.id;
+      }
+    }
+
     if (!targetRound || !roundIdToUse) {
-      // Return waiting state response if no round is live
       return NextResponse.json({
-        waiting: true,
-        message: 'No competition round is currently active. Please wait for host to start the round.'
-      });
+        error: 'No assessment is currently available. Please contact your coordinator.'
+      }, { status: 404 });
     }
 
     // 2. Upsert participant in participants table
