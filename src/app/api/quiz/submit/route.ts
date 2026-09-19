@@ -103,6 +103,9 @@ export async function POST(req: NextRequest) {
     // Final score cannot be negative
     totalScore = Math.max(0, Math.round(totalScore * 100) / 100);
 
+    const isDisqualified = !!body.forceDisqualify;
+    const disqReason = body.reason || (isDisqualified ? 'Anti-cheat violation' : null);
+
     // 5. Update attempt status & score
     const { error: updateErr } = await supabaseAdmin
       .from('attempts')
@@ -110,6 +113,8 @@ export async function POST(req: NextRequest) {
         status: 'submitted',
         submitted_at: new Date().toISOString(),
         score: totalScore,
+        disqualified: isDisqualified,
+        disqualification_reason: disqReason,
       })
       .eq('id', attempt_id);
 
