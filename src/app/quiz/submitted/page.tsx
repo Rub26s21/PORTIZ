@@ -8,7 +8,7 @@ import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import AuroraBackground from '@/components/shared/AuroraBackground';
 import Logo from '@/components/shared/Logo';
-import { CheckCircle2, Trophy, Award, Home, BarChart3 } from 'lucide-react';
+import { CheckCircle2, Trophy, Award, Home, BarChart3, Check } from 'lucide-react';
 import CountUp from 'react-countup';
 
 function SubmittedContent() {
@@ -16,8 +16,8 @@ function SubmittedContent() {
   const scoreStr = searchParams.get('score');
   const rankStr = searchParams.get('rank');
 
-  const score = scoreStr !== null ? Number(scoreStr) : null;
-  const rank = rankStr !== null ? Number(rankStr) : null;
+  const score = scoreStr !== null && !isNaN(Number(scoreStr)) ? Number(scoreStr) : null;
+  const rank = rankStr !== null && !isNaN(Number(rankStr)) ? Number(rankStr) : null;
 
   const skeuomorphicShadow = '0 0 60px rgba(16,185,129,0.1), 0 0 120px rgba(168,85,247,0.06), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.2)';
 
@@ -54,9 +54,43 @@ function SubmittedContent() {
                 Quiz Submitted! 🎉
               </h1>
               <p className="font-[family-name:var(--font-body)] text-xs sm:text-sm text-[var(--text-muted)] mt-1.5 font-light">
-                Your responses have been recorded successfully.
+                Your responses have been recorded and scored in the database.
               </p>
             </div>
+
+            {/* Score & Rank Display Card if Available */}
+            {score !== null && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-around"
+              >
+                <div className="text-center">
+                  <span className="font-[family-name:var(--font-heading)] text-[10px] uppercase text-[#94A3B8] tracking-widest block mb-1">
+                    Your Score
+                  </span>
+                  <div className="font-[family-name:var(--font-mono)] font-extrabold text-2xl text-[var(--aurora-green)]">
+                    <CountUp end={score} duration={1.2} decimals={score % 1 !== 0 ? 1 : 0} />
+                    <span className="text-sm text-[#94A3B8] font-normal"> / 100</span>
+                  </div>
+                </div>
+
+                {rank !== null && rank > 0 && (
+                  <>
+                    <div className="w-[1px] h-10 bg-white/10" />
+                    <div className="text-center">
+                      <span className="font-[family-name:var(--font-heading)] text-[10px] uppercase text-[#94A3B8] tracking-widest block mb-1">
+                        Current Rank
+                      </span>
+                      <div className="font-[family-name:var(--font-mono)] font-extrabold text-2xl text-[var(--aurora-gold)] flex items-center justify-center gap-1">
+                        <Trophy size={18} className="text-amber-400" />
+                        <span>#{rank}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
 
             {/* Action Buttons */}
             <div className="pt-2 flex flex-col gap-3">
