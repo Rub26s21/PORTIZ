@@ -97,9 +97,31 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existingAttempt) {
+      if (existingAttempt.status === 'in_progress') {
+        const response = NextResponse.json({
+          attempt_id: existingAttempt.id,
+          participant_id: participantId,
+          round_id: roundIdToUse,
+          resumed: true,
+          question_count: existingAttempt.question_order?.length || 50,
+        });
+
+        response.cookies.set('participant_session', existingAttempt.id, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 86400,
+          path: '/',
+        });
+
+        return response;
+      }
+
       return NextResponse.json({
         alreadyAttempted: true,
         attempt_id: existingAttempt.id,
+        participant_id: participantId,
+        round_id: roundIdToUse,
         status: existingAttempt.status,
         score: targetRound.show_results ? existingAttempt.score : null,
       });
@@ -183,7 +205,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       attempt_id: newAttempt.id,
       participant_id: participantId,
-      round_id: round_id,
+      round_id: roundIdToUse,
       question_count: questionOrderIds.length,
     });
 

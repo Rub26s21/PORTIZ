@@ -114,32 +114,38 @@ export default function QuizEntryCard() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.alreadyAttempted) {
-          router.push(`/quiz/waiting`);
-          return;
-        }
         throw new Error(data.error || 'Failed to enter live quiz session.');
       }
 
       if (data.waiting) {
         // No live round yet -> redirect to Waiting Room
-        sessionStorage.setItem('quiz_session', JSON.stringify({
+        const waitPayload = {
           name: name.trim(),
           register_no: registerNo.trim().toUpperCase(),
           phone: phone.trim(),
           email: email.trim() || null,
-        }));
+        };
+        sessionStorage.setItem('quiz_session', JSON.stringify(waitPayload));
+        localStorage.setItem('quiz_session', JSON.stringify(waitPayload));
         router.push('/quiz/waiting');
         return;
       }
 
-      sessionStorage.setItem('quiz_session', JSON.stringify({
+      const sessionPayload = {
         attempt_id: data.attempt_id,
         participant_id: data.participant_id,
         name: name.trim(),
         register_no: registerNo.trim().toUpperCase(),
         round_id: data.round_id,
-      }));
+      };
+
+      sessionStorage.setItem('quiz_session', JSON.stringify(sessionPayload));
+      localStorage.setItem('quiz_session', JSON.stringify(sessionPayload));
+
+      if (data.alreadyAttempted && data.status === 'submitted') {
+        router.push(`/quiz/submitted?attempt_id=${data.attempt_id}`);
+        return;
+      }
 
       // Redirect immediately to the test!
       router.push(`/quiz/test/${data.round_id}`);
