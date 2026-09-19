@@ -133,9 +133,15 @@ export default function QuizTestPage({ params }: PageProps) {
   // 1. Initialize Exam Session
   useEffect(() => {
     const initSession = async () => {
-      // Read session from sessionStorage
-      const sessionStr = sessionStorage.getItem('quiz_session');
+      // 1. Read session from sessionStorage or localStorage
+      let sessionStr = typeof window !== 'undefined' ? sessionStorage.getItem('quiz_session') : null;
+      if (!sessionStr && typeof window !== 'undefined') {
+        sessionStr = localStorage.getItem('quiz_session');
+      }
+
       let attId = '';
+      let partInfo: any = null;
+
       if (sessionStr) {
         try {
           const parsed = JSON.parse(sessionStr);
@@ -143,6 +149,45 @@ export default function QuizTestPage({ params }: PageProps) {
           if (parsed.name) setParticipantName(parsed.name);
         } catch {
           // fallback
+        }
+      }
+
+      // If no attId in session, check participant_info in localStorage to auto-recover session
+      if (!attId && typeof window !== 'undefined') {
+        const rawPart = localStorage.getItem('participant_info');
+        if (rawPart) {
+          try {
+            partInfo = JSON.parse(rawPart);
+          } catch {}
+        }
+
+        if (partInfo?.registerNo) {
+          try {
+            const reEnterRes = await fetch('/api/quiz/enter', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...partInfo,
+                round_id: roundId !== 'undefined' ? roundId : null,
+              }),
+            });
+            const reEnterData = await reEnterRes.json();
+            if (reEnterRes.ok && reEnterData.attempt_id) {
+              attId = reEnterData.attempt_id;
+              if (reEnterData.name || partInfo.name) setParticipantName(reEnterData.name || partInfo.name);
+              const recoveredSession = {
+                attempt_id: attId,
+                participant_id: reEnterData.participant_id,
+                name: reEnterData.name || partInfo.name,
+                register_no: partInfo.registerNo,
+                round_id: reEnterData.round_id || roundId,
+              };
+              sessionStorage.setItem('quiz_session', JSON.stringify(recoveredSession));
+              localStorage.setItem('quiz_session', JSON.stringify(recoveredSession));
+            }
+          } catch (recoveryErr) {
+            console.error('Session auto-recovery error:', recoveryErr);
+          }
         }
       }
 
@@ -156,17 +201,22 @@ export default function QuizTestPage({ params }: PageProps) {
       // Fetch attempt & round data from Supabase
       const { data: att, error: attErr } = await supabase
         .from('attempts')
-        .select('id, status, started_at, question_order, disqualified, rounds(title, duration_minutes)')
+        .select('id, status, started_at, question_order, disqualified, disqualification_reason, rounds(title, duration_minutes)')
         .eq('id', attId)
         .single();
 
       if (attErr || !att) {
-        toast.error('Invalid attempt session.');
+        toast.error('Invalid attempt session. Please re-enter.');
         router.push('/quiz');
         return;
       }
 
-      if (att.disqualified || att.status === 'submitted') {
+      if (att.disqualified) {
+        router.push(`/quiz/disqualified?reason=${att.disqualification_reason || 'anti-cheat violation'}`);
+        return;
+      }
+
+      if (att.status === 'submitted') {
         router.push(`/quiz/submitted?attempt_id=${attId}`);
         return;
       }
