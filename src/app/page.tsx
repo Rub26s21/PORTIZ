@@ -196,12 +196,17 @@ export default function HomePage() {
             <Logo size="sm" />
             <p className="font-[family-name:var(--font-body)] text-[var(--text-dim)] text-xs mt-2">National Level Quiz Championship Portal</p>
           </div>
-          <div className="flex flex-wrap justify-center gap-6 text-xs font-[family-name:var(--font-heading)] text-[var(--text-muted)]">
-            <Link href="/about" className="hover:text-[var(--aurora-purple)]">About</Link>
-            <Link href="/rules" className="hover:text-[var(--aurora-purple)]">Rules</Link>
-            <a href="#faq" className="hover:text-[var(--aurora-purple)]">FAQ</a>
-            <Link href="/quiz" className="hover:text-[var(--aurora-cyan)]">Enter Quiz</Link>
-            <Link href="/admin/login" className="hover:text-[var(--aurora-rose)] text-[var(--text-dim)]">Admin →</Link>
+          <div className="flex flex-col items-center md:items-end gap-3">
+            <div className="flex flex-wrap justify-center gap-6 text-xs font-[family-name:var(--font-heading)] text-[var(--text-muted)]">
+              <Link href="/about" className="hover:text-[var(--aurora-purple)]">About</Link>
+              <Link href="/rules" className="hover:text-[var(--aurora-purple)]">Rules</Link>
+              <a href="#faq" className="hover:text-[var(--aurora-purple)]">FAQ</a>
+              <Link href="/quiz" className="hover:text-[var(--aurora-cyan)]">Enter Quiz</Link>
+              <Link href="/admin/login" className="hover:text-[var(--aurora-rose)] text-[var(--text-dim)]">Admin →</Link>
+            </div>
+            <div className="text-xs text-[#94A3B8] font-medium tracking-wide text-center md:text-right">
+              Made by <span className="text-[#00E5FF] font-bold">Rubahan P</span> · Contact for similar webs
+            </div>
           </div>
         </div>
         <div className="text-center py-6 border-t border-[var(--glass-border)]">
