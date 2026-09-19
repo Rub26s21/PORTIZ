@@ -111,7 +111,10 @@ export default function QuizTestPage({ params }: PageProps) {
       }
       setStartedAt(att.started_at || new Date().toISOString());
 
-      const orderArr: string[] = att.question_order || [];
+      let orderArr: string[] = att.question_order || [];
+      if (orderArr.length > 50) {
+        orderArr = orderArr.slice(0, 50);
+      }
       setQuestionOrder(orderArr);
 
       if (orderArr.length === 0) {

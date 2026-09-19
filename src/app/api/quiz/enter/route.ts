@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     if (roundIdToUse) {
       const { data: round } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results')
+        .select('id, status, title, description, randomize_questions, show_results, total_questions')
         .eq('id', roundIdToUse)
         .maybeSingle();
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       // Find all live/active/published rounds
       const { data: liveRounds } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results')
+        .select('id, status, title, description, randomize_questions, show_results, total_questions')
         .in('status', ['active', 'live', 'published', 'ongoing'])
         .order('round_number', { ascending: true });
 
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     // 3. Check for existing attempt
     const { data: existingAttempt } = await supabaseAdmin
       .from('attempts')
-      .select('id, status, score')
+      .select('id, status, score, question_order')
       .eq('participant_id', participantId)
       .eq('round_id', roundIdToUse)
       .maybeSingle();
@@ -108,14 +108,54 @@ export async function POST(req: NextRequest) {
     // 4. Fetch question IDs for this round
     const { data: questions } = await supabaseAdmin
       .from('questions')
-      .select('id, order_index')
+      .select('id, order_index, subject_name, category')
       .eq('round_id', roundIdToUse)
       .order('order_index', { ascending: true });
 
-    let questionOrderIds = (questions || []).map((q) => q.id);
+    const rawQuestions = questions || [];
+    const targetCount = targetRound.total_questions && targetRound.total_questions > 0 ? targetRound.total_questions : 50;
 
-    // Shuffle if round config specifies randomize_questions
-    if (targetRound.randomize_questions && questionOrderIds.length > 1) {
+    let selectedQIds: string[] = [];
+
+    // Subject distribution balancing
+    const subjectMap: Record<string, string[]> = {};
+    rawQuestions.forEach((q) => {
+      const sub = q.subject_name || q.category || 'General';
+      if (!subjectMap[sub]) subjectMap[sub] = [];
+      subjectMap[sub].push(q.id);
+    });
+
+    const subjects = Object.keys(subjectMap);
+    if (subjects.length > 1 && rawQuestions.length > targetCount) {
+      const perSubQuota = Math.floor(targetCount / subjects.length);
+      const remainder = targetCount % subjects.length;
+
+      subjects.forEach((sub, sIdx) => {
+        const pool = [...subjectMap[sub]].sort(() => Math.random() - 0.5);
+        const take = perSubQuota + (sIdx < remainder ? 1 : 0);
+        selectedQIds.push(...pool.slice(0, take));
+      });
+
+      if (selectedQIds.length < targetCount) {
+        const remaining = rawQuestions
+          .map((q) => q.id)
+          .filter((id) => !selectedQIds.includes(id))
+          .sort(() => Math.random() - 0.5);
+        selectedQIds.push(...remaining.slice(0, targetCount - selectedQIds.length));
+      }
+    } else {
+      selectedQIds = rawQuestions.map((q) => q.id);
+    }
+
+    // Strictly enforce 50 questions limit per test
+    if (selectedQIds.length > targetCount) {
+      selectedQIds = selectedQIds.slice(0, targetCount);
+    }
+
+    let questionOrderIds = selectedQIds;
+
+    // Shuffle if round config specifies randomize_questions (default true)
+    if (targetRound.randomize_questions !== false && questionOrderIds.length > 1) {
       for (let i = questionOrderIds.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [questionOrderIds[i], questionOrderIds[j]] = [questionOrderIds[j], questionOrderIds[i]];

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch attempt details + round config
     const { data: attempt, error: attErr } = await supabaseAdmin
       .from('attempts')
-      .select('id, round_id, status, participant_id')
+      .select('id, round_id, status, participant_id, question_order')
       .eq('id', attempt_id)
       .maybeSingle();
 
@@ -36,6 +36,11 @@ export async function POST(req: NextRequest) {
       .from('questions')
       .select('id, question_type, options, correct_answer, marks, negative_marks')
       .eq('round_id', attempt.round_id);
+
+    const assignedIds = new Set<string>(attempt.question_order || []);
+    const examQuestions = assignedIds.size > 0
+      ? (questions || []).filter((q) => assignedIds.has(q.id))
+      : (questions || []).slice(0, 50);
 
     // 3. Fetch all saved responses
     const { data: responses } = await supabaseAdmin
@@ -81,8 +86,8 @@ export async function POST(req: NextRequest) {
       return false;
     };
 
-    // 4. Calculate score
-    (questions || []).forEach((q) => {
+    // 4. Calculate score on exam questions
+    examQuestions.forEach((q) => {
       const userSel = responseMap.get(q.id);
       if (userSel !== undefined && userSel !== null && userSel.trim() !== '') {
         const isCorrect = evaluateAnswer(q, userSel);
@@ -126,7 +131,7 @@ export async function POST(req: NextRequest) {
       success: true,
       score: totalScore,
       rank: rank,
-      total_questions: (questions || []).length,
+      total_questions: examQuestions.length,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
