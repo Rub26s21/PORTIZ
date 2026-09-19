@@ -51,7 +51,6 @@ export default function HomePage() {
   }, []);
 
   const navLinks = [
-    { label: 'Rounds', href: '#rounds' },
     { label: 'Rules', href: '#rules' },
     { label: 'FAQ', href: '#faq' },
   ];
@@ -86,7 +85,7 @@ export default function HomePage() {
 
             <FadeIn delay={0.25} y={20}>
               <p className="font-[family-name:var(--font-body)] font-light text-lg sm:text-xl text-[#94A3B8] max-w-xl leading-relaxed text-left">
-                The premier national electronics championship. Three brutal rounds. Test your engineering mind and claim the trophy.
+                The premier national electronics championship. Test your engineering mind and claim the trophy.
               </p>
             </FadeIn>
           </div>
@@ -105,45 +104,6 @@ export default function HomePage() {
           </motion.div>
         </div>
       </header>
-
-      {/* ═══ THE ROUNDS ═══ */}
-      <section id="rounds" className="relative z-10 w-full scroll-mt-24 py-28" style={{ background: 'rgba(18, 8, 40, 0.8)' }}>
-        <div className="max-w-7xl mx-auto px-6">
-          <FadeIn>
-            <div className="text-center mb-16">
-              <span className="font-[family-name:var(--font-heading)] text-xs font-medium text-[var(--aurora-purple)] tracking-widest uppercase">✦ Competition</span>
-              <h2 className="font-[family-name:var(--font-display)] text-[clamp(2rem,6vw,4.5rem)] font-extrabold gradient-text mt-2">The Rounds</h2>
-            </div>
-          </FadeIn>
-
-          <div className="space-y-8">
-            {[
-              { num: '01', title: 'Qualifier Round', desc: 'Open for all registered participants. MCQ-based test covering fundamentals of electronics, circuits, and digital systems.', tags: ['MCQ', '30 min', 'Open to All'], color: 'var(--aurora-purple)', status: 'OPEN FOR ALL' },
-              { num: '02', title: 'Advanced Round', desc: 'Promoted participants tackle mixed question types — MCQ, True/False, Fill-in-the-blank — with negative marking.', tags: ['Mixed', '45 min', 'Promoted'], color: 'var(--aurora-pink)', status: 'PROMOTION REQUIRED' },
-              { num: '03', title: 'Grand Finale', desc: 'The ultimate challenge. Numerical and analytical questions. The top scorer becomes the champion.', tags: ['Numerical', '60 min', 'Elite'], color: 'var(--aurora-gold)', status: 'ELITE ONLY' },
-            ].map((round, i) => (
-              <FadeIn key={i} delay={i * 0.15}>
-                <GlassCard variant="elevated" className="!p-10 relative overflow-hidden">
-                  <div className="absolute top-4 right-8 font-[family-name:var(--font-mono)] font-black text-[8rem] leading-none gradient-text opacity-[0.06] select-none pointer-events-none">{round.num}</div>
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-[var(--text-dim)]">ROUND {round.num}</span>
-                      <span className="font-[family-name:var(--font-heading)] text-[10px] font-medium px-3 py-1 rounded-full tracking-wide" style={{ background: `${round.color}20`, color: round.color, border: `1px solid ${round.color}40` }}>{round.status}</span>
-                    </div>
-                    <h3 className="font-[family-name:var(--font-display)] text-2xl font-bold text-[var(--text-primary)] mb-3">{round.title}</h3>
-                    <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-sm max-w-xl leading-relaxed mb-4">{round.desc}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {round.tags.map(tag => (
-                        <span key={tag} className="px-3 py-1 rounded-full text-xs font-[family-name:var(--font-heading)] font-medium" style={{ background: 'var(--glass-white)', border: '1px solid var(--glass-border)', color: 'var(--text-secondary)' }}>{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                </GlassCard>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* ═══ SECURITY / RULES ═══ */}
       <section id="rules" className="relative z-10 w-full max-w-7xl mx-auto px-6 py-24 scroll-mt-24">
@@ -176,34 +136,6 @@ export default function HomePage() {
               </FadeIn>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ═══ BENEFITS ═══ */}
-      <section className="relative z-10 w-full max-w-7xl mx-auto px-6 py-24">
-        <FadeIn>
-          <div className="text-center mb-16">
-            <span className="font-[family-name:var(--font-heading)] text-xs font-medium text-[var(--aurora-purple)] tracking-widest uppercase">✦ Why Participate</span>
-            <h2 className="font-[family-name:var(--font-display)] text-[clamp(2rem,6vw,4rem)] font-extrabold gradient-text mt-2">Win Glory ✦</h2>
-          </div>
-        </FadeIn>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            { icon: Award, title: 'Certificates', desc: 'Official digital certificates for all participants.' },
-            { icon: Gift, title: 'Cash Prizes', desc: 'Cash rewards and trophies for top performers.' },
-            { icon: Rocket, title: 'Skill Growth', desc: 'Test your engineering knowledge under pressure.' },
-            { icon: Users, title: 'Networking', desc: 'Connect with top minds from across colleges.' },
-          ].map((b, i) => (
-            <FadeIn key={i} delay={i * 0.1}>
-              <GlassCard variant="elevated" className="!p-8 text-center flex flex-col items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: 'var(--glass-purple)', border: '1px solid rgba(168,85,247,0.25)' }}>
-                  <b.icon size={24} className="text-[var(--aurora-purple)]" />
-                </div>
-                <h4 className="font-[family-name:var(--font-heading)] font-medium text-[var(--text-primary)] text-lg">{b.title}</h4>
-                <p className="font-[family-name:var(--font-body)] text-[var(--text-muted)] text-xs leading-relaxed">{b.desc}</p>
-              </GlassCard>
-            </FadeIn>
-          ))}
         </div>
       </section>
 
@@ -257,141 +189,6 @@ export default function HomePage() {
         </FadeIn>
       </section>
 
-      {/* ═══ MEET THE CONTRIBUTORS ═══ */}
-      <section id="contributors" className="relative z-10 py-24 px-6 border-t border-[var(--glass-border)]" style={{ background: 'var(--space-deep)' }}>
-        <div className="max-w-7xl mx-auto">
-          <FadeIn>
-            <div className="text-center mb-16">
-              <span className="text-[10px] font-semibold tracking-widest text-[var(--aurora-cyan)] uppercase" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                THE TEAM BEHIND THE TOURNAMENT ✦
-              </span>
-              <h2 className="text-3xl md:text-5xl font-extrabold text-[#FFFFFF] mt-3" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                Meet the Contributors
-              </h2>
-              <p className="text-xs md:text-sm text-[#94A3B8] font-light max-w-md mx-auto mt-2" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                Coordinated and developed by the faculty leads and student coordinators of the Electronics Club
-              </p>
-            </div>
-          </FadeIn>
-
-          {/* HOD / Faculty Advisors Row (2 Cards) */}
-          <div className="flex flex-col md:flex-row justify-center items-center gap-10 max-w-4xl mx-auto mb-16">
-            {[
-              { name: 'Anandakumar.R', role: 'Head of Department', dept: 'ECE', initials: 'AR', rating: '99', pos: 'HOD', avatar: '/avatar_anandakumar.png', stats: [{ label: 'LDR', val: '99' }, { label: 'TEC', val: '98' }, { label: 'STR', val: '99' }, { label: 'MNT', val: '98' }], glow: 'rgba(0,102,255,0.4)' },
-              { name: 'Jamuna V', role: 'Head of Department', dept: 'ECE', initials: 'JV', rating: '99', pos: 'HOD', avatar: '/avatar_jamuna.png', stats: [{ label: 'LDR', val: '99' }, { label: 'TEC', val: '97' }, { label: 'STR', val: '99' }, { label: 'MNT', val: '98' }], glow: 'rgba(124,58,237,0.4)' },
-            ].map((member, idx) => (
-              <FadeIn key={idx} delay={idx * 0.15}>
-                <div 
-                  className="relative w-[280px] h-[420px] rounded-[2.5rem] p-[2px] transition-all duration-500 hover:scale-[1.04] group cursor-pointer overflow-hidden shadow-2xl"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 50%, rgba(0,102,255,0.2) 100%)',
-                    boxShadow: `0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px ${member.glow}`,
-                  }}
-                >
-                  {/* Glass Card Body */}
-                  <div className="w-full h-full rounded-[2.4rem] bg-black/85 backdrop-blur-xl p-6 flex flex-col justify-between items-center relative overflow-hidden">
-                    {/* Shiny Sweep Effect */}
-                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
-                    
-                    {/* Top Stats Banner */}
-                    <div className="w-full flex justify-between items-center z-10">
-                      <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
-                        <img src="/logo.png" alt="Electronics Club Logo" className="w-5 h-5 object-contain" />
-                      </div>
-                    </div>
-
-                    {/* Avatar Frame (Futuristic circular backdrop) */}
-                    <div className="relative w-36 h-36 flex items-center justify-center -mt-4">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#0066FF] to-[#00B0FF] opacity-20 blur-xl group-hover:scale-110 transition-transform duration-500" />
-                      <div className="absolute w-28 h-28 rounded-full border border-white/10 bg-white/5 shadow-inner" />
-                      {member.avatar ? (
-                        <img 
-                          src={member.avatar} 
-                          alt={member.name} 
-                          className="w-32 h-32 object-contain z-10 transition-transform duration-500 group-hover:scale-108 -mt-2 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" 
-                        />
-                      ) : (
-                        <div className="w-28 h-28 rounded-full flex items-center justify-center font-[family-name:var(--font-mono)] font-bold text-2xl text-white/80 z-10 bg-white/5 border border-white/20 shadow-lg" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                          {member.initials}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Member Details */}
-                    <div className="text-center z-10 w-full -mt-1">
-                      <h4 className="font-extrabold text-[#FFFFFF] text-[1.35rem] tracking-wide px-2 whitespace-nowrap" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.03em' }}>{member.name}</h4>
-                      <p className="text-[#94A3B8] text-[10.5px] font-light mt-1 tracking-widest uppercase" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.08em' }}>{member.role}</p>
-                    </div>
-
-                    {/* FUT Department Name Block (Replaced Attributes Grid) */}
-                    <div className="w-full py-2.5 border-t border-white/10 z-10 text-center bg-white/3 rounded-2xl">
-                      <span className="font-extrabold text-base text-white tracking-[0.2em] uppercase pl-[0.2em]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                        DEPT OF {member.dept}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-
-          {/* Student Coordinators Row (5 Cards) */}
-          <div className="flex flex-wrap justify-center items-center gap-6 max-w-6xl mx-auto">
-            {[
-              { name: 'Rubahan P', role: 'Student Coordinator', dept: 'ECE', initials: 'RP', rating: '95', pos: 'CO' },
-              { name: 'Sanjay B', role: 'Student Coordinator', dept: 'ECE', initials: 'SB', rating: '95', pos: 'CO' },
-              { name: 'Sivasradeep S', role: 'Student Coordinator', dept: 'ECE', initials: 'SS', rating: '95', pos: 'CO' },
-              { name: 'Kishore Kumar K T', role: 'Student Coordinator', dept: 'ECE', initials: 'KK', rating: '95', pos: 'CO' },
-              { name: 'Ragul S', role: 'Student Coordinator', dept: 'ECE', initials: 'RS', rating: '95', pos: 'CO' },
-            ].map((member, idx) => (
-              <FadeIn key={idx} delay={idx * 0.08}>
-                <div 
-                  className="relative w-[210px] h-[330px] rounded-[2rem] p-[1.5px] transition-all duration-500 hover:scale-[1.04] group cursor-pointer overflow-hidden shadow-xl"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 50%, rgba(255,255,255,0.05) 100%)',
-                    boxShadow: '0 15px 35px rgba(0, 0, 0, 0.5)',
-                  }}
-                >
-                  {/* Glass Card Body */}
-                  <div className="w-full h-full rounded-[1.9rem] bg-black/85 backdrop-blur-xl p-4.5 flex flex-col justify-between items-center relative overflow-hidden">
-                    {/* Shiny Sweep Effect */}
-                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
-                    
-                    {/* Top Stats Banner */}
-                    <div className="w-full flex justify-between items-center z-10 px-0.5">
-                      <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner backdrop-blur-sm">
-                        <img src="/logo.png" alt="Electronics Club Logo" className="w-4 h-4 object-contain" />
-                      </div>
-                    </div>
-
-                    {/* Avatar Initials Circle */}
-                    <div className="relative w-20 h-20 flex items-center justify-center -mt-2">
-                      <div className="absolute inset-0 rounded-full bg-white/5 opacity-10 blur-md group-hover:scale-115 transition-transform duration-500" />
-                      <div className="w-18 h-18 rounded-full flex items-center justify-center font-bold text-lg text-white/80 z-10 bg-white/5 border border-white/15 shadow-inner" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                        {member.initials}
-                      </div>
-                    </div>
-
-                    {/* Member Details */}
-                    <div className="text-center z-10 w-full -mt-1.5">
-                      <h4 className="font-bold text-[#FFFFFF] text-[0.95rem] tracking-wide px-1 whitespace-nowrap" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.03em' }}>{member.name}</h4>
-                      <p className="text-white/40 text-[9px] mt-1 tracking-widest uppercase" style={{ fontFamily: '"Times New Roman", Times, serif', letterSpacing: '0.08em' }}>{member.role}</p>
-                    </div>
-
-                    {/* FUT Department Name Block (Replaced Attributes Grid) */}
-                    <div className="w-full py-2 border-t border-white/8 z-10 text-center bg-white/2 p-1.5 rounded-xl">
-                      <span className="font-extrabold text-xs text-white tracking-[0.15em] uppercase pl-[0.15em]" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-                        DEPT OF {member.dept}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ═══ FOOTER ═══ */}
       <footer className="relative z-10 border-t border-[var(--glass-border)]" style={{ background: 'var(--space-deep)' }}>
         <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -401,10 +198,8 @@ export default function HomePage() {
           </div>
           <div className="flex flex-wrap justify-center gap-6 text-xs font-[family-name:var(--font-heading)] text-[var(--text-muted)]">
             <Link href="/about" className="hover:text-[var(--aurora-purple)]">About</Link>
-            <a href="#rounds" className="hover:text-[var(--aurora-purple)]">Rounds</a>
             <Link href="/rules" className="hover:text-[var(--aurora-purple)]">Rules</Link>
             <a href="#faq" className="hover:text-[var(--aurora-purple)]">FAQ</a>
-            <a href="#contributors" className="hover:text-[var(--aurora-purple)]">Contributors</a>
             <Link href="/quiz" className="hover:text-[var(--aurora-cyan)]">Enter Quiz</Link>
             <Link href="/admin/login" className="hover:text-[var(--aurora-rose)] text-[var(--text-dim)]">Admin →</Link>
           </div>
