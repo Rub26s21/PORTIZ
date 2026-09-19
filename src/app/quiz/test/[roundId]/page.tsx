@@ -293,10 +293,19 @@ export default function QuizTestPage({ params }: PageProps) {
     loadQuestion(index, questionOrder, attemptId, answersMap);
   };
 
+  const lastViolationTime = useRef<number>(0);
+
   // ── ANTI-CHEAT PROCTORING CORE ──
   const recordViolation = useCallback(
     async (reason: string) => {
       if (!attemptId || !antiCheatArmed.current) return;
+
+      // 1.5 second cooldown between strikes to prevent dual-triggering (e.g. visibilitychange + blur)
+      const now = Date.now();
+      if (now - lastViolationTime.current < 1500) {
+        return;
+      }
+      lastViolationTime.current = now;
 
       setStrikes((prev) => {
         const nextStrikes = prev + 1;
@@ -515,6 +524,9 @@ export default function QuizTestPage({ params }: PageProps) {
     setSubmittingFinal(true);
 
     try {
+      // Ensure any pending offline answers are synced before grading
+      await flushOfflineQueue();
+
       const res = await fetch('/api/quiz/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
