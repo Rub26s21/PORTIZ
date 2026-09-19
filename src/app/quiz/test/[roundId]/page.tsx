@@ -198,18 +198,19 @@ export default function QuizTestPage({ params }: PageProps) {
       }
       setAttemptId(attId);
 
-      // Fetch attempt & round data from Supabase
-      const { data: att, error: attErr } = await supabase
-        .from('attempts')
-        .select('id, status, started_at, question_order, disqualified, disqualification_reason, rounds(title, duration_minutes)')
-        .eq('id', attId)
-        .single();
+      // Fetch attempt, round & answers securely via server endpoint (bypasses anon client RLS)
+      const res = await fetch(`/api/quiz/session?attempt_id=${attId}`);
+      const sessionData = await res.json();
 
-      if (attErr || !att) {
-        toast.error('Invalid attempt session. Please re-enter.');
+      if (!res.ok || !sessionData.attempt) {
+        toast.error(sessionData.error || 'Invalid attempt session. Please re-enter.');
         router.push('/quiz');
         return;
       }
+
+      const { attempt: att, round: rData, participantName: pName, answersMap: aMap } = sessionData;
+
+      if (pName) setParticipantName(pName);
 
       if (att.disqualified) {
         router.push(`/quiz/disqualified?reason=${att.disqualification_reason || 'anti-cheat violation'}`);
@@ -221,9 +222,8 @@ export default function QuizTestPage({ params }: PageProps) {
         return;
       }
 
-      const rData = (att as any).rounds;
       if (rData) {
-        setRoundTitle(rData.title || 'Quiz Round');
+        setRoundTitle(rData.title || 'Competition Assessment');
         setDurationMinutes(rData.duration_minutes || 30);
       }
       setStartedAt(att.started_at || new Date().toISOString());
@@ -240,20 +240,10 @@ export default function QuizTestPage({ params }: PageProps) {
         return;
       }
 
-      // Fetch saved answers
-      const { data: savedResp } = await supabase
-        .from('responses')
-        .select('question_id, selected')
-        .eq('attempt_id', attId);
-
-      const aMap: Record<string, string> = {};
-      (savedResp || []).forEach((r) => {
-        if (r.selected !== null) aMap[r.question_id] = r.selected;
-      });
-      setAnswersMap(aMap);
+      setAnswersMap(aMap || {});
 
       // Prefetch first question
-      await loadQuestion(0, orderArr, attId, aMap);
+      await loadQuestion(0, orderArr, attId, aMap || {});
       setLoading(false);
     };
 
