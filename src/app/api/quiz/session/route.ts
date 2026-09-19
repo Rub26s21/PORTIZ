@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     // 1. Fetch attempt and round data using supabaseAdmin (bypassing anon RLS)
     const { data: att, error: attErr } = await supabaseAdmin
       .from('attempts')
-      .select('id, participant_id, round_id, status, started_at, question_order, disqualified, disqualification_reason, rounds(title, duration_minutes, total_questions)')
+      .select('id, participant_id, round_id, status, started_at, question_order, disqualified, disqualification_reason, rounds(title, duration_minutes)')
       .eq('id', attemptId)
       .maybeSingle();
 
@@ -51,6 +51,35 @@ export async function GET(req: NextRequest) {
     const rData = (att as any).rounds;
 
     let questionOrder: string[] = att.question_order || [];
+
+    // Fallback: If attempt had 0 questions assigned, retrieve from round or questions table
+    if (questionOrder.length === 0) {
+      const { data: roundQs } = await supabaseAdmin
+        .from('questions')
+        .select('id')
+        .eq('round_id', att.round_id)
+        .limit(50);
+
+      if (roundQs && roundQs.length > 0) {
+        questionOrder = roundQs.map((q) => q.id);
+      } else {
+        const { data: anyQs } = await supabaseAdmin
+          .from('questions')
+          .select('id')
+          .limit(50);
+        if (anyQs && anyQs.length > 0) {
+          questionOrder = anyQs.map((q) => q.id);
+        }
+      }
+
+      if (questionOrder.length > 0) {
+        await supabaseAdmin
+          .from('attempts')
+          .update({ question_order: questionOrder })
+          .eq('id', attemptId);
+      }
+    }
+
     if (questionOrder.length > 50) {
       questionOrder = questionOrder.slice(0, 50);
     }

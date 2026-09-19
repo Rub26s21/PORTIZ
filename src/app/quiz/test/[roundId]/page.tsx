@@ -161,13 +161,15 @@ export default function QuizTestPage({ params }: PageProps) {
           } catch {}
         }
 
-        if (partInfo?.registerNo) {
+        const userRegNo = partInfo?.register_no || partInfo?.registerNo;
+        if (userRegNo) {
           try {
             const reEnterRes = await fetch('/api/quiz/enter', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 ...partInfo,
+                register_no: userRegNo,
                 round_id: roundId !== 'undefined' ? roundId : null,
               }),
             });
@@ -179,7 +181,7 @@ export default function QuizTestPage({ params }: PageProps) {
                 attempt_id: attId,
                 participant_id: reEnterData.participant_id,
                 name: reEnterData.name || partInfo.name,
-                register_no: partInfo.registerNo,
+                register_no: userRegNo,
                 round_id: reEnterData.round_id || roundId,
               };
               sessionStorage.setItem('quiz_session', JSON.stringify(recoveredSession));
