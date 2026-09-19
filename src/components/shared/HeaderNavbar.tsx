@@ -17,10 +17,8 @@ export default function HeaderNavbar({ activeTab }: HeaderNavbarProps) {
 
   const navLinks = [
     { label: 'About', href: '/about' },
-    { label: 'Rounds', href: '/#rounds' },
     { label: 'Rules', href: '/rules' },
     { label: 'FAQ', href: '/#faq' },
-    { label: 'Contributors', href: '/#contributors' },
   ];
 
   return (
