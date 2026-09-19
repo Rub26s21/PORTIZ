@@ -12,11 +12,24 @@ export default function QuizTimer({ totalDurationMinutes, startedAtIso, onTimeUp
   const totalSeconds = totalDurationMinutes * 60;
 
   const calculateRemaining = () => {
-    const startMs = new Date(startedAtIso).getTime();
-    const endMs = startMs + totalSeconds * 1000;
-    const nowMs = Date.now();
-    const diff = Math.max(0, Math.floor((endMs - nowMs) / 1000));
-    return diff;
+    try {
+      const startMs = new Date(startedAtIso).getTime();
+      if (isNaN(startMs)) return totalSeconds;
+
+      const endMs = startMs + totalSeconds * 1000;
+      const nowMs = Date.now();
+
+      // Guard: If client machine clock is skewed into the past before start time
+      if (nowMs < startMs) {
+        return totalSeconds;
+      }
+
+      const diff = Math.floor((endMs - nowMs) / 1000);
+      // Guard: Capped between 0 and totalSeconds
+      return Math.min(totalSeconds, Math.max(0, diff));
+    } catch {
+      return totalSeconds;
+    }
   };
 
   const [remaining, setRemaining] = useState<number>(calculateRemaining);

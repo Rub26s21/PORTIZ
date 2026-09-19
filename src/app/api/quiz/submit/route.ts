@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch attempt details + round config
     const { data: attempt, error: attErr } = await supabaseAdmin
       .from('attempts')
-      .select('id, round_id, status, participant_id, question_order')
+      .select('id, round_id, status, participant_id, question_order, started_at')
       .eq('id', attempt_id)
       .maybeSingle();
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     const { data: round } = await supabaseAdmin
       .from('rounds')
-      .select('id, negative_marking, negative_marks_per_wrong')
+      .select('id, duration_minutes, negative_marking, negative_marks_per_wrong')
       .eq('id', attempt.round_id)
       .maybeSingle();
 
