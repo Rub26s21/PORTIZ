@@ -72,7 +72,8 @@ export async function POST(
     return NextResponse.json({ error: 'No questions available for this round' }, { status: 400 });
   }
 
-  let sampledQuestions = questions;
+  const targetCount = round.total_questions && round.total_questions > 0 ? round.total_questions : 50;
+  let sampledQuestions: any[] = questions || [];
 
   // Equal Subject Distribution Sampling (e.g. 5 questions per subject across 10 subjects = 50 questions)
   if (round.equal_subject_distribution && questions.length > 0) {
@@ -94,6 +95,12 @@ export async function POST(
     if (finalSelected.length > 0) {
       sampledQuestions = finalSelected;
     }
+  }
+
+  // Strictly enforce 50 questions limit per test
+  if (sampledQuestions.length > targetCount) {
+    const shuffled = [...sampledQuestions].sort(() => Math.random() - 0.5);
+    sampledQuestions = shuffled.slice(0, targetCount);
   }
 
   // Generate randomized orders
