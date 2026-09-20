@@ -55,7 +55,13 @@ export async function POST(req: NextRequest) {
           return t.includes(`SECTION ${studentSection}`) || t.includes(`SEC ${studentSection}`);
         });
 
-        targetRound = sectionMatch || liveRounds[0];
+        // Or match active Sample / Demo Test
+        const demoMatch = liveRounds.find((r) => {
+          const t = (r.title + ' ' + (r.description || '')).toLowerCase();
+          return t.includes('demo') || t.includes('sample');
+        });
+
+        targetRound = sectionMatch || demoMatch || liveRounds[0];
         roundIdToUse = targetRound.id;
       }
     }

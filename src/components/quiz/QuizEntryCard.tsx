@@ -210,11 +210,29 @@ export default function QuizEntryCard() {
 
             {/* Live Test Badge if Active */}
             {activeRound && (
-              <div className="px-3.5 py-2 rounded-xl bg-white/5 border border-white/15 flex items-center justify-between text-xs mb-1">
-                <span className="font-[family-name:var(--font-heading)] text-white font-bold uppercase tracking-wider text-[11px]">
-                  ⚡ {activeRound.title || `Weekly Test #${activeRound.round_number}`} (50 Qs)
-                </span>
-                <span className="font-[family-name:var(--font-mono)] text-[#FF0033] font-semibold">
+              <div
+                className="px-3.5 py-2 rounded-xl border flex items-center justify-between text-xs mb-1 transition-all"
+                style={{
+                  background: activeRound.round_number === 0
+                    ? 'linear-gradient(135deg, rgba(0,229,255,0.15), rgba(168,85,247,0.15))'
+                    : 'rgba(255,255,255,0.05)',
+                  borderColor: activeRound.round_number === 0
+                    ? 'rgba(0,229,255,0.4)'
+                    : 'rgba(255,255,255,0.15)',
+                  boxShadow: activeRound.round_number === 0
+                    ? '0 0 15px rgba(0,229,255,0.15)'
+                    : 'none',
+                }}
+              >
+                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                  <span className={`w-2 h-2 rounded-full ${activeRound.round_number === 0 ? 'bg-[#00E5FF]' : 'bg-emerald-400'} animate-pulse flex-shrink-0`} />
+                  <span className="font-[family-name:var(--font-heading)] text-white font-bold uppercase tracking-wider text-[11px] truncate">
+                    {activeRound.round_number === 0
+                      ? '🧪 Sample Demo Test (15 Qs)'
+                      : `⚡ ${activeRound.title || `Weekly Test #${activeRound.round_number}`} (50 Qs)`}
+                  </span>
+                </div>
+                <span className="font-[family-name:var(--font-mono)] text-[#00E5FF] font-bold flex-shrink-0">
                   ⏱️ {activeRound.duration_minutes}m
                 </span>
               </div>

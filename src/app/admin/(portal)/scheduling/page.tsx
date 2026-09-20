@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
@@ -27,16 +28,28 @@ interface TestInfo {
   sections: SectionInfo[];
 }
 
+interface DemoTestInfo {
+  roundId: string;
+  title: string;
+  description?: string;
+  status: string;
+  duration_minutes: number;
+  questionCount: number;
+}
+
 export default function SchedulingDashboardPage() {
   const [tests, setTests] = useState<TestInfo[]>([]);
+  const [demoTest, setDemoTest] = useState<DemoTestInfo | null>(null);
   const [totalRounds, setTotalRounds] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedCycle, setSelectedCycle] = useState<number | 'all'>('all');
   const [expandedTest, setExpandedTest] = useState<number | null>(null);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | string | null>(null);
   const [editingDuration, setEditingDuration] = useState<number | null>(null);
   const [durationValue, setDurationValue] = useState(60);
+  const [demoDuration, setDemoDuration] = useState<number>(15);
+  const [editingDemoDuration, setEditingDemoDuration] = useState<boolean>(false);
 
   const fetchTests = useCallback(async () => {
     try {
@@ -49,6 +62,10 @@ export default function SchedulingDashboardPage() {
       const data = await res.json();
       if (res.ok) {
         setTests(data.tests || []);
+        setDemoTest(data.demo_test || null);
+        if (data.demo_test) {
+          setDemoDuration(data.demo_test.duration_minutes || 15);
+        }
         setTotalRounds(data.total_rounds || 0);
         setTotalQuestions(data.total_questions || 0);
       }
@@ -121,6 +138,65 @@ export default function SchedulingDashboardPage() {
       setActionLoading(null);
     }
   };
+
+  const handleToggleDemo = async (activate: boolean) => {
+    setActionLoading('demo');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || 'admin';
+
+      const res = await fetch('/api/admin/scheduling', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: activate ? 'activate_demo' : 'deactivate_demo' }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to toggle demo test');
+
+      toast.success(json.message || 'Demo test updated');
+      fetchTests();
+    } catch (err: any) {
+      toast.error(err.message || 'Action failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateDemoDuration = async (minutes: number) => {
+    setActionLoading('demo-duration');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || 'admin';
+
+      const res = await fetch('/api/admin/scheduling', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'update_demo_duration',
+          duration_minutes: minutes,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update duration');
+
+      toast.success(json.message || `Demo duration set to ${minutes} mins`);
+      setEditingDemoDuration(false);
+      fetchTests();
+    } catch (err: any) {
+      toast.error(err.message || 'Update failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
 
   const liveTest = tests.find(t => t.status === 'live');
   const completedTests = tests.filter(t => t.status === 'completed').length;
@@ -223,6 +299,158 @@ export default function SchedulingDashboardPage() {
               <p className="font-[family-name:var(--font-mono)] font-bold text-lg text-white">{stat.value}</p>
             </div>
           ))}
+        </div>
+      </FadeIn>
+
+      {/* ═══ SAMPLE / DEMO TEST CONTROLLER ═══ */}
+      <FadeIn delay={0.05}>
+        <div
+          className="rounded-3xl p-6 border transition-all relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0, 229, 255, 0.08) 0%, rgba(168, 85, 247, 0.08) 50%, rgba(0, 0, 0, 0.95) 100%)',
+            borderColor: demoTest?.status === 'live' ? '#00E5FF80' : 'rgba(255,255,255,0.15)',
+            boxShadow: demoTest?.status === 'live' ? '0 0 35px rgba(0,229,255,0.2), inset 0 1px 0 rgba(255,255,255,0.2)' : '0 10px 30px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            {/* Left: Info */}
+            <div className="space-y-3 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-extrabold bg-[#00E5FF]/20 border border-[#00E5FF]/50 text-[#00E5FF] tracking-wider uppercase flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse" />
+                  DEPARTMENT SAMPLE & DEMO TEST ✦
+                </span>
+
+                <span
+                  className="px-3 py-1 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase tracking-wider"
+                  style={{
+                    background: demoTest?.status === 'live' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)',
+                    color: demoTest?.status === 'live' ? '#10B981' : '#94A3B8',
+                    border: `1px solid ${demoTest?.status === 'live' ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.2)'}`,
+                  }}
+                >
+                  {demoTest?.status === 'live' ? '🟢 LIVE (READY FOR COLLEAGUES)' : '⏸️ DRAFT (INACTIVE)'}
+                </span>
+
+                <span className="px-3 py-1 rounded-full text-[10px] font-[family-name:var(--font-mono)] font-bold bg-[#FFD700]/15 border border-[#FFD700]/40 text-[#FFD700]">
+                  📝 15 Questions (10 MCQs + 5 Fill-in-the-blanks)
+                </span>
+              </div>
+
+              <div>
+                <h2 className="font-[family-name:var(--font-display)] font-extrabold text-xl md:text-2xl text-white flex items-center gap-2">
+                  <span>{demoTest?.title || 'Sample Demo Test — ECE Platform Compatibility Trial'}</span>
+                </h2>
+                <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#CBD5E1] mt-1 leading-relaxed">
+                  {demoTest?.description || 'Colleague & student trial test to practically verify web responsiveness, question display, fill-in-the-blanks engine, and collect attendance data.'}
+                </p>
+              </div>
+
+              {/* Status pills */}
+              <div className="flex flex-wrap items-center gap-4 text-xs font-[family-name:var(--font-mono)] text-[#94A3B8]">
+                <span className="flex items-center gap-1.5 text-[#00E5FF]">
+                  <Clock size={14} />
+                  Current Timer: <strong className="text-white font-bold">{demoTest?.duration_minutes || demoDuration} Minutes</strong>
+                </span>
+                <span className="flex items-center gap-1.5 text-[#A855F7]">
+                  <Users size={14} />
+                  Open to All 4 Sections (A, B, C, D)
+                </span>
+                <span className="flex items-center gap-1.5 text-emerald-400">
+                  <CheckCircle2 size={14} />
+                  Instant Attendance & Reports Logging
+                </span>
+              </div>
+            </div>
+
+            {/* Right: Controls (Activate/Deactivate + Timer controller + Attendance Link) */}
+            <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-3 flex-shrink-0">
+              {/* Primary Activate / Deactivate Toggle */}
+              <div className="flex items-center gap-2 w-full justify-end">
+                {demoTest?.status === 'live' ? (
+                  <button
+                    onClick={() => handleToggleDemo(false)}
+                    disabled={actionLoading === 'demo'}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-2xl text-xs font-bold font-[family-name:var(--font-heading)] bg-amber-500/20 border border-amber-500/50 text-amber-400 hover:bg-amber-500/35 transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.2)] disabled:opacity-50"
+                  >
+                    <Pause size={14} />
+                    <span>{actionLoading === 'demo' ? 'Deactivating...' : 'Disable Demo Test'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleToggleDemo(true)}
+                    disabled={actionLoading === 'demo'}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-2xl text-xs font-bold font-[family-name:var(--font-heading)] bg-emerald-500/25 border border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/40 transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                  >
+                    <Play size={14} />
+                    <span>{actionLoading === 'demo' ? 'Activating...' : '🚀 Activate Demo Test (Go Live)'}</span>
+                  </button>
+                )}
+
+                <Link
+                  href="/admin/participants"
+                  className="px-4 py-2.5 rounded-2xl text-xs font-bold font-[family-name:var(--font-heading)] bg-[#A855F7]/20 hover:bg-[#A855F7]/35 border border-[#A855F7]/40 text-[#D8B4FE] transition-all flex items-center gap-1.5"
+                  title="View Colleague Attendance Sheet"
+                >
+                  <BookOpen size={14} />
+                  <span>Attendance Sheet</span>
+                </Link>
+              </div>
+
+              {/* Timer / Duration Controller */}
+              <div className="w-full bg-black/60 border border-white/10 rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-[family-name:var(--font-heading)] text-[#CBD5E1]">
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} className="text-[#FFD700]" />
+                    <span>Timer Control:</span>
+                  </span>
+                  <span className="font-mono text-[#FFD700] font-bold">
+                    {demoDuration} Mins
+                  </span>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[5, 10, 15, 20, 30, 45].map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        setDemoDuration(m);
+                        handleUpdateDemoDuration(m);
+                      }}
+                      disabled={actionLoading === 'demo-duration'}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold font-mono transition-all cursor-pointer border ${
+                        demoDuration === m
+                          ? 'bg-[#FFD700]/25 text-[#FFD700] border-[#FFD700]/60'
+                          : 'bg-white/5 text-[#94A3B8] border-white/10 hover:bg-white/15 hover:text-white'
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+
+                  {/* Custom Duration Input */}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <input
+                      type="number"
+                      min={1}
+                      max={180}
+                      value={demoDuration}
+                      onChange={(e) => setDemoDuration(Number(e.target.value))}
+                      className="w-12 px-1.5 py-0.5 rounded-lg bg-black border border-white/20 text-white font-mono text-[10px] text-center"
+                    />
+                    <button
+                      onClick={() => handleUpdateDemoDuration(demoDuration)}
+                      disabled={actionLoading === 'demo-duration'}
+                      className="px-2 py-0.5 rounded-lg bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/40 text-[10px] font-bold hover:bg-[#00E5FF]/30 cursor-pointer"
+                    >
+                      Set
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </FadeIn>
 

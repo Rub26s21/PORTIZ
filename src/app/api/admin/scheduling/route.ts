@@ -94,8 +94,20 @@ export async function GET(req: NextRequest) {
 
   const tests = Object.values(testMap).sort((a, b) => a.testNumber - b.testNumber);
 
+  // Extract Demo / Sample Test (round_number: 0)
+  const demoRound = allRounds.find(r => r.round_number === 0 || r.title?.toLowerCase().includes('sample demo'));
+  const demoTest = demoRound ? {
+    roundId: demoRound.id,
+    title: demoRound.title,
+    description: demoRound.description,
+    status: demoRound.status,
+    duration_minutes: demoRound.duration_minutes || 15,
+    questionCount: (demoRound.questions as any)?.[0]?.count || 15,
+  } : null;
+
   return NextResponse.json({
     tests,
+    demo_test: demoTest,
     total_tests: tests.length,
     total_rounds: allRounds.length,
     total_questions: allRounds.reduce((sum, r) => sum + ((r.questions as any)?.[0]?.count || 0), 0),
@@ -112,6 +124,67 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { action, test_number, round_id, duration_minutes, title } = body;
+
+    // ── ACTION: Activate Sample Demo Test (round_number: 0) ──
+    if (action === 'activate_demo') {
+      const { data: demoRound, error: findErr } = await supabaseAdmin
+        .from('rounds')
+        .select('id, title')
+        .eq('round_number', 0)
+        .maybeSingle();
+
+      if (findErr || !demoRound) {
+        return NextResponse.json({ error: 'Sample Demo Test round not found' }, { status: 404 });
+      }
+
+      const { error: actErr } = await supabaseAdmin
+        .from('rounds')
+        .update({ status: 'live' })
+        .eq('id', demoRound.id);
+
+      if (actErr) {
+        return NextResponse.json({ error: actErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Sample Demo Test is now LIVE! Colleagues and students can now participate.',
+      });
+    }
+
+    // ── ACTION: Deactivate Sample Demo Test ──
+    if (action === 'deactivate_demo') {
+      const { error: deactErr } = await supabaseAdmin
+        .from('rounds')
+        .update({ status: 'draft' })
+        .eq('round_number', 0);
+
+      if (deactErr) {
+        return NextResponse.json({ error: deactErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Sample Demo Test has been deactivated (draft mode).',
+      });
+    }
+
+    // ── ACTION: Update Sample Demo Test Duration (Timer Control) ──
+    if (action === 'update_demo_duration' && duration_minutes) {
+      const { error: durErr } = await supabaseAdmin
+        .from('rounds')
+        .update({ duration_minutes: Number(duration_minutes) })
+        .eq('round_number', 0);
+
+      if (durErr) {
+        return NextResponse.json({ error: durErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Sample Demo Test duration updated to ${duration_minutes} minutes.`,
+      });
+    }
 
     // ── ACTION: Enable (activate) an entire test (all 4 section rounds go live) ──
     if (action === 'activate_test' && test_number) {

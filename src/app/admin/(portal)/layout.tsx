@@ -164,7 +164,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     { label: 'Faculty Analytics 📊', href: '/admin/analytics', icon: BarChart3 },
     { label: 'Scheduling 📅', href: '/admin/scheduling', icon: Calendar },
     { label: 'Questions Bank', href: '/admin/questions', icon: HelpCircle },
-    { label: 'Participants', href: '/admin/participants', icon: Users2 },
+    { label: 'Attendance & Reports 📋', href: '/admin/participants', icon: Users2 },
     { label: 'Leaderboard', href: '/admin/leaderboard', icon: Trophy },
     { label: 'Certificates', href: '/admin/certificates', icon: Award },
     { label: 'Settings', href: '/admin/settings', icon: Settings2 },
