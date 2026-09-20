@@ -1134,7 +1134,7 @@ export default function AdminDashboardPage() {
                   { label: 'Live Monitor', href: '/admin/rounds', icon: Activity, color: '#FF0033' },
                   { label: 'Participants Directory', href: '/admin/participants', icon: Users, color: '#FFFFFF' },
                   { label: 'Leaderboard Rankings', href: '/admin/leaderboard', icon: BarChart3, color: '#FFFFFF' },
-                  { label: 'Certificate Generator', href: '/admin/certificates', icon: Award, color: '#FFFFFF' },
+                  { label: 'Rank Holders 🏆', href: '/admin/certificates', icon: Award, color: '#FFFFFF' },
                 ].map((s) => (
                   <Link key={s.label} href={s.href}>
                     <div className="p-3 px-3.5 rounded-xl bg-[#000000] border border-[rgba(255,255,255,0.1)] hover:border-[rgba(255,255,255,0.3)] hover:bg-[rgba(255,255,255,0.05)] transition-all flex items-center justify-between gap-3 group cursor-pointer mb-1.5">
