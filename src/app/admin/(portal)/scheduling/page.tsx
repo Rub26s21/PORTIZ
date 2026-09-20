@@ -5,35 +5,38 @@ import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
 import FadeIn from '@/components/shared/FadeIn';
-import { Calendar, Clock, Sparkles, Plus, Trash2, Edit3, Play, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, Play, Pause, CheckCircle2, ChevronDown, ChevronUp, Settings, Layers, Users, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-interface ScheduledTest {
-  id: string;
-  round_number: number;
-  title: string;
-  description?: string;
+interface SectionInfo {
+  section: string;
+  roundId: string;
+  roundNumber: number;
+  batchNumber: string;
+  questionCount: number;
+  status: string;
+}
+
+interface TestInfo {
+  testNumber: number;
+  week: number;
+  testInWeek: number;
+  status: 'draft' | 'live' | 'completed';
   duration_minutes: number;
-  start_time?: string;
-  status: 'draft' | 'live' | 'completed' | 'archived';
-  questions?: { count: number }[];
-  created_at: string;
+  sections: SectionInfo[];
 }
 
 export default function SchedulingDashboardPage() {
-  const [tests, setTests] = useState<ScheduledTest[]>([]);
+  const [tests, setTests] = useState<TestInfo[]>([]);
+  const [totalRounds, setTotalRounds] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [expandedTest, setExpandedTest] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [editingDuration, setEditingDuration] = useState<number | null>(null);
+  const [durationValue, setDurationValue] = useState(60);
 
-  // Modal State (Create / Edit)
-  const [showModal, setShowModal] = useState(false);
-  const [editingTestId, setEditingTestId] = useState<string | null>(null);
-  const [testTitle, setTestTitle] = useState('Weekly Test 1');
-  const [durationMinutes, setDurationMinutes] = useState(60); // Default 60 Minutes (1 Hour)
-  const [startTime, setStartTime] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [autoGenerating, setAutoGenerating] = useState(false);
-
-  const fetchScheduledTests = useCallback(async () => {
+  const fetchTests = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
@@ -43,156 +46,97 @@ export default function SchedulingDashboardPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setTests(data.scheduled_tests || []);
+        setTests(data.tests || []);
+        setTotalRounds(data.total_rounds || 0);
+        setTotalQuestions(data.total_questions || 0);
       }
     } catch {
-      toast.error('Failed to load scheduled tests');
+      toast.error('Failed to load test schedule');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchScheduledTests();
-  }, [fetchScheduledTests]);
+    fetchTests();
+  }, [fetchTests]);
 
-  // ── AUTO-GENERATE MONDAY & FRIDAY WEEKLY TESTS (6:00 PM, 1 HOUR, 50 QS) ──
-  const handleAutoGenerateMonFri = async () => {
-    setAutoGenerating(true);
+  const handleAction = async (action: string, testNumber: number) => {
+    setActionLoading(testNumber);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
 
-      const res = await fetch('/api/admin/scheduling', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ action: 'auto_generate_mon_fri' }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to auto-generate tests');
-
-      toast.success(`🎉 Auto-Generated Monday & Friday Weekly Tests at 6:00 PM (1 Hour Duration, 50 Qs per test)! 🚀`);
-      fetchScheduledTests();
-    } catch (err: any) {
-      toast.error(err.message || 'Error generating weekly tests');
-    } finally {
-      setAutoGenerating(false);
-    }
-  };
-
-  // ── SAVE OR EDIT SINGLE TEST ──
-  const handleSaveOrEditTest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || 'admin';
-
-      if (editingTestId) {
-        // EDIT EXISTING TEST & TIMER
-        const res = await fetch('/api/admin/scheduling', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            id: editingTestId,
-            title: testTitle,
-            duration_minutes: durationMinutes,
-            start_time: startTime || null,
-          }),
-        });
-
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to update test timer');
-        toast.success(`Updated ${testTitle}! Duration set to ${durationMinutes} minutes! ✏️`);
-      } else {
-        // SCHEDULE NEW TEST
-        const res = await fetch('/api/admin/scheduling', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            title: testTitle,
-            duration_minutes: durationMinutes,
-            start_time: startTime || new Date().toISOString(),
-            total_target_questions: 50,
-          }),
-        });
-
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to schedule test');
-
-        toast.success(`🎉 ${json.scheduled_test.title} Scheduled! 50 Questions compiled across subjects! 🚀`);
-      }
-
-      setShowModal(false);
-      fetchScheduledTests();
-    } catch (err: any) {
-      toast.error(err.message || 'Error saving test');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleOpenEditModal = (test: ScheduledTest) => {
-    setEditingTestId(test.id);
-    setTestTitle(test.title);
-    setDurationMinutes(test.duration_minutes || 60);
-    setStartTime(test.start_time ? new Date(test.start_time).toISOString().slice(0, 16) : '');
-    setShowModal(true);
-  };
-
-  const handleToggleStatus = async (testId: string, currentStatus: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || 'admin';
-
-      const newStatus = currentStatus === 'live' ? 'draft' : 'live';
       const res = await fetch('/api/admin/scheduling', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ id: testId, status: newStatus }),
+        body: JSON.stringify({ action, test_number: testNumber }),
       });
 
-      if (!res.ok) throw new Error('Failed to update status');
-      toast.success(`Test marked as ${newStatus.toUpperCase()}`);
-      fetchScheduledTests();
-    } catch {
-      toast.error('Failed to update test status');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Action failed');
+
+      toast.success(json.message || 'Action completed');
+      fetchTests();
+    } catch (err: any) {
+      toast.error(err.message || 'Action failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleDeleteTest = async (testId: string) => {
-    if (!confirm('Are you sure you want to delete this scheduled test?')) return;
+  const handleUpdateDuration = async (testNumber: number) => {
+    setActionLoading(testNumber);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || 'admin';
 
-      const res = await fetch(`/api/admin/rounds/${testId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch('/api/admin/scheduling', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'update_duration',
+          test_number: testNumber,
+          duration_minutes: durationValue,
+        }),
       });
 
-      if (!res.ok) throw new Error('Failed to delete test');
-      toast.success('Scheduled test deleted');
-      fetchScheduledTests();
-    } catch {
-      toast.error('Failed to delete test');
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Update failed');
+
+      toast.success(`Duration updated to ${durationValue} minutes`);
+      setEditingDuration(null);
+      fetchTests();
+    } catch (err: any) {
+      toast.error(err.message || 'Update failed');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const cleanShadow = '0 4px 20px rgba(0,0,0,0.8)';
+  const liveTest = tests.find(t => t.status === 'live');
+  const completedTests = tests.filter(t => t.status === 'completed').length;
+  const draftTests = tests.filter(t => t.status === 'draft').length;
+
+  const getStatusColor = (status: string) => {
+    if (status === 'live') return { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)', text: '#10B981' };
+    if (status === 'completed') return { bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.4)', text: '#818CF8' };
+    return { bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.15)', text: '#94A3B8' };
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'live') return '🔴 LIVE NOW';
+    if (status === 'completed') return '✅ COMPLETED';
+    return '⏸️ DRAFT';
+  };
+
+  const getWeekLabel = (week: number) => `Week ${week}`;
 
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-[1400px] mx-auto relative z-10" style={{ background: '#000000', minHeight: '100vh', color: '#FFFFFF' }}>
@@ -204,249 +148,308 @@ export default function SchedulingDashboardPage() {
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.2)] w-fit mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-pulse" />
               <span className="font-[family-name:var(--font-heading)] text-[10px] font-semibold tracking-widest text-[#00E5FF] uppercase">
-                TEST SCHEDULER & AUTOMATION HUB ✦
+                BATCH-BASED TEST SCHEDULER ✦
               </span>
             </div>
 
             <h1 className="font-[family-name:var(--font-display)] font-extrabold text-2xl md:text-3xl text-[#FFFFFF]">
-              Weekly Test Scheduling
+              Test Scheduling Dashboard
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              Auto-generate 50-Question Weekly Tests for Monday & Friday (6:00 PM, 1 Hour Duration) with editable timers
+              1,600 Questions → 32 Batches → 8 Tests (4 Sections each) → 4 Weeks of Zero-Repetition Testing
             </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <GalaxyButton
-              variant="gold"
-              size="sm"
-              onClick={handleAutoGenerateMonFri}
-              loading={autoGenerating}
-              className="!border-[#FFD700] !text-[#FFD700] shadow-[0_0_20px_rgba(255,215,0,0.3)]"
-            >
-              <RefreshCw size={14} /> Auto-Generate Mon & Fri Tests (6 PM)
-            </GalaxyButton>
-
-            <GalaxyButton
-              variant="cyan"
-              size="sm"
-              onClick={() => {
-                setEditingTestId(null);
-                setTestTitle(`Weekly Test ${tests.length + 1}`);
-                setDurationMinutes(60);
-                setStartTime('');
-                setShowModal(true);
-              }}
-              className="!border-[#00E5FF] !text-[#00E5FF] shadow-[0_0_20px_rgba(0,229,255,0.3)]"
-            >
-              <Plus size={14} /> Schedule Custom Test
-            </GalaxyButton>
           </div>
         </div>
 
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
       </FadeIn>
 
-      {/* ═══ SCHEDULED TESTS LIST ═══ */}
+      {/* ═══ SUMMARY STATS ═══ */}
+      <FadeIn delay={0.03}>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Total Tests', value: tests.length, icon: Layers, color: '#00E5FF' },
+            { label: 'Total Rounds', value: totalRounds, icon: BookOpen, color: '#A855F7' },
+            { label: 'Total Questions', value: totalQuestions.toLocaleString(), icon: Calendar, color: '#FFD700' },
+            { label: 'Currently Live', value: liveTest ? `Test ${liveTest.testNumber}` : 'None', icon: Play, color: '#10B981' },
+            { label: 'Completed / Remaining', value: `${completedTests} / ${draftTests}`, icon: CheckCircle2, color: '#818CF8' },
+          ].map((stat, idx) => (
+            <div
+              key={idx}
+              className="rounded-2xl p-4 border transition-all"
+              style={{
+                background: '#000000',
+                borderColor: `${stat.color}30`,
+                boxShadow: `0 0 20px ${stat.color}10`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1.5">
+                <stat.icon size={14} style={{ color: stat.color }} />
+                <span className="font-[family-name:var(--font-heading)] text-[10px] font-semibold tracking-wider uppercase" style={{ color: stat.color }}>
+                  {stat.label}
+                </span>
+              </div>
+              <p className="font-[family-name:var(--font-mono)] font-bold text-lg text-white">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+      </FadeIn>
+
+      {/* ═══ TEST CARDS ═══ */}
       <FadeIn delay={0.06}>
         {loading ? (
-          <div className="py-20 text-center text-xs text-[#94A3B8]">Loading scheduled tests...</div>
+          <div className="py-20 text-center text-xs text-[#94A3B8]">Loading test schedule...</div>
         ) : tests.length === 0 ? (
           <GlassCard variant="solid" radius={24} hover={false} noHover className="!p-16 text-center border border-[rgba(255,255,255,0.12)]" style={{ background: '#000000' }}>
             <Calendar size={48} className="mx-auto text-[#64748B] opacity-40 mb-3" />
             <h3 className="font-[family-name:var(--font-display)] font-bold text-lg text-[#FFFFFF]">
-              No scheduled tests found
+              No tests scheduled
             </h3>
             <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] mt-1 max-w-md mx-auto">
-              Click &quot;Auto-Generate Mon & Fri Tests&quot; to automatically create upcoming Monday and Friday tests (6:00 PM, 1 Hour, 50 Qs), or schedule a custom test paper!
+              Run the batch migration to create 8 tests across 4 weeks.
             </p>
-            <div className="flex justify-center gap-3 mt-5">
-              <GalaxyButton variant="gold" size="sm" onClick={handleAutoGenerateMonFri}>
-                <RefreshCw size={14} /> Auto-Generate Mon & Fri Tests
-              </GalaxyButton>
-              <GalaxyButton variant="cyan" size="sm" onClick={() => setShowModal(true)}>
-                <Plus size={14} /> Schedule Custom Test
-              </GalaxyButton>
-            </div>
           </GlassCard>
         ) : (
           <div className="space-y-4">
-            {tests.map((test, index) => {
-              const qCount = test.questions?.[0]?.count || 50;
+            {/* Group by week */}
+            {[1, 2, 3, 4].map(weekNum => {
+              const weekTests = tests.filter(t => t.week === weekNum);
+              if (weekTests.length === 0) return null;
 
               return (
-                <GlassCard
-                  key={test.id}
-                  variant="elevated"
-                  radius={20}
-                  hover={false}
-                  noHover
-                  className="!p-6 border border-[rgba(255,255,255,0.12)] transition-all"
-                  style={{ background: '#000000', boxShadow: cleanShadow }}
-                >
-                  <div className="flex flex-col md:flex-row items-start justify-between gap-4">
-                    <div className="space-y-3 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-[family-name:var(--font-mono)] font-bold text-xs px-2.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] text-white">
-                          #{index + 1}
-                        </span>
-
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(0,229,255,0.14)] border border-[rgba(0,229,255,0.3)] text-[#00E5FF] uppercase">
-                          📝 {qCount} Questions
-                        </span>
-
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(255,215,0,0.14)] border border-[rgba(255,215,0,0.3)] text-[#FFD700] uppercase">
-                          ⏱️ {test.duration_minutes || 60} Mins (1 Hour)
-                        </span>
-
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase ${
-                          test.status === 'live'
-                            ? 'bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.4)] text-[#10B981]'
-                            : 'bg-[rgba(245,158,11,0.15)] border border-[rgba(245,158,11,0.4)] text-[#F59E0B]'
-                        }`}>
-                          {test.status === 'live' ? '🔴 LIVE NOW' : '⏳ SCHEDULED DRAFT'}
-                        </span>
-                      </div>
-
-                      <h2 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white">
-                        {test.title}
-                      </h2>
-
-                      <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8]">
-                        {test.description || 'Automated multi-subject weekly test paper compiled across active subject bank.'}
-                      </p>
-
-                      <div className="flex flex-wrap gap-4 text-xs font-[family-name:var(--font-mono)] text-[#00E5FF]">
-                        <span className="flex items-center gap-1">
-                          <Calendar size={13} />
-                          {test.start_time ? new Date(test.start_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'Flexible'}
-                        </span>
-                        <span className="flex items-center gap-1 text-[#FFD700]">
-                          <Clock size={13} />
-                          Timer: {test.duration_minutes} Mins
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleOpenEditModal(test)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center gap-1.5"
-                        title="Edit test title, date, or timer duration"
-                      >
-                        <Edit3 size={13} />
-                        <span>Edit Timer / Info</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleStatus(test.id, test.status)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] transition-all cursor-pointer flex items-center gap-1.5 ${
-                          test.status === 'live'
-                            ? 'bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/35'
-                            : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/35'
-                        }`}
-                      >
-                        {test.status === 'live' ? (
-                          <><span>Pause Test</span></>
-                        ) : (
-                          <><Play size={13} /><span>Make Live Now</span></>
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteTest(test.id)}
-                        className="p-2 rounded-xl bg-[rgba(255,0,51,0.14)] hover:bg-[rgba(255,0,51,0.25)] border border-[rgba(255,0,51,0.3)] text-[#FF4569] transition-colors cursor-pointer"
-                        title="Delete scheduled test"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                <div key={weekNum} className="space-y-3">
+                  {/* Week Header */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className="font-[family-name:var(--font-heading)] text-xs font-bold tracking-widest text-[#FFD700] uppercase">
+                      📅 {getWeekLabel(weekNum)}
+                    </span>
+                    <div className="flex-1 h-[1px] bg-gradient-to-r from-[#FFD70040] to-transparent" />
+                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-[#94A3B8]">
+                      {weekTests.length} tests • {weekTests.length * 4} batches • {weekTests.length * 200} questions
+                    </span>
                   </div>
-                </GlassCard>
+
+                  {weekTests.map(test => {
+                    const sc = getStatusColor(test.status);
+                    const isExpanded = expandedTest === test.testNumber;
+                    const isLoading = actionLoading === test.testNumber;
+                    const isEditingDur = editingDuration === test.testNumber;
+
+                    return (
+                      <div
+                        key={test.testNumber}
+                        className="rounded-2xl border transition-all overflow-hidden"
+                        style={{
+                          background: '#000000',
+                          borderColor: test.status === 'live' ? '#10B98150' : 'rgba(255,255,255,0.1)',
+                          boxShadow: test.status === 'live' ? '0 0 30px rgba(16,185,129,0.15)' : '0 4px 20px rgba(0,0,0,0.8)',
+                        }}
+                      >
+                        {/* Test Card Header */}
+                        <div className="p-5 flex flex-col md:flex-row items-start justify-between gap-4">
+                          <div className="space-y-2.5 flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-[family-name:var(--font-mono)] font-bold text-xs px-2.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] text-white">
+                                Test {test.testNumber}
+                              </span>
+
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(255,215,0,0.14)] border border-[rgba(255,215,0,0.3)] text-[#FFD700] uppercase">
+                                {getWeekLabel(test.week)} • Test {test.testInWeek}
+                              </span>
+
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase"
+                                style={{ background: sc.bg, borderColor: sc.border, color: sc.text, border: `1px solid ${sc.border}` }}
+                              >
+                                {getStatusLabel(test.status)}
+                              </span>
+
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(0,229,255,0.14)] border border-[rgba(0,229,255,0.3)] text-[#00E5FF] uppercase">
+                                📝 4 × 50 = 200 Questions
+                              </span>
+                            </div>
+
+                            <h2 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white">
+                              {getWeekLabel(test.week)} — Test {test.testInWeek}
+                            </h2>
+
+                            <div className="flex flex-wrap gap-4 text-xs font-[family-name:var(--font-mono)]">
+                              <span className="flex items-center gap-1 text-[#FFD700]">
+                                <Clock size={13} />
+                                Duration: {test.duration_minutes} Mins
+                              </span>
+                              <span className="flex items-center gap-1 text-[#94A3B8]">
+                                <Users size={13} />
+                                4 Sections (A, B, C, D)
+                              </span>
+                              <span className="flex items-center gap-1 text-[#A855F7]">
+                                <Layers size={13} />
+                                Batches: {test.sections.map(s => `#${s.batchNumber}`).join(', ')}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                            {/* Duration Edit */}
+                            {isEditingDur ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  value={durationValue}
+                                  onChange={(e) => setDurationValue(Number(e.target.value))}
+                                  className="w-16 px-2 py-1.5 rounded-lg bg-black border border-[#FFD700]/40 text-[#FFD700] text-xs font-bold font-[family-name:var(--font-mono)] text-center"
+                                  min={10}
+                                  max={180}
+                                />
+                                <button
+                                  onClick={() => handleUpdateDuration(test.testNumber)}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] hover:bg-[#FFD700]/30 transition-all cursor-pointer"
+                                  disabled={isLoading}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingDuration(null)}
+                                  className="px-2 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setEditingDuration(test.testNumber); setDurationValue(test.duration_minutes); }}
+                                className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center gap-1.5"
+                                title="Change test duration"
+                              >
+                                <Settings size={13} />
+                                <span>Duration</span>
+                              </button>
+                            )}
+
+                            {/* Enable / Disable Test */}
+                            {test.status === 'live' ? (
+                              <button
+                                onClick={() => handleAction('deactivate_test', test.testNumber)}
+                                disabled={isLoading}
+                                className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                              >
+                                <Pause size={13} />
+                                <span>{isLoading ? 'Stopping...' : 'Disable Test'}</span>
+                              </button>
+                            ) : test.status === 'completed' ? (
+                              <span className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center gap-1.5">
+                                <CheckCircle2 size={13} />
+                                <span>Completed</span>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleAction('activate_test', test.testNumber)}
+                                disabled={isLoading}
+                                className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/35 transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                              >
+                                <Play size={13} />
+                                <span>{isLoading ? 'Enabling...' : 'Enable Test'}</span>
+                              </button>
+                            )}
+
+                            {/* Mark Complete */}
+                            {test.status === 'live' && (
+                              <button
+                                onClick={() => handleAction('complete_test', test.testNumber)}
+                                disabled={isLoading}
+                                className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                              >
+                                <CheckCircle2 size={13} />
+                                <span>Mark Complete</span>
+                              </button>
+                            )}
+
+                            {/* Expand Details */}
+                            <button
+                              onClick={() => setExpandedTest(isExpanded ? null : test.testNumber)}
+                              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer"
+                              title="View batch details"
+                            >
+                              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded Section Details */}
+                        {isExpanded && (
+                          <div className="px-5 pb-5 pt-0">
+                            <div className="h-[1px] w-full mb-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.15)] to-transparent" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                              {test.sections.map(sec => {
+                                const secColors: Record<string, string> = {
+                                  A: '#00E5FF',
+                                  B: '#A855F7',
+                                  C: '#FFD700',
+                                  D: '#F43F5E',
+                                };
+                                const color = secColors[sec.section] || '#94A3B8';
+
+                                return (
+                                  <div
+                                    key={sec.section}
+                                    className="rounded-xl p-4 border transition-all"
+                                    style={{
+                                      background: `${color}08`,
+                                      borderColor: `${color}30`,
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-[family-name:var(--font-display)] font-extrabold text-base" style={{ color }}>
+                                        Section {sec.section}
+                                      </span>
+                                      <span
+                                        className="px-2 py-0.5 rounded-full text-[9px] font-[family-name:var(--font-heading)] font-bold uppercase"
+                                        style={{
+                                          background: sec.status === 'live' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                                          color: sec.status === 'live' ? '#10B981' : '#94A3B8',
+                                          border: `1px solid ${sec.status === 'live' ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                        }}
+                                      >
+                                        {sec.status}
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-1 text-xs font-[family-name:var(--font-mono)]">
+                                      <div className="flex justify-between">
+                                        <span className="text-[#94A3B8]">Batch</span>
+                                        <span className="text-white font-bold">#{sec.batchNumber}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-[#94A3B8]">Questions</span>
+                                        <span className="text-white font-bold">{sec.questionCount}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-[#94A3B8]">Round #</span>
+                                        <span className="text-white font-bold">{sec.roundNumber}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="mt-3 p-3 rounded-xl bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.15)]">
+                              <p className="text-[11px] text-[#94A3B8] font-[family-name:var(--font-body)] leading-relaxed">
+                                <span className="text-[#00E5FF] font-bold">🔒 Zero-Repetition Guarantee:</span> Each batch is used exactly once across the entire test cycle. Students within the same section receive the same 50 questions but in individually shuffled order.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               );
             })}
           </div>
         )}
       </FadeIn>
-
-      {/* ═══ SCHEDULE / EDIT TEST MODAL ═══ */}
-      {showModal && (
-        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/90 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/80" onClick={() => setShowModal(false)} />
-
-          <div className="relative z-10 w-full max-w-lg bg-[#08080C] border border-[#00E5FF]/40 rounded-3xl shadow-[0_0_50px_rgba(0,229,255,0.2)] overflow-hidden my-auto p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <h3 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white flex items-center gap-2">
-                <span className="text-[#00E5FF]">📅</span> {editingTestId ? 'Edit Test & Timer' : 'Schedule Weekly Test'}
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold flex items-center justify-center transition-all cursor-pointer text-xs"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveOrEditTest} className="space-y-4">
-              <div>
-                <label className="form-label text-xs text-[#E2E8F0] font-bold">Test Title</label>
-                <input
-                  type="text"
-                  value={testTitle}
-                  onChange={(e) => setTestTitle(e.target.value)}
-                  placeholder="e.g. Weekly Test 1 (Monday 6:00 PM)"
-                  className="form-input bg-[#000000] text-white border border-white/20 text-xs"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label text-xs text-[#E2E8F0] font-bold">Start Date & Time (Default 6:00 PM)</label>
-                  <input
-                    type="datetime-local"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="form-input bg-[#000000] text-white border border-white/20 text-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="form-label text-xs text-[#FFD700] font-bold">Timer Duration (Minutes)</label>
-                  <input
-                    type="number"
-                    value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    placeholder="60"
-                    className="form-input bg-[#000000] text-[#FFD700] border border-[#FFD700]/40 text-xs font-bold font-[family-name:var(--font-mono)]"
-                    required
-                  />
-                  <span className="text-[10px] text-[#94A3B8]">Default: 60 mins (1 hour)</span>
-                </div>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 space-y-1 text-xs text-white">
-                <div className="font-bold flex items-center gap-1.5 text-[#00E5FF]">
-                  <Sparkles size={14} />
-                  <span>50-Question Automated Paper Generation:</span>
-                </div>
-                <p className="text-[11px] text-[#94A3B8] leading-relaxed">
-                  The system automatically compiles an equal random quota of 50 questions across all subjects containing questions in your Question Bank. You can edit the timer anytime!
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <GalaxyButton variant="secondary" size="sm" type="button" onClick={() => setShowModal(false)}>
-                  Cancel
-                </GalaxyButton>
-                <GalaxyButton variant="cyan" size="sm" type="submit" loading={submitting}>
-                  {editingTestId ? '✏️ Save Timer & Details' : '📅 Schedule Test Now'}
-                </GalaxyButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

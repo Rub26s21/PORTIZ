@@ -2,236 +2,104 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, isAuthError } from '@/lib/auth-helpers';
 import { supabaseAdmin } from '@/lib/supabase/server';
 
-// ── GET: LIST ALL SCHEDULED TESTS ──
+// ── GET: LIST ALL TESTS GROUPED BY TEST NUMBER ──
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (isAuthError(auth)) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  // Fetch all rounds ordered by round_number
   const { data: rounds, error } = await supabaseAdmin
     .from('rounds')
     .select('*, questions(count)')
-    .order('created_at', { ascending: false });
+    .order('round_number', { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ scheduled_tests: rounds || [] });
-}
+  // Group rounds into tests (every 4 consecutive rounds = 1 test with 4 sections)
+  // Round titles follow: "Test N — Section X"
+  const allRounds = rounds || [];
+  const testMap: Record<number, {
+    testNumber: number;
+    week: number;
+    testInWeek: number;
+    status: 'draft' | 'live' | 'completed';
+    duration_minutes: number;
+    sections: Array<{
+      section: string;
+      roundId: string;
+      roundNumber: number;
+      batchNumber: string;
+      questionCount: number;
+      status: string;
+    }>;
+  }> = {};
 
-// Helper: Compile 50 balanced random questions across active subjects
-async function generate50QuestionPaper(roundId: string) {
-  const { data: allQuestions } = await supabaseAdmin.from('questions').select('*');
-  if (!allQuestions || allQuestions.length === 0) return 0;
+  allRounds.forEach(round => {
+    // Parse test number from title: "Test N — Section X"
+    const testMatch = round.title?.match(/Test\s+(\d+)\s*[—–-]\s*Section\s+([A-D])/i);
+    if (!testMatch) return;
 
-  const subjectMap: Record<string, any[]> = {};
-  allQuestions.forEach((q) => {
-    const sub = q.subject_name || q.category || 'General';
-    if (!subjectMap[sub]) subjectMap[sub] = [];
-    subjectMap[sub].push(q);
-  });
+    const testNum = parseInt(testMatch[1], 10);
+    const sec = testMatch[2].toUpperCase();
 
-  const activeSubjects = Object.keys(subjectMap);
-  const numSubjects = activeSubjects.length;
-  if (numSubjects === 0) return 0;
-
-  const baseQuota = Math.floor(50 / numSubjects);
-  let remainder = 50 % numSubjects;
-
-  const selectedQuestions: any[] = [];
-  activeSubjects.forEach((subName) => {
-    const qList = subjectMap[subName];
-    let quota = baseQuota + (remainder > 0 ? 1 : 0);
-    if (remainder > 0) remainder--;
-
-    const shuffled = [...qList].sort(() => Math.random() - 0.5);
-    const picked = shuffled.slice(0, quota);
-    selectedQuestions.push(...picked);
-  });
-
-  // Fisher-Yates Shuffle on the combined 50-question pool across subjects
-  const final50Questions = [...selectedQuestions];
-  for (let i = final50Questions.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [final50Questions[i], final50Questions[j]] = [final50Questions[j], final50Questions[i]];
-  }
-
-  // Ensure strict cap of max 50 questions
-  const capped50Questions = final50Questions.slice(0, 50);
-
-  const insertPayloads = capped50Questions.map((q, idx) => ({
-    round_id: roundId,
-    subject_id: q.subject_id,
-    subject_name: q.subject_name || q.category,
-    question_type: q.question_type || 'mcq',
-    question_text: q.question_text,
-    options: q.options,
-    correct_answer: q.correct_answer,
-    marks: q.marks || 2,
-    negative_marks: q.negative_marks || 0.5,
-    image_url: q.image_url,
-    image_alt: q.image_alt,
-    category: q.category,
-    explanation: q.explanation,
-    order_index: idx + 1,
-  }));
-
-  await supabaseAdmin.from('questions').insert(insertPayloads);
-  return capped50Questions.length;
-}
-
-// Helper: Calculate next Monday and Friday at 6:00 PM (18:00)
-function getNextMondayAndFridayAt6PM() {
-  const now = new Date();
-  
-  // Next Monday
-  const monday = new Date(now);
-  const dayOfWeek = now.getDay();
-  const daysUntilMonday = (8 - dayOfWeek) % 7 || 7;
-  monday.setDate(now.getDate() + daysUntilMonday);
-  monday.setHours(18, 0, 0, 0);
-
-  // Next Friday
-  const friday = new Date(now);
-  const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
-  friday.setDate(now.getDate() + daysUntilFriday);
-  friday.setHours(18, 0, 0, 0);
-
-  return { monday, friday };
-}
-
-// ── POST: SCHEDULE SINGLE OR AUTOMATED MONDAY/FRIDAY TESTS ──
-export async function POST(req: NextRequest) {
-  const auth = await requireAdmin(req);
-  if (isAuthError(auth)) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
-  try {
-    const body = await req.json();
-    const { action } = body;
-
-    // ── AUTOMATED MONDAY & FRIDAY RECURRING SCHEDULER ──
-    if (action === 'auto_generate_mon_fri') {
-      const { monday, friday } = getNextMondayAndFridayAt6PM();
-
-      const { data: existingRounds } = await supabaseAdmin
-        .from('rounds')
-        .select('round_number')
-        .order('round_number', { ascending: false })
-        .limit(1);
-
-      let lastNum = existingRounds && existingRounds.length > 0 ? existingRounds[0].round_number : 0;
-
-      // 1. Create Monday Test
-      lastNum++;
-      const { data: monRound } = await supabaseAdmin
-        .from('rounds')
-        .insert({
-          round_number: lastNum,
-          title: `Weekly Test ${lastNum} (Monday 6:00 PM)`,
-          description: 'Automated 50-Question Monday Evening Department Assessment (1 Hour).',
-          duration_minutes: 60, // 1 Hour
-          start_time: monday.toISOString(),
-          status: 'live',
-          randomize_questions: true,
-          randomize_options: true,
-          negative_marking: true,
-          negative_marks_per_wrong: 0.5,
-          equal_subject_distribution: true,
-        })
-        .select()
-        .single();
-
-      if (monRound) {
-        await generate50QuestionPaper(monRound.id);
-      }
-
-      // 2. Create Friday Test
-      lastNum++;
-      const { data: friRound } = await supabaseAdmin
-        .from('rounds')
-        .insert({
-          round_number: lastNum,
-          title: `Weekly Test ${lastNum} (Friday 6:00 PM)`,
-          description: 'Automated 50-Question Friday Evening Department Assessment (1 Hour).',
-          duration_minutes: 60, // 1 Hour
-          start_time: friday.toISOString(),
-          status: 'live',
-          randomize_questions: true,
-          randomize_options: true,
-          negative_marking: true,
-          negative_marks_per_wrong: 0.5,
-          equal_subject_distribution: true,
-        })
-        .select()
-        .single();
-
-      if (friRound) {
-        await generate50QuestionPaper(friRound.id);
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Successfully generated Monday & Friday Weekly Tests at 6:00 PM (1 Hour Duration, 50 Qs per test)!',
-        scheduled: [monRound, friRound],
-      }, { status: 201 });
+    if (!testMap[testNum]) {
+      const week = Math.ceil(testNum / 2);
+      const testInWeek = ((testNum - 1) % 2) + 1;
+      testMap[testNum] = {
+        testNumber: testNum,
+        week,
+        testInWeek,
+        status: 'draft',
+        duration_minutes: round.duration_minutes || 60,
+        sections: [],
+      };
     }
 
-    // ── STANDARD SINGLE TEST SCHEDULER ──
-    const {
-      title = 'Weekly Department Test',
-      start_time = null,
-      duration_minutes = 60, // Default 1 Hour
-      total_target_questions = 50,
-    } = body;
+    // Extract batch number from description
+    const batchMatch = round.description?.match(/Batch\s*#?(\d+)/i);
+    const batchNum = batchMatch ? batchMatch[1] : '?';
 
-    const { data: existingRounds } = await supabaseAdmin
-      .from('rounds')
-      .select('round_number')
-      .order('round_number', { ascending: false })
-      .limit(1);
+    const qCount = (round.questions as any)?.[0]?.count || 50;
 
-    const nextNumber = existingRounds && existingRounds.length > 0 ? existingRounds[0].round_number + 1 : 1;
-    const finalTitle = title.trim() || `Weekly Test ${nextNumber}`;
+    testMap[testNum].sections.push({
+      section: sec,
+      roundId: round.id,
+      roundNumber: round.round_number,
+      batchNumber: batchNum,
+      questionCount: qCount,
+      status: round.status,
+    });
 
-    const { data: newRound, error: roundErr } = await supabaseAdmin
-      .from('rounds')
-      .insert({
-        round_number: nextNumber,
-        title: finalTitle,
-        description: `50-Question Department Assessment (${duration_minutes} Mins).`,
-        duration_minutes: Number(duration_minutes) || 60,
-        start_time: start_time || new Date().toISOString(),
-        status: 'live',
-        randomize_questions: true,
-        randomize_options: true,
-        negative_marking: true,
-        negative_marks_per_wrong: 0.5,
-        equal_subject_distribution: true,
-      })
-      .select()
-      .single();
-
-    if (roundErr || !newRound) {
-      return NextResponse.json({ error: roundErr?.message || 'Failed to schedule test' }, { status: 500 });
+    // A test is "live" if any of its section rounds are live
+    if (round.status === 'live') {
+      testMap[testNum].status = 'live';
     }
+  });
 
-    const qCount = await generate50QuestionPaper(newRound.id);
+  // Sort sections within each test
+  Object.values(testMap).forEach(test => {
+    test.sections.sort((a, b) => a.section.localeCompare(b.section));
+    // If all sections are completed/archived, mark test as completed
+    if (test.sections.length === 4 && test.sections.every(s => s.status === 'completed' || s.status === 'archived')) {
+      test.status = 'completed';
+    }
+  });
 
-    return NextResponse.json({
-      success: true,
-      scheduled_test: newRound,
-      total_questions: qCount,
-    }, { status: 201 });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
-  }
+  const tests = Object.values(testMap).sort((a, b) => a.testNumber - b.testNumber);
+
+  return NextResponse.json({
+    tests,
+    total_tests: tests.length,
+    total_rounds: allRounds.length,
+    total_questions: allRounds.reduce((sum, r) => sum + ((r.questions as any)?.[0]?.count || 0), 0),
+  });
 }
 
-// ── PUT: EDIT TEST TIMER / DETAILS ──
+// ── PUT: ACTIVATE/DEACTIVATE TEST OR EDIT DETAILS ──
 export async function PUT(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (isAuthError(auth)) {
@@ -240,30 +108,131 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, title, duration_minutes, start_time, status } = body;
+    const { action, test_number, round_id, duration_minutes, title } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Missing test ID' }, { status: 400 });
+    // ── ACTION: Enable (activate) an entire test (all 4 section rounds go live) ──
+    if (action === 'activate_test' && test_number) {
+      // First, deactivate ALL currently live rounds (only one test should be live at a time)
+      await supabaseAdmin
+        .from('rounds')
+        .update({ status: 'draft' })
+        .eq('status', 'live');
+
+      // Find all rounds for this test number
+      const { data: allRounds } = await supabaseAdmin
+        .from('rounds')
+        .select('id, title')
+        .like('title', `Test ${test_number} — Section%`);
+
+      if (!allRounds || allRounds.length === 0) {
+        return NextResponse.json({ error: `No rounds found for Test ${test_number}` }, { status: 404 });
+      }
+
+      const roundIds = allRounds.map(r => r.id);
+      const { error: activateErr } = await supabaseAdmin
+        .from('rounds')
+        .update({ status: 'live' })
+        .in('id', roundIds);
+
+      if (activateErr) {
+        return NextResponse.json({ error: activateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Test ${test_number} is now LIVE! All 4 sections activated.`,
+        activated_rounds: allRounds.map(r => r.title),
+      });
     }
 
-    const updatePayload: any = {};
-    if (title !== undefined) updatePayload.title = title;
-    if (duration_minutes !== undefined) updatePayload.duration_minutes = Number(duration_minutes);
-    if (start_time !== undefined) updatePayload.start_time = start_time;
-    if (status !== undefined) updatePayload.status = status;
+    // ── ACTION: Disable (deactivate) an entire test ──
+    if (action === 'deactivate_test' && test_number) {
+      const { data: allRounds } = await supabaseAdmin
+        .from('rounds')
+        .select('id, title')
+        .like('title', `Test ${test_number} — Section%`);
 
-    const { data: updatedRound, error } = await supabaseAdmin
-      .from('rounds')
-      .update(updatePayload)
-      .eq('id', id)
-      .select()
-      .single();
+      if (!allRounds || allRounds.length === 0) {
+        return NextResponse.json({ error: `No rounds found for Test ${test_number}` }, { status: 404 });
+      }
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      const roundIds = allRounds.map(r => r.id);
+      const { error: deactivateErr } = await supabaseAdmin
+        .from('rounds')
+        .update({ status: 'draft' })
+        .in('id', roundIds);
+
+      if (deactivateErr) {
+        return NextResponse.json({ error: deactivateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Test ${test_number} deactivated. All 4 sections set to draft.`,
+      });
     }
 
-    return NextResponse.json({ success: true, updated_test: updatedRound });
+    // ── ACTION: Mark test as completed ──
+    if (action === 'complete_test' && test_number) {
+      const { data: allRounds } = await supabaseAdmin
+        .from('rounds')
+        .select('id')
+        .like('title', `Test ${test_number} — Section%`);
+
+      if (allRounds) {
+        await supabaseAdmin
+          .from('rounds')
+          .update({ status: 'completed' })
+          .in('id', allRounds.map(r => r.id));
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Test ${test_number} marked as completed.`,
+      });
+    }
+
+    // ── ACTION: Update duration for all rounds in a test ──
+    if (action === 'update_duration' && test_number && duration_minutes) {
+      const { data: allRounds } = await supabaseAdmin
+        .from('rounds')
+        .select('id')
+        .like('title', `Test ${test_number} — Section%`);
+
+      if (allRounds) {
+        await supabaseAdmin
+          .from('rounds')
+          .update({ duration_minutes: Number(duration_minutes) })
+          .in('id', allRounds.map(r => r.id));
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Test ${test_number} duration updated to ${duration_minutes} minutes for all sections.`,
+      });
+    }
+
+    // ── FALLBACK: Update single round by ID ──
+    if (round_id) {
+      const updatePayload: Record<string, any> = {};
+      if (title !== undefined) updatePayload.title = title;
+      if (duration_minutes !== undefined) updatePayload.duration_minutes = Number(duration_minutes);
+
+      const { data: updatedRound, error: updateErr } = await supabaseAdmin
+        .from('rounds')
+        .update(updatePayload)
+        .eq('id', round_id)
+        .select()
+        .single();
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, updated_test: updatedRound });
+    }
+
+    return NextResponse.json({ error: 'Invalid action or missing parameters' }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
