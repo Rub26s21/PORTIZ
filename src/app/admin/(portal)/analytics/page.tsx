@@ -102,42 +102,55 @@ export default function FacultyAnalyticsPage() {
         violationsByAttId[ev.attempt_id] = (violationsByAttId[ev.attempt_id] || 0) + 1;
       });
 
-      // Compute Subject Accuracy across all responses
-      const subjectAggregation: Record<string, { total: number; correct: number }> = {
-        'Digital Electronics': { total: 0, correct: 0 },
-        'Microprocessors & Microcontrollers': { total: 0, correct: 0 },
-        'Embedded Systems': { total: 0, correct: 0 },
-        'VLSI Design': { total: 0, correct: 0 },
-        'Signals & Systems': { total: 0, correct: 0 },
-        'Analog Circuits': { total: 0, correct: 0 },
-        'Communication Systems': { total: 0, correct: 0 },
-        'Control Systems': { total: 0, correct: 0 },
-        'Electromagnetic Fields': { total: 0, correct: 0 },
-        'Basic Electrical Engineering': { total: 0, correct: 0 },
-        'Robotics & Automation': { total: 0, correct: 0 },
-      };
+      // 16 Official Canonical Subjects
+      const CANONICAL_SUBJECTS = [
+        'Analog Electronics',
+        'Circuit Analysis',
+        'Communication Systems',
+        'Control Systems',
+        'Digital Signal Processing',
+        'Digital System Design',
+        'Electronic Devices & Circuits',
+        'Embedded Systems',
+        'EMFT',
+        'Image Processing',
+        'Linear Integrated Circuits',
+        'Microprocessors & Microcontrollers',
+        'Network Security',
+        'Satellite Communication',
+        'Signals & Systems',
+        'VLSI Design',
+      ];
+
+      const subjectAggregation: Record<string, { total: number; correct: number }> = {};
+      CANONICAL_SUBJECTS.forEach((sub) => {
+        subjectAggregation[sub] = { total: 0, correct: 0 };
+      });
 
       (responses || []).forEach((r) => {
         const qData: any = r.questions;
         const sub = qData?.subject_name || qData?.category || 'General';
-        if (!subjectAggregation[sub]) {
-          subjectAggregation[sub] = { total: 0, correct: 0 };
+        const matched =
+          CANONICAL_SUBJECTS.find((s) => s.toLowerCase() === sub.toLowerCase()) || sub;
+
+        if (!subjectAggregation[matched]) {
+          subjectAggregation[matched] = { total: 0, correct: 0 };
         }
-        subjectAggregation[sub].total += 1;
-        if (r.is_correct || Math.random() > 0.3) {
-          subjectAggregation[sub].correct += 1;
+        subjectAggregation[matched].total += 1;
+        if (r.is_correct) {
+          subjectAggregation[matched].correct += 1;
         }
       });
 
       const parsedSubjectStats: SubjectStat[] = Object.entries(subjectAggregation)
         .map(([name, stat]) => {
-          const acc = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : Math.floor(65 + Math.random() * 25);
+          const acc = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
           return {
             subjectName: name,
-            totalAnswered: stat.total || Math.floor(180 + Math.random() * 80),
-            correctCount: stat.correct || Math.floor(130 + Math.random() * 60),
+            totalAnswered: stat.total,
+            correctCount: stat.correct,
             accuracy: acc,
-            status: (acc >= 75 ? 'Strong' : acc >= 55 ? 'Moderate' : 'Needs Revision') as 'Strong' | 'Moderate' | 'Needs Revision',
+            status: (stat.total === 0 ? 'Moderate' : acc >= 75 ? 'Strong' : acc >= 55 ? 'Moderate' : 'Needs Revision') as 'Strong' | 'Moderate' | 'Needs Revision',
           };
         })
         .sort((a, b) => b.accuracy - a.accuracy);
@@ -148,19 +161,33 @@ export default function FacultyAnalyticsPage() {
       const parsedStudents: StudentPerformance[] = (participants || []).map((p, idx) => {
         const att = attemptByPartId[p.id];
         const reg = (p.register_no || '').toUpperCase();
-        
-        // Infer section from reg number or distribution (A: 0-25, B: 25-50, C: 50-75, D: 75-100)
+        const roundTitle = (att as any)?.rounds?.title || '';
+
+        // Infer section from round title (e.g. "Test 1 — Section B") or reg number / distribution
         let sec = 'A';
-        if (reg.includes('15') || reg.includes('16') || reg.includes('17') || (idx >= 25 && idx < 50)) sec = 'B';
-        else if (reg.includes('20') || reg.includes('21') || reg.includes('22') || (idx >= 50 && idx < 75)) sec = 'C';
-        else if (reg.includes('25') || reg.includes('26') || reg.includes('27') || idx >= 75) sec = 'D';
+        const secMatch = roundTitle.match(/Section\s+([A-D])/i);
+        if (secMatch) {
+          sec = secMatch[1].toUpperCase();
+        } else if (reg.includes('15') || reg.includes('16') || reg.includes('17') || (idx >= 25 && idx < 50)) {
+          sec = 'B';
+        } else if (reg.includes('20') || reg.includes('21') || reg.includes('22') || (idx >= 50 && idx < 75)) {
+          sec = 'C';
+        } else if (reg.includes('25') || reg.includes('26') || reg.includes('27') || idx >= 75) {
+          sec = 'D';
+        }
 
         const score = att?.score !== null && att?.score !== undefined ? Number(att.score) : 0;
         const totalMarks = att?.total_marks || 100;
-        const accuracy = Math.round((score / totalMarks) * 100);
-        const status = att?.disqualified ? 'disqualified' : att?.status === 'submitted' ? 'submitted' : att?.status === 'in_progress' ? 'in_progress' : 'absent';
+        const accuracy = totalMarks > 0 ? Math.round((score / totalMarks) * 100) : 0;
+        const status = att?.disqualified
+          ? 'disqualified'
+          : att?.status === 'submitted'
+          ? 'submitted'
+          : att?.status === 'in_progress'
+          ? 'in_progress'
+          : 'absent';
 
-        const weakSubjects = ['Control Systems', 'Electromagnetic Fields', 'Signals & Systems', 'Analog Circuits'];
+        const weakSubjects = ['Control Systems', 'EMFT', 'Signals & Systems', 'Analog Electronics'];
         const weakest = weakSubjects[idx % weakSubjects.length];
 
         return {
@@ -168,15 +195,15 @@ export default function FacultyAnalyticsPage() {
           name: p.name || `Student ${idx + 1}`,
           registerNo: reg || `22ECE${String(idx + 1).padStart(3, '0')}`,
           section: sec,
-          roundTitle: (att as any)?.rounds?.title || 'Weekly Assessment #1',
+          roundTitle: roundTitle || 'Weekly Assessment #1',
           score,
           totalMarks,
           accuracy,
           status,
           disqualificationReason: att?.disqualification_reason,
           submittedAt: att?.submitted_at || p.created_at,
-          weakestSubject: score < 60 ? weakest : undefined,
-          violationsCount: att ? (violationsByAttId[att.id] || 0) : 0,
+          weakestSubject: score < 45 ? weakest : undefined,
+          violationsCount: att ? violationsByAttId[att.id] || 0 : 0,
         };
       });
 
@@ -224,13 +251,15 @@ export default function FacultyAnalyticsPage() {
     });
   }, [students, selectedSection, searchTerm]);
 
-  // Section KPI Calculations
+  // Section KPI Calculations (Accurate Real-Time Math without Hardcoded Fallbacks)
   const sectionMetrics = useMemo(() => {
     const calcForSection = (sec: string) => {
       const secStudents = students.filter((s) => sec === 'ALL' || s.section === sec);
-      const total = secStudents.length || 25;
-      const present = secStudents.filter((s) => s.status === 'submitted' || s.status === 'disqualified').length;
-      const absent = total - present;
+      const total = secStudents.length;
+      const present = secStudents.filter(
+        (s) => s.status === 'submitted' || s.status === 'disqualified' || s.status === 'in_progress'
+      ).length;
+      const absent = total > 0 ? total - present : 0;
       const scores = secStudents.filter((s) => s.status === 'submitted').map((s) => s.score);
       const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '0.0';
       const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
@@ -293,8 +322,9 @@ export default function FacultyAnalyticsPage() {
   const handleExportMonthlyReport = () => {
     const headers = ['Register Number', 'Student Name', 'Section', 'Tests Enrolled', 'Tests Attended', 'Attendance Rate %', 'Cumulative Avg Score (/100)', 'Performance Band', 'Academic Remarks'];
     const rows = filteredStudents.map((s) => {
-      const attended = s.status === 'submitted' ? 4 : 3;
-      const attRate = `${Math.round((attended / 4) * 100)}%`;
+      const testsEnrolled = 1;
+      const attended = s.status === 'submitted' ? 1 : 0;
+      const attRate = `${Math.round((attended / testsEnrolled) * 100)}%`;
       const band = s.score >= 80 ? 'Distinction' : s.score >= 60 ? 'First Class' : s.score >= 50 ? 'Second Class' : 'Remedial Required';
       const remark = s.score >= 80 ? 'Excellent' : s.score >= 50 ? 'Good' : `Needs revision in ${s.weakestSubject || 'core engineering'}`;
 
@@ -302,7 +332,7 @@ export default function FacultyAnalyticsPage() {
         `"${s.registerNo}"`,
         `"${s.name}"`,
         `"Section ${s.section}"`,
-        4,
+        testsEnrolled,
         attended,
         `"${attRate}"`,
         s.score,
@@ -349,7 +379,7 @@ export default function FacultyAnalyticsPage() {
             <BarChart3 className="text-[#FF0033]" /> Department & Class Analytics
           </h1>
           <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] font-light mt-1">
-            Section-wise performance comparisons, 10-subject diagnostic radar, remedial tracking, and official university CSV exports.
+            Section-wise performance comparisons, 16-subject diagnostic radar, remedial tracking, and official university CSV exports.
           </p>
         </div>
 
@@ -632,7 +662,7 @@ export default function FacultyAnalyticsPage() {
             <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-[family-name:var(--font-heading)] font-bold text-base text-white">
-                  10 Core Electronics Subject Proficiency Breakdown
+                  16 Core Electronics Subject Proficiency Breakdown
                 </h3>
                 <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8]">
                   Identifies syllabus strengths and weak topics requiring remedial revision across class tests.
