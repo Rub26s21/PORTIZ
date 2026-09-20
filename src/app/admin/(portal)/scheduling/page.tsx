@@ -21,6 +21,7 @@ interface TestInfo {
   testNumber: number;
   week: number;
   testInWeek: number;
+  cycle?: number;
   status: 'draft' | 'live' | 'completed';
   duration_minutes: number;
   sections: SectionInfo[];
@@ -31,6 +32,7 @@ export default function SchedulingDashboardPage() {
   const [totalRounds, setTotalRounds] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [selectedCycle, setSelectedCycle] = useState<number | 'all'>('all');
   const [expandedTest, setExpandedTest] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [editingDuration, setEditingDuration] = useState<number | null>(null);
@@ -156,9 +158,38 @@ export default function SchedulingDashboardPage() {
               Test Scheduling Dashboard
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-0.5">
-              1,600 Questions → 32 Batches → 8 Tests (4 Sections each) → 4 Weeks of Zero-Repetition Testing
+              1,600 Questions → 32 Batches → 32 Tests (128 Rounds) → 16 Weeks (4 Cycles) of Latin Square Rotation
             </p>
           </div>
+        </div>
+
+        {/* ═══ CYCLE FILTER TABS ═══ */}
+        <div className="flex flex-wrap items-center gap-2 mt-4 p-1.5 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)]">
+          <span className="text-[11px] text-[#94A3B8] font-[family-name:var(--font-heading)] uppercase font-semibold px-3 py-1">
+            Cycle View:
+          </span>
+          {[
+            { id: 'all', label: 'All 16 Weeks (32 Tests)' },
+            { id: 1, label: 'Cycle 1 (Tests 1–8 • W1–4)' },
+            { id: 2, label: 'Cycle 2 (Tests 9–16 • W5–8)' },
+            { id: 3, label: 'Cycle 3 (Tests 17–24 • W9–12)' },
+            { id: 4, label: 'Cycle 4 (Tests 25–32 • W13–16)' },
+          ].map(c => {
+            const isSelected = selectedCycle === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setSelectedCycle(c.id as any)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] transition-all cursor-pointer border ${
+                  isSelected
+                    ? 'bg-[#00E5FF]/20 text-[#00E5FF] border-[#00E5FF]/50 shadow-[0_0_15px_rgba(0,229,255,0.25)]'
+                    : 'bg-transparent text-[#94A3B8] border-transparent hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="h-[1px] w-full mt-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.2)] to-transparent" />
@@ -211,242 +242,263 @@ export default function SchedulingDashboardPage() {
           </GlassCard>
         ) : (
           <div className="space-y-4">
-            {/* Group by week */}
-            {[1, 2, 3, 4].map(weekNum => {
-              const weekTests = tests.filter(t => t.week === weekNum);
-              if (weekTests.length === 0) return null;
+            {/* Group by week (dynamically filtered by cycle) */}
+            {(() => {
+              const filteredTests = selectedCycle === 'all'
+                ? tests
+                : tests.filter(t => (t.cycle || Math.floor((t.testNumber - 1) / 8) + 1) === selectedCycle);
+              const uniqueWeeks = Array.from(new Set(filteredTests.map(t => t.week))).sort((a, b) => a - b);
 
-              return (
-                <div key={weekNum} className="space-y-3">
-                  {/* Week Header */}
-                  <div className="flex items-center gap-3 pt-2">
-                    <span className="font-[family-name:var(--font-heading)] text-xs font-bold tracking-widest text-[#FFD700] uppercase">
-                      📅 {getWeekLabel(weekNum)}
-                    </span>
-                    <div className="flex-1 h-[1px] bg-gradient-to-r from-[#FFD70040] to-transparent" />
-                    <span className="font-[family-name:var(--font-mono)] text-[10px] text-[#94A3B8]">
-                      {weekTests.length} tests • {weekTests.length * 4} batches • {weekTests.length * 200} questions
-                    </span>
+              if (filteredTests.length === 0) {
+                return (
+                  <div className="py-12 text-center text-xs text-[#94A3B8]">
+                    No tests scheduled for the selected cycle.
                   </div>
+                );
+              }
 
-                  {weekTests.map(test => {
-                    const sc = getStatusColor(test.status);
-                    const isExpanded = expandedTest === test.testNumber;
-                    const isLoading = actionLoading === test.testNumber;
-                    const isEditingDur = editingDuration === test.testNumber;
+              return uniqueWeeks.map(weekNum => {
+                const weekTests = filteredTests.filter(t => t.week === weekNum);
+                if (weekTests.length === 0) return null;
 
-                    return (
-                      <div
-                        key={test.testNumber}
-                        className="rounded-2xl border transition-all overflow-hidden"
-                        style={{
-                          background: '#000000',
-                          borderColor: test.status === 'live' ? '#10B98150' : 'rgba(255,255,255,0.1)',
-                          boxShadow: test.status === 'live' ? '0 0 30px rgba(16,185,129,0.15)' : '0 4px 20px rgba(0,0,0,0.8)',
-                        }}
-                      >
-                        {/* Test Card Header */}
-                        <div className="p-5 flex flex-col md:flex-row items-start justify-between gap-4">
-                          <div className="space-y-2.5 flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-[family-name:var(--font-mono)] font-bold text-xs px-2.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] text-white">
-                                Test {test.testNumber}
-                              </span>
+                return (
+                  <div key={weekNum} className="space-y-3">
+                    {/* Week Header */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <span className="font-[family-name:var(--font-heading)] text-xs font-bold tracking-widest text-[#FFD700] uppercase">
+                        📅 {getWeekLabel(weekNum)}
+                      </span>
+                      <div className="flex-1 h-[1px] bg-gradient-to-r from-[#FFD70040] to-transparent" />
+                      <span className="font-[family-name:var(--font-mono)] text-[10px] text-[#94A3B8]">
+                        {weekTests.length} tests • {weekTests.length * 4} batches • {weekTests.length * 200} questions
+                      </span>
+                    </div>
 
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(255,215,0,0.14)] border border-[rgba(255,215,0,0.3)] text-[#FFD700] uppercase">
-                                {getWeekLabel(test.week)} • Test {test.testInWeek}
-                              </span>
+                    {weekTests.map(test => {
+                      const sc = getStatusColor(test.status);
+                      const isExpanded = expandedTest === test.testNumber;
+                      const isLoading = actionLoading === test.testNumber;
+                      const isEditingDur = editingDuration === test.testNumber;
+                      const cycleNum = test.cycle || Math.floor((test.testNumber - 1) / 8) + 1;
+                      const shift = cycleNum - 1;
 
-                              <span
-                                className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase"
-                                style={{ background: sc.bg, borderColor: sc.border, color: sc.text, border: `1px solid ${sc.border}` }}
-                              >
-                                {getStatusLabel(test.status)}
-                              </span>
+                      return (
+                        <div
+                          key={test.testNumber}
+                          className="rounded-2xl border transition-all overflow-hidden"
+                          style={{
+                            background: '#000000',
+                            borderColor: test.status === 'live' ? '#10B98150' : 'rgba(255,255,255,0.1)',
+                            boxShadow: test.status === 'live' ? '0 0 30px rgba(16,185,129,0.15)' : '0 4px 20px rgba(0,0,0,0.8)',
+                          }}
+                        >
+                          {/* Test Card Header */}
+                          <div className="p-5 flex flex-col md:flex-row items-start justify-between gap-4">
+                            <div className="space-y-2.5 flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-[family-name:var(--font-mono)] font-bold text-xs px-2.5 py-0.5 rounded-full bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] text-white">
+                                  Test {test.testNumber}
+                                </span>
 
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(0,229,255,0.14)] border border-[rgba(0,229,255,0.3)] text-[#00E5FF] uppercase">
-                                📝 4 × 50 = 200 Questions
-                              </span>
-                            </div>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(168,85,247,0.14)] border border-[rgba(168,85,247,0.3)] text-[#A855F7] uppercase">
+                                  Cycle {cycleNum} (Shift +{shift})
+                                </span>
 
-                            <h2 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white">
-                              {getWeekLabel(test.week)} — Test {test.testInWeek}
-                            </h2>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(255,215,0,0.14)] border border-[rgba(255,215,0,0.3)] text-[#FFD700] uppercase">
+                                  {getWeekLabel(test.week)} • Test {test.testInWeek}
+                                </span>
 
-                            <div className="flex flex-wrap gap-4 text-xs font-[family-name:var(--font-mono)]">
-                              <span className="flex items-center gap-1 text-[#FFD700]">
-                                <Clock size={13} />
-                                Duration: {test.duration_minutes} Mins
-                              </span>
-                              <span className="flex items-center gap-1 text-[#94A3B8]">
-                                <Users size={13} />
-                                4 Sections (A, B, C, D)
-                              </span>
-                              <span className="flex items-center gap-1 text-[#A855F7]">
-                                <Layers size={13} />
-                                Batches: {test.sections.map(s => `#${s.batchNumber}`).join(', ')}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                            {/* Duration Edit */}
-                            {isEditingDur ? (
-                              <div className="flex items-center gap-1.5">
-                                <input
-                                  type="number"
-                                  value={durationValue}
-                                  onChange={(e) => setDurationValue(Number(e.target.value))}
-                                  className="w-16 px-2 py-1.5 rounded-lg bg-black border border-[#FFD700]/40 text-[#FFD700] text-xs font-bold font-[family-name:var(--font-mono)] text-center"
-                                  min={10}
-                                  max={180}
-                                />
-                                <button
-                                  onClick={() => handleUpdateDuration(test.testNumber)}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] hover:bg-[#FFD700]/30 transition-all cursor-pointer"
-                                  disabled={isLoading}
+                                <span
+                                  className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase"
+                                  style={{ background: sc.bg, borderColor: sc.border, color: sc.text, border: `1px solid ${sc.border}` }}
                                 >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingDuration(null)}
-                                  className="px-2 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all cursor-pointer"
-                                >
-                                  ✕
-                                </button>
+                                  {getStatusLabel(test.status)}
+                                </span>
+
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-heading)] font-bold bg-[rgba(0,229,255,0.14)] border border-[rgba(0,229,255,0.3)] text-[#00E5FF] uppercase">
+                                  📝 4 × 50 = 200 Questions
+                                </span>
                               </div>
-                            ) : (
-                              <button
-                                onClick={() => { setEditingDuration(test.testNumber); setDurationValue(test.duration_minutes); }}
-                                className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center gap-1.5"
-                                title="Change test duration"
-                              >
-                                <Settings size={13} />
-                                <span>Duration</span>
-                              </button>
-                            )}
 
-                            {/* Enable / Disable Test */}
-                            {test.status === 'live' ? (
-                              <button
-                                onClick={() => handleAction('deactivate_test', test.testNumber)}
-                                disabled={isLoading}
-                                className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                              >
-                                <Pause size={13} />
-                                <span>{isLoading ? 'Stopping...' : 'Disable Test'}</span>
-                              </button>
-                            ) : test.status === 'completed' ? (
-                              <span className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center gap-1.5">
-                                <CheckCircle2 size={13} />
-                                <span>Completed</span>
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => handleAction('activate_test', test.testNumber)}
-                                disabled={isLoading}
-                                className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/35 transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
-                              >
-                                <Play size={13} />
-                                <span>{isLoading ? 'Enabling...' : 'Enable Test'}</span>
-                              </button>
-                            )}
+                              <h2 className="font-[family-name:var(--font-display)] font-extrabold text-lg text-white">
+                                {getWeekLabel(test.week)} — Test {test.testInWeek}
+                              </h2>
 
-                            {/* Mark Complete */}
-                            {test.status === 'live' && (
-                              <button
-                                onClick={() => handleAction('complete_test', test.testNumber)}
-                                disabled={isLoading}
-                                className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                              >
-                                <CheckCircle2 size={13} />
-                                <span>Mark Complete</span>
-                              </button>
-                            )}
+                              <div className="flex flex-wrap gap-4 text-xs font-[family-name:var(--font-mono)]">
+                                <span className="flex items-center gap-1 text-[#FFD700]">
+                                  <Clock size={13} />
+                                  Duration: {test.duration_minutes} Mins
+                                </span>
+                                <span className="flex items-center gap-1 text-[#94A3B8]">
+                                  <Users size={13} />
+                                  4 Sections (A, B, C, D)
+                                </span>
+                                <span className="flex items-center gap-1 text-[#A855F7]">
+                                  <Layers size={13} />
+                                  Batches: {test.sections.map(s => `#${s.batchNumber}`).join(', ')}
+                                </span>
+                              </div>
+                            </div>
 
-                            {/* Expand Details */}
-                            <button
-                              onClick={() => setExpandedTest(isExpanded ? null : test.testNumber)}
-                              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer"
-                              title="View batch details"
-                            >
-                              {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Expanded Section Details */}
-                        {isExpanded && (
-                          <div className="px-5 pb-5 pt-0">
-                            <div className="h-[1px] w-full mb-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.15)] to-transparent" />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                              {test.sections.map(sec => {
-                                const secColors: Record<string, string> = {
-                                  A: '#00E5FF',
-                                  B: '#A855F7',
-                                  C: '#FFD700',
-                                  D: '#F43F5E',
-                                };
-                                const color = secColors[sec.section] || '#94A3B8';
-
-                                return (
-                                  <div
-                                    key={sec.section}
-                                    className="rounded-xl p-4 border transition-all"
-                                    style={{
-                                      background: `${color}08`,
-                                      borderColor: `${color}30`,
-                                    }}
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                              {/* Duration Edit */}
+                              {isEditingDur ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="number"
+                                    value={durationValue}
+                                    onChange={(e) => setDurationValue(Number(e.target.value))}
+                                    className="w-16 px-2 py-1.5 rounded-lg bg-black border border-[#FFD700]/40 text-[#FFD700] text-xs font-bold font-[family-name:var(--font-mono)] text-center"
+                                    min={10}
+                                    max={180}
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateDuration(test.testNumber)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FFD700]/20 border border-[#FFD700]/40 text-[#FFD700] hover:bg-[#FFD700]/30 transition-all cursor-pointer"
+                                    disabled={isLoading}
                                   >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="font-[family-name:var(--font-display)] font-extrabold text-base" style={{ color }}>
-                                        Section {sec.section}
-                                      </span>
-                                      <span
-                                        className="px-2 py-0.5 rounded-full text-[9px] font-[family-name:var(--font-heading)] font-bold uppercase"
-                                        style={{
-                                          background: sec.status === 'live' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
-                                          color: sec.status === 'live' ? '#10B981' : '#94A3B8',
-                                          border: `1px solid ${sec.status === 'live' ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                                        }}
-                                      >
-                                        {sec.status}
-                                      </span>
-                                    </div>
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingDuration(null)}
+                                    className="px-2 py-1.5 rounded-lg text-xs font-bold bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingDuration(test.testNumber); setDurationValue(test.duration_minutes); }}
+                                  className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer flex items-center gap-1.5"
+                                  title="Change test duration"
+                                >
+                                  <Settings size={13} />
+                                  <span>Duration</span>
+                                </button>
+                              )}
 
-                                    <div className="space-y-1 text-xs font-[family-name:var(--font-mono)]">
-                                      <div className="flex justify-between">
-                                        <span className="text-[#94A3B8]">Batch</span>
-                                        <span className="text-white font-bold">#{sec.batchNumber}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-[#94A3B8]">Questions</span>
-                                        <span className="text-white font-bold">{sec.questionCount}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-[#94A3B8]">Round #</span>
-                                        <span className="text-white font-bold">{sec.roundNumber}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                              {/* Enable / Disable Test */}
+                              {test.status === 'live' ? (
+                                <button
+                                  onClick={() => handleAction('deactivate_test', test.testNumber)}
+                                  disabled={isLoading}
+                                  className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Pause size={13} />
+                                  <span>{isLoading ? 'Stopping...' : 'Disable Test'}</span>
+                                </button>
+                              ) : test.status === 'completed' ? (
+                                <span className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center gap-1.5">
+                                  <CheckCircle2 size={13} />
+                                  <span>Completed</span>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleAction('activate_test', test.testNumber)}
+                                  disabled={isLoading}
+                                  className="px-4 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/35 transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                                >
+                                  <Play size={13} />
+                                  <span>{isLoading ? 'Enabling...' : 'Enable Test'}</span>
+                                </button>
+                              )}
 
-                            <div className="mt-3 p-3 rounded-xl bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.15)]">
-                              <p className="text-[11px] text-[#94A3B8] font-[family-name:var(--font-body)] leading-relaxed">
-                                <span className="text-[#00E5FF] font-bold">🔒 Zero-Repetition Guarantee:</span> Each batch is used exactly once across the entire test cycle. Students within the same section receive the same 50 questions but in individually shuffled order.
-                              </p>
+                              {/* Mark Complete */}
+                              {test.status === 'live' && (
+                                <button
+                                  onClick={() => handleAction('complete_test', test.testNumber)}
+                                  disabled={isLoading}
+                                  className="px-3 py-2 rounded-xl text-xs font-bold font-[family-name:var(--font-heading)] bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/35 transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <CheckCircle2 size={13} />
+                                  <span>Mark Complete</span>
+                                </button>
+                              )}
+
+                              {/* Expand Details */}
+                              <button
+                                onClick={() => setExpandedTest(isExpanded ? null : test.testNumber)}
+                                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer"
+                                title="View batch details"
+                              >
+                                {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                              </button>
                             </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+
+                          {/* Expanded Section Details */}
+                          {isExpanded && (
+                            <div className="px-5 pb-5 pt-0">
+                              <div className="h-[1px] w-full mb-4 bg-gradient-to-r from-transparent via-[rgba(255,255,255,0.15)] to-transparent" />
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                {test.sections.map(sec => {
+                                  const secColors: Record<string, string> = {
+                                    A: '#00E5FF',
+                                    B: '#A855F7',
+                                    C: '#FFD700',
+                                    D: '#F43F5E',
+                                  };
+                                  const color = secColors[sec.section] || '#94A3B8';
+
+                                  return (
+                                    <div
+                                      key={sec.section}
+                                      className="rounded-xl p-4 border transition-all"
+                                      style={{
+                                        background: `${color}08`,
+                                        borderColor: `${color}30`,
+                                      }}
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-[family-name:var(--font-display)] font-extrabold text-base" style={{ color }}>
+                                          Section {sec.section}
+                                        </span>
+                                        <span
+                                          className="px-2 py-0.5 rounded-full text-[9px] font-[family-name:var(--font-heading)] font-bold uppercase"
+                                          style={{
+                                            background: sec.status === 'live' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                                            color: sec.status === 'live' ? '#10B981' : '#94A3B8',
+                                            border: `1px solid ${sec.status === 'live' ? 'rgba(16,185,129,0.4)' : 'rgba(255,255,255,0.15)'}`,
+                                          }}
+                                        >
+                                          {sec.status}
+                                        </span>
+                                      </div>
+
+                                      <div className="space-y-1 text-xs font-[family-name:var(--font-mono)]">
+                                        <div className="flex justify-between">
+                                          <span className="text-[#94A3B8]">Batch</span>
+                                          <span className="text-white font-bold">#{sec.batchNumber}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-[#94A3B8]">Questions</span>
+                                          <span className="text-white font-bold">{sec.questionCount}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-[#94A3B8]">Round #</span>
+                                          <span className="text-white font-bold">{sec.roundNumber}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="mt-3 p-3 rounded-xl bg-[rgba(0,229,255,0.06)] border border-[rgba(0,229,255,0.15)]">
+                                <p className="text-[11px] text-[#94A3B8] font-[family-name:var(--font-body)] leading-relaxed">
+                                  <span className="text-[#00E5FF] font-bold">🔒 Latin Square Rotation Guarantee:</span> 32 batches rotated across 4 cycles (16 weeks). Every section attempts all 32 batches exactly once across the 32 tests, with zero cross-section batch overlap on any test day.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </FadeIn>

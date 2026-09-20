@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     testNumber: number;
     week: number;
     testInWeek: number;
+    cycle: number;
     status: 'draft' | 'live' | 'completed';
     duration_minutes: number;
     sections: Array<{
@@ -49,10 +50,12 @@ export async function GET(req: NextRequest) {
     if (!testMap[testNum]) {
       const week = Math.ceil(testNum / 2);
       const testInWeek = ((testNum - 1) % 2) + 1;
+      const cycle = Math.floor((testNum - 1) / 8) + 1;
       testMap[testNum] = {
         testNumber: testNum,
         week,
         testInWeek,
+        cycle,
         status: 'draft',
         duration_minutes: round.duration_minutes || 60,
         sections: [],
