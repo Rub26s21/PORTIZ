@@ -2,6 +2,12 @@
   "name": "electronic-club-quiz",
   "version": "0.1.0",
   "private": true,
+  "author": "Rubahan Ponraj <rubahanponraj@gmail.com> (https://github.com/Rub26s21)",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rub26s21/PORTIZ.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

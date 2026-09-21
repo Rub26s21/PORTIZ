@@ -8,8 +8,15 @@ export const metadata: Metadata = {
   description:
     'The Ultimate Electronics Competition Platform for Future Engineers. Test your knowledge across multiple rounds of challenging questions.',
   keywords: ['electronics', 'quiz', 'competition', 'engineering', 'college', 'circuit'],
+  authors: [{ name: 'Rubahan Ponraj', url: 'https://github.com/Rub26s21' }],
+  creator: 'Rubahan Ponraj',
+  publisher: 'Rubahan Ponraj',
+  other: {
+    copyright: '© 2026 Rubahan Ponraj. All Rights Reserved.',
+    architect: 'Rubahan Ponraj (rubahanponraj@gmail.com)',
+  },
   openGraph: {
-    title: 'Electronic Club Quiz Portal',
+    title: 'Electronic Club Quiz Portal · PORTIZ',
     description: 'The Ultimate Electronics Competition Platform for Future Engineers',
     type: 'website',
   },

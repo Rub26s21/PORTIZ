@@ -363,6 +363,13 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
         </motion.nav>
       </div>
 
+      {/* Discreet Platform Architect Stamp */}
+      <div className="fixed bottom-2 right-4 z-40 hidden md:flex items-center gap-1.5 pointer-events-none opacity-30 hover:opacity-100 transition-opacity">
+        <span className="font-[family-name:var(--font-mono)] text-[9px] text-[#64748B] tracking-wider uppercase">
+          PORTIZ v2.6 · Architect: <span className="text-[#94A3B8] font-semibold">Rubahan P</span>
+        </span>
+      </div>
+
     </div>
   );
 }

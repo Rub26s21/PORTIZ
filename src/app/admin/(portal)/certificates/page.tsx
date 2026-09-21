@@ -863,7 +863,7 @@ export default function RankHoldersPage() {
 
                   <div className="text-[8px] font-mono text-[#999999] pt-2 border-t border-[#E5E5E5] flex justify-between">
                     <span>ISSUE DATE: {certConfig.dateOfIssue}</span>
-                    <span>OFFLINE VERIFICATION: ECE-OFFLINE-TOPPER-{activeCertificate.overall_rank}</span>
+                    <span>OFFLINE VERIFICATION: ECE-OFFLINE-TOPPER-{activeCertificate.overall_rank} · AUTH: RUBAHAN P</span>
                   </div>
                 </div>
               </div>
@@ -977,7 +977,7 @@ export default function RankHoldersPage() {
 
                 <div className="text-[9px] font-mono text-[#999999] pt-3 border-t border-[#E5E5E5] flex justify-between">
                   <span>ISSUE DATE: {certConfig.dateOfIssue}</span>
-                  <span>OFFLINE VERIFICATION: ECE-OFFLINE-TOPPER-{cert.overall_rank}</span>
+                  <span>OFFLINE VERIFICATION: ECE-OFFLINE-TOPPER-{cert.overall_rank} · AUTH: RUBAHAN P</span>
                 </div>
               </div>
             </div>
