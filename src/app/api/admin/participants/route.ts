@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // 3. Fetch all attempts with rounds info
     const { data: allAttempts } = await supabaseAdmin
       .from('attempts')
-      .select('id, participant_id, user_id, round_id, score, total_marks, status, submitted_at, time_taken_seconds, rounds(id, title, round_number)')
+      .select('id, participant_id, user_id, round_id, score, total_marks, status, started_at, submitted_at, rounds(id, title, round_number)')
       .order('submitted_at', { ascending: false });
 
     const attemptsByParticipantId = new Map<string, any[]>();
@@ -122,7 +122,17 @@ export async function GET(req: NextRequest) {
         latest_round_title: latestAttempt?.rounds?.title || null,
         latest_score: latestAttempt?.score !== undefined ? latestAttempt.score : null,
         latest_total_marks: latestAttempt?.total_marks || 100,
-        time_taken_seconds: latestAttempt?.time_taken_seconds || null,
+        time_taken_seconds:
+          latestAttempt?.started_at && latestAttempt?.submitted_at
+            ? Math.max(
+                0,
+                Math.round(
+                  (new Date(latestAttempt.submitted_at).getTime() -
+                    new Date(latestAttempt.started_at).getTime()) /
+                    1000
+                )
+              )
+            : null,
         submitted_at: latestAttempt?.submitted_at || null,
       };
     });

@@ -19,13 +19,27 @@ export default function LeaderboardPage() {
     setLoading(true);
     const { data: attempts } = await supabase
       .from('attempts')
-      .select('id, score, time_taken_seconds, status, created_at, profiles(display_name, register_number, dept)')
+      .select('id, score, started_at, submitted_at, status, created_at, profiles(display_name, register_number, department)')
       .eq('round_id', roundId)
       .eq('status', 'submitted')
-      .order('score', { ascending: false })
-      .order('time_taken_seconds', { ascending: true });
+      .order('score', { ascending: false });
 
-    setLeaderboard(attempts || []);
+    const enriched = (attempts || []).map((att: any) => ({
+      ...att,
+      time_taken_seconds:
+        att.started_at && att.submitted_at
+          ? Math.max(
+              0,
+              Math.round(
+                (new Date(att.submitted_at).getTime() -
+                  new Date(att.started_at).getTime()) /
+                  1000
+              )
+            )
+          : null,
+    }));
+
+    setLeaderboard(enriched);
     setLoading(false);
   }, []);
 
@@ -192,7 +206,7 @@ export default function LeaderboardPage() {
                           {item.profiles?.display_name || 'Student'}
                         </span>
                         <span className="font-[family-name:var(--font-mono)] text-[10px] text-[#64748B] font-light">
-                          {item.profiles?.register_number || '22EC000'} · {item.profiles?.dept || 'ECE'}
+                          {item.profiles?.register_number || '22EC000'} · {item.profiles?.department || 'ECE'}
                         </span>
                       </td>
                       <td className="px-5 py-4 font-[family-name:var(--font-mono)] font-extrabold text-sm text-[#00B0FF] text-center">

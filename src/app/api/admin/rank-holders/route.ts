@@ -61,9 +61,8 @@ export async function GET(req: NextRequest) {
     // 4. Fetch all test attempts
     let attemptsQuery = supabaseAdmin
       .from('attempts')
-      .select('id, participant_id, user_id, round_id, score, total_marks, status, submitted_at, time_taken_seconds, rounds(id, title, round_number)')
-      .order('score', { ascending: false })
-      .order('time_taken_seconds', { ascending: true });
+      .select('id, participant_id, user_id, round_id, score, total_marks, status, started_at, submitted_at, rounds(id, title, round_number)')
+      .order('score', { ascending: false });
 
     if (roundFilter !== 'all') {
       attemptsQuery = attemptsQuery.eq('round_id', roundFilter);
@@ -171,7 +170,17 @@ export async function GET(req: NextRequest) {
         score,
         total_marks: totalMarks,
         percentage,
-        time_taken_seconds: targetAttempt?.time_taken_seconds ?? null,
+        time_taken_seconds:
+          targetAttempt?.started_at && targetAttempt?.submitted_at
+            ? Math.max(
+                0,
+                Math.round(
+                  (new Date(targetAttempt.submitted_at).getTime() -
+                    new Date(targetAttempt.started_at).getTime()) /
+                    1000
+                )
+              )
+            : null,
         attempts_count: attempts.length,
         has_attempted: hasAttempted,
         status: status as any,
