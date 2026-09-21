@@ -536,7 +536,10 @@ export default function QuizTestPage({ params }: PageProps) {
       const data = await res.json();
       if (res.ok && data.success) {
         sessionStorage.removeItem('quiz_session');
-        router.push(`/quiz/submitted?score=${data.score}&rank=${data.rank}`);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('latest_quiz_attempt_id', attemptId);
+        }
+        router.push(`/quiz/submitted?attempt_id=${attemptId}&score=${data.score}&rank=${data.rank}`);
       } else {
         toast.error(data.error || 'Failed to submit quiz');
         setSubmittingFinal(false);
