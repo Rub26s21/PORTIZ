@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     // 2. Fetch profiles of all enrolled undergraduates
     const { data: profData, error: profErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, display_name, register_number, email, phone, department, year, section, created_at')
+      .select('id, display_name, register_number, email, department, year, created_at')
       .eq('role', 'participant')
       .order('created_at', { ascending: false });
 
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
         email: prof.email || '',
         department: prof.department || 'ECE',
         year: prof.year || '3rd',
-        section: (prof.section || '').trim().toUpperCase(),
+        section: '',
         created_at: prof.created_at,
         isProfile: true,
       });

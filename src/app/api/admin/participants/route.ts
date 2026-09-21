@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     // 2. Fetch from profiles table (registered users)
     const { data: profData } = await supabaseAdmin
       .from('profiles')
-      .select('id, display_name, register_number, email, phone, department, year, section, created_at')
+      .select('id, display_name, register_number, email, department, year, created_at')
       .eq('role', 'participant')
       .order('created_at', { ascending: false });
 
@@ -59,10 +59,10 @@ export async function GET(req: NextRequest) {
         name: prof.display_name || 'Student',
         register_no: prof.register_number || 'N/A',
         email: prof.email || '',
-        phone: prof.phone || '',
+        phone: '',
         department: prof.department || 'ECE',
         year: prof.year || '3rd',
-        section: (prof.section || '').toUpperCase(),
+        section: '',
         created_at: prof.created_at,
         isProfile: true,
       });
