@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import GlassCard from '@/components/shared/GlassCard';
 import GalaxyButton from '@/components/shared/GalaxyButton';
@@ -8,7 +8,7 @@ import FadeIn from '@/components/shared/FadeIn';
 import {
   Trophy, Medal, Award, Printer, Download, Search, Sparkles,
   CheckCircle2, Users, Layers, TrendingUp, RefreshCw, X, FileSpreadsheet,
-  Building2, GraduationCap, ChevronRight, Eye, ShieldCheck
+  Building2, GraduationCap, ChevronRight, Eye, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -79,8 +79,8 @@ export default function RankHoldersPage() {
   const [certConfig, setCertConfig] = useState({
     institution: 'DEPARTMENT OF ELECTRONICS AND COMMUNICATION ENGINEERING',
     eventTitle: 'Undergraduate Technical Assessment & Merit Contest 2026',
-    facultyInCharge: 'Dr. M. Ramanathan, M.E., Ph.D.',
-    hodName: 'Dr. K. Senthil Kumar, Ph.D.',
+    facultyInCharge: 'Faculty Coordinator (ECE)',
+    hodName: 'Head of Department (ECE)',
     dateOfIssue: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
   });
 
@@ -122,88 +122,18 @@ export default function RankHoldersPage() {
     fetchRankHolders();
   }, [fetchRankHolders]);
 
-  // If there are no submitted attempts in the database yet, provide sample topper preview data
-  const effectiveToppers = useMemo(() => {
-    if (toppers.length > 0) return toppers;
-    // Fallback demonstration toppers for previewing offline certificates prior to test completion
-    return [
-      {
-        id: 'demo-1',
-        name: 'Arun Kumar V',
-        register_no: '22EC014',
-        email: 'arunkumar@college.edu',
-        department: 'ECE',
-        year: '3rd',
-        section: 'A' as const,
-        overall_rank: 1,
-        section_rank: 1,
-        score: 96,
-        total_marks: 100,
-        percentage: 96,
-        time_taken_seconds: 1420,
-        attempts_count: 1,
-        has_attempted: true,
-        status: 'submitted' as const,
-        submitted_at: new Date().toISOString(),
-        test_title: 'Weekly ECE Assessment 1',
-        is_topper: true,
-        honor_type: 'gold' as const,
-      },
-      {
-        id: 'demo-2',
-        name: 'Deepika S',
-        register_no: '22EC042',
-        email: 'deepika@college.edu',
-        department: 'ECE',
-        year: '3rd',
-        section: 'B' as const,
-        overall_rank: 2,
-        section_rank: 1,
-        score: 92,
-        total_marks: 100,
-        percentage: 92,
-        time_taken_seconds: 1510,
-        attempts_count: 1,
-        has_attempted: true,
-        status: 'submitted' as const,
-        submitted_at: new Date().toISOString(),
-        test_title: 'Weekly ECE Assessment 1',
-        is_topper: true,
-        honor_type: 'silver' as const,
-      },
-      {
-        id: 'demo-3',
-        name: 'Gowtham R',
-        register_no: '22EC089',
-        email: 'gowtham@college.edu',
-        department: 'ECE',
-        year: '3rd',
-        section: 'C' as const,
-        overall_rank: 3,
-        section_rank: 1,
-        score: 88,
-        total_marks: 100,
-        percentage: 88,
-        time_taken_seconds: 1640,
-        attempts_count: 1,
-        has_attempted: true,
-        status: 'submitted' as const,
-        submitted_at: new Date().toISOString(),
-        test_title: 'Weekly ECE Assessment 1',
-        is_topper: true,
-        honor_type: 'bronze' as const,
-      },
-    ];
-  }, [toppers]);
-
   const handlePrintCertificate = (student: RankHolder) => {
     setActiveCertificate(student);
     setBatchPrintMode(false);
   };
 
   const handleBatchPrintToppers = () => {
+    if (toppers.length === 0) {
+      toast.error('No toppers available to print offline certificates yet.');
+      return;
+    }
     setBatchPrintMode(true);
-    setActiveCertificate(effectiveToppers[0] || null);
+    setActiveCertificate(toppers[0]);
   };
 
   const triggerSystemPrint = () => {
@@ -290,15 +220,15 @@ export default function RankHoldersPage() {
               Rank Holders & Honors 🏆
             </h1>
             <p className="font-[family-name:var(--font-body)] text-xs md:text-sm text-[#94A3B8] font-light mt-1 max-w-3xl leading-relaxed">
-              Unified cross-section comparison across Sections A, B, C, and D. Every enrolled undergraduate is ranked based on marks, with official offline physical certificates issued to the Top 3 Toppers.
+              Unified cross-section comparison across Sections A, B, C, and D. Every enrolled undergraduate is ranked strictly based on real test scores and response speed. Official offline physical certificates are generated for the Top 3 Toppers.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <GalaxyButton variant="secondary" size="sm" onClick={handleExportExcel}>
+            <GalaxyButton variant="secondary" size="sm" onClick={handleExportExcel} disabled={rankings.length === 0}>
               <FileSpreadsheet size={14} /> Export Merit List (Excel)
             </GalaxyButton>
-            <GalaxyButton variant="gold" size="sm" onClick={handleBatchPrintToppers}>
+            <GalaxyButton variant="gold" size="sm" onClick={handleBatchPrintToppers} disabled={toppers.length === 0}>
               <Printer size={14} /> Batch Print Top 3 (Offline)
             </GalaxyButton>
             <button
@@ -325,117 +255,137 @@ export default function RankHoldersPage() {
               </h2>
             </div>
             <span className="text-[11px] font-[family-name:var(--font-mono)] text-[#94A3B8] uppercase">
-              {toppers.length === 0 ? 'Preview Mode · Test Toppers' : 'Verified Post-Section Standings'}
+              {toppers.length} Toppers Verified
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {effectiveToppers.slice(0, 3).map((topper, idx) => {
-              const isGold = topper.overall_rank === 1 || topper.honor_type === 'gold';
-              const isSilver = topper.overall_rank === 2 || topper.honor_type === 'silver';
-              const isBronze = topper.overall_rank === 3 || topper.honor_type === 'bronze';
+          {loading ? (
+            <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-8 text-center" style={{ background: '#000000', boxShadow: cleanShadow }}>
+              <div className="text-xs text-[#94A3B8] font-[family-name:var(--font-mono)]">Evaluating cross-section topper records...</div>
+            </GlassCard>
+          ) : toppers.length === 0 ? (
+            <GlassCard
+              variant="elevated"
+              radius={20}
+              hover={false}
+              noHover
+              className="!p-8 border border-[rgba(255,255,255,0.12)] text-center space-y-3"
+              style={{ boxShadow: cleanShadow, background: '#000000' }}
+            >
+              <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center bg-[rgba(255,215,0,0.1)] border border-[rgba(255,215,0,0.3)]">
+                <Trophy size={28} className="text-[#FFD700]" />
+              </div>
+              <h3 className="font-[family-name:var(--font-display)] font-bold text-lg text-[#FFFFFF]">
+                No Toppers Recorded Yet
+              </h3>
+              <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] max-w-lg mx-auto leading-relaxed font-light">
+                Once undergraduate students submit their tests across Sections A, B, C, and D, the Top 3 Toppers will automatically appear here with their Gold, Silver, and Bronze honors, unlocking printable offline certificates.
+              </p>
+            </GlassCard>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {toppers.slice(0, 3).map((topper) => {
+                const isGold = topper.overall_rank === 1 || topper.honor_type === 'gold';
+                const isSilver = topper.overall_rank === 2 || topper.honor_type === 'silver';
+                const isBronze = topper.overall_rank === 3 || topper.honor_type === 'bronze';
 
-              const badgeColor = isGold
-                ? 'from-[#FFD700]/30 via-[#B8860B]/20 to-transparent border-[#FFD700]/60 text-[#FFD700]'
-                : isSilver
-                ? 'from-[#E2E8F0]/30 via-[#94A3B8]/20 to-transparent border-[#E2E8F0]/60 text-[#E2E8F0]'
-                : 'from-[#CD7F32]/30 via-[#8B4513]/20 to-transparent border-[#CD7F32]/60 text-[#CD7F32]';
+                const badgeColor = isGold
+                  ? 'from-[#FFD700]/30 via-[#B8860B]/20 to-transparent border-[#FFD700]/60 text-[#FFD700]'
+                  : isSilver
+                  ? 'from-[#E2E8F0]/30 via-[#94A3B8]/20 to-transparent border-[#E2E8F0]/60 text-[#E2E8F0]'
+                  : 'from-[#CD7F32]/30 via-[#8B4513]/20 to-transparent border-[#CD7F32]/60 text-[#CD7F32]';
 
-              const titleLabel = isGold ? '1ST PRIZE · GOLD MEDAL' : isSilver ? '2ND PRIZE · SILVER MEDAL' : '3RD PRIZE · BRONZE MEDAL';
+                const titleLabel = isGold ? '1ST PRIZE · GOLD MEDAL' : isSilver ? '2ND PRIZE · SILVER MEDAL' : '3RD PRIZE · BRONZE MEDAL';
 
-              return (
-                <GlassCard
-                  key={topper.id || idx}
-                  variant="elevated"
-                  radius={20}
-                  hover={false}
-                  noHover
-                  className="!p-6 border relative overflow-hidden flex flex-col justify-between"
-                  style={{
-                    boxShadow: cleanShadow,
-                    background: '#000000',
-                    borderColor: isGold ? 'rgba(255, 215, 0, 0.4)' : isSilver ? 'rgba(226, 232, 240, 0.3)' : 'rgba(205, 127, 50, 0.3)',
-                  }}
-                >
-                  {/* Glowing corner accent */}
-                  <div
-                    className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none opacity-20"
+                return (
+                  <GlassCard
+                    key={topper.id}
+                    variant="elevated"
+                    radius={20}
+                    hover={false}
+                    noHover
+                    className="!p-6 border relative overflow-hidden flex flex-col justify-between"
                     style={{
-                      background: isGold ? '#FFD700' : isSilver ? '#FFFFFF' : '#CD7F32',
+                      boxShadow: cleanShadow,
+                      background: '#000000',
+                      borderColor: isGold ? 'rgba(255, 215, 0, 0.4)' : isSilver ? 'rgba(226, 232, 240, 0.3)' : 'rgba(205, 127, 50, 0.3)',
                     }}
-                  />
-
-                  <div>
-                    {/* Badge */}
-                    <div className="flex items-center justify-between gap-2 mb-4">
-                      <div className={`px-3 py-1 rounded-full border text-[10px] font-[family-name:var(--font-heading)] font-bold tracking-wider uppercase bg-gradient-to-r ${badgeColor}`}>
-                        {titleLabel}
-                      </div>
-                      <span className="font-[family-name:var(--font-mono)] text-xs font-semibold px-2 py-0.5 rounded bg-[rgba(255,255,255,0.08)] text-[#94A3B8]">
-                        Rank #{topper.overall_rank}
-                      </span>
-                    </div>
-
-                    {/* Student Info */}
-                    <div className="space-y-1 mb-4">
-                      <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-[#FFFFFF] tracking-tight">
-                        {topper.name}
-                      </h3>
-                      <div className="flex items-center gap-3 text-xs font-[family-name:var(--font-mono)] text-[#94A3B8]">
-                        <span>{topper.register_no}</span>
-                        <span>•</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#00B0FF]/15 text-[#00B0FF] border border-[#00B0FF]/30">
-                          Section {topper.section}
-                        </span>
-                        <span>•</span>
-                        <span>{topper.department}</span>
-                      </div>
-                    </div>
-
-                    {/* Score Bar */}
-                    <div className="p-3.5 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] space-y-2 mb-4">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-[family-name:var(--font-heading)] text-[#94A3B8]">Marks Achieved:</span>
-                        <span className="font-[family-name:var(--font-mono)] font-bold text-[#FFFFFF] text-sm">
-                          {topper.score} / {topper.total_marks} ({topper.percentage}%)
-                        </span>
-                      </div>
-                      <div className="w-full bg-[rgba(255,255,255,0.1)] h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.min(100, topper.percentage)}%`,
-                            background: isGold ? '#FFD700' : isSilver ? '#E2E8F0' : '#CD7F32',
-                          }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] font-[family-name:var(--font-mono)] text-[#64748B]">
-                        <span>Time: {topper.time_taken_seconds ? `${Math.floor(topper.time_taken_seconds / 60)}m ${topper.time_taken_seconds % 60}s` : 'Standard'}</span>
-                        <span>Section Rank: #{topper.section_rank} in Sec {topper.section}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action */}
-                  <div className="pt-2 border-t border-[rgba(255,255,255,0.08)]">
-                    <button
-                      onClick={() => handlePrintCertificate(topper)}
-                      className="w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 font-[family-name:var(--font-heading)] text-xs font-semibold tracking-wide transition-all duration-200 border"
+                  >
+                    <div
+                      className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-2xl pointer-events-none opacity-20"
                       style={{
-                        background: isGold
-                          ? 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(184,134,11,0.1))'
-                          : 'rgba(255,255,255,0.06)',
-                        borderColor: isGold ? 'rgba(255,215,0,0.5)' : 'rgba(255,255,255,0.2)',
-                        color: isGold ? '#FFD700' : '#FFFFFF',
+                        background: isGold ? '#FFD700' : isSilver ? '#FFFFFF' : '#CD7F32',
                       }}
-                    >
-                      <Printer size={14} /> Print Offline Certificate
-                    </button>
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
+                    />
+
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        <div className={`px-3 py-1 rounded-full border text-[10px] font-[family-name:var(--font-heading)] font-bold tracking-wider uppercase bg-gradient-to-r ${badgeColor}`}>
+                          {titleLabel}
+                        </div>
+                        <span className="font-[family-name:var(--font-mono)] text-xs font-semibold px-2 py-0.5 rounded bg-[rgba(255,255,255,0.08)] text-[#94A3B8]">
+                          Rank #{topper.overall_rank}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 mb-4">
+                        <h3 className="font-[family-name:var(--font-display)] font-extrabold text-xl text-[#FFFFFF] tracking-tight">
+                          {topper.name}
+                        </h3>
+                        <div className="flex items-center gap-3 text-xs font-[family-name:var(--font-mono)] text-[#94A3B8]">
+                          <span>{topper.register_no}</span>
+                          <span>•</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#00B0FF]/15 text-[#00B0FF] border border-[#00B0FF]/30">
+                            Section {topper.section}
+                          </span>
+                          <span>•</span>
+                          <span>{topper.department}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] space-y-2 mb-4">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-[family-name:var(--font-heading)] text-[#94A3B8]">Marks Achieved:</span>
+                          <span className="font-[family-name:var(--font-mono)] font-bold text-[#FFFFFF] text-sm">
+                            {topper.score} / {topper.total_marks} ({topper.percentage}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-[rgba(255,255,255,0.1)] h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, topper.percentage)}%`,
+                              background: isGold ? '#FFD700' : isSilver ? '#E2E8F0' : '#CD7F32',
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] font-[family-name:var(--font-mono)] text-[#64748B]">
+                          <span>Time: {topper.time_taken_seconds ? `${Math.floor(topper.time_taken_seconds / 60)}m ${topper.time_taken_seconds % 60}s` : 'Standard'}</span>
+                          <span>Section Rank: #{topper.section_rank} in Sec {topper.section}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-[rgba(255,255,255,0.08)]">
+                      <button
+                        onClick={() => handlePrintCertificate(topper)}
+                        className="w-full py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 font-[family-name:var(--font-heading)] text-xs font-semibold tracking-wide transition-all duration-200 border"
+                        style={{
+                          background: isGold
+                            ? 'linear-gradient(135deg, rgba(255,215,0,0.2), rgba(184,134,11,0.1))'
+                            : 'rgba(255,255,255,0.06)',
+                          borderColor: isGold ? 'rgba(255,215,0,0.5)' : 'rgba(255,255,255,0.2)',
+                          color: isGold ? '#FFD700' : '#FFFFFF',
+                        }}
+                      >
+                        <Printer size={14} /> Print Offline Certificate
+                      </button>
+                    </div>
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       </FadeIn>
 
@@ -492,7 +442,6 @@ export default function RankHoldersPage() {
       {/* ── FILTER CONTROLS & SEARCH ── */}
       <FadeIn delay={0.14}>
         <div className="p-4 rounded-2xl bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.1)] flex flex-wrap items-center justify-between gap-4">
-          {/* Section Selector Tabs */}
           <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[#000000] border border-[rgba(255,255,255,0.1)]">
             {[
               { id: 'all', label: 'All Sections (Unified)' },
@@ -515,7 +464,6 @@ export default function RankHoldersPage() {
             ))}
           </div>
 
-          {/* Search & Round Filter */}
           <div className="flex items-center gap-3 flex-grow sm:flex-grow-0">
             {rounds.length > 0 && (
               <select
@@ -597,15 +545,15 @@ export default function RankHoldersPage() {
                 ) : rankings.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-16 text-center text-xs text-[#64748B]">
-                      No enrolled undergraduate records matched your search or section filters.
+                      No enrolled undergraduate records found in the database.
                     </td>
                   </tr>
                 ) : (
                   rankings.map((student) => {
-                    const isTop1 = student.overall_rank === 1;
-                    const isTop2 = student.overall_rank === 2;
-                    const isTop3 = student.overall_rank === 3;
-                    const isTop3Topper = isTop1 || isTop2 || isTop3;
+                    const isTop1 = student.overall_rank === 1 && student.is_topper;
+                    const isTop2 = student.overall_rank === 2 && student.is_topper;
+                    const isTop3 = student.overall_rank === 3 && student.is_topper;
+                    const isTop3Topper = student.is_topper;
 
                     return (
                       <tr
@@ -620,7 +568,6 @@ export default function RankHoldersPage() {
                             : 'hover:bg-[rgba(255,255,255,0.03)]'
                         }`}
                       >
-                        {/* Overall Rank */}
                         <td className="px-4 py-3.5 text-center">
                           {isTop1 ? (
                             <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#FFD700]/20 border border-[#FFD700] text-[#FFD700] font-bold text-xs font-[family-name:var(--font-mono)] shadow-[0_0_10px_rgba(255,215,0,0.3)]">
@@ -641,7 +588,6 @@ export default function RankHoldersPage() {
                           )}
                         </td>
 
-                        {/* Name & Details */}
                         <td className="px-4 py-3.5">
                           <div className="font-[family-name:var(--font-body)] font-semibold text-xs text-[#FFFFFF]">
                             {student.name}
@@ -651,12 +597,10 @@ export default function RankHoldersPage() {
                           </div>
                         </td>
 
-                        {/* Register No */}
                         <td className="px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8] text-center">
                           {student.register_no}
                         </td>
 
-                        {/* Section */}
                         <td className="px-4 py-3.5 text-center">
                           <span
                             className="inline-block px-2.5 py-0.5 rounded text-[11px] font-bold font-[family-name:var(--font-mono)] border"
@@ -691,12 +635,10 @@ export default function RankHoldersPage() {
                           </span>
                         </td>
 
-                        {/* Section Rank */}
                         <td className="px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8] text-center">
                           #{student.section_rank} in {student.section}
                         </td>
 
-                        {/* Score */}
                         <td className="px-4 py-3.5 text-center">
                           {student.status === 'submitted' ? (
                             <span className="font-[family-name:var(--font-mono)] font-bold text-xs text-[#FFFFFF]">
@@ -709,7 +651,6 @@ export default function RankHoldersPage() {
                           )}
                         </td>
 
-                        {/* Percentage / Accuracy */}
                         <td className="px-4 py-3.5 text-center">
                           {student.status === 'submitted' ? (
                             <span
@@ -728,14 +669,12 @@ export default function RankHoldersPage() {
                           )}
                         </td>
 
-                        {/* Time Taken */}
                         <td className="px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8] text-center">
                           {student.time_taken_seconds
                             ? `${Math.floor(student.time_taken_seconds / 60)}m ${student.time_taken_seconds % 60}s`
                             : '—'}
                         </td>
 
-                        {/* Offline Certificate Status */}
                         <td className="px-4 py-3.5 text-right">
                           {isTop3Topper ? (
                             <button
@@ -777,7 +716,6 @@ export default function RankHoldersPage() {
       {activeCertificate && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
           <div className="relative w-full max-w-4xl my-8 bg-[#111111] border border-[rgba(255,255,255,0.2)] rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-4">
               <div>
                 <span className="text-[10px] font-[family-name:var(--font-heading)] font-bold uppercase tracking-widest text-[#FFD700]">
@@ -798,7 +736,6 @@ export default function RankHoldersPage() {
               </button>
             </div>
 
-            {/* Config inputs for Faculty / Institution names */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] text-xs">
               <div>
                 <label className="block text-[10px] text-[#94A3B8] font-[family-name:var(--font-heading)] mb-1 uppercase">
@@ -835,7 +772,7 @@ export default function RankHoldersPage() {
               </div>
             </div>
 
-            {/* CERTIFICATE VISUAL CANVAS (HIGH-RESOLUTION PRINT-READY TEMPLATE) */}
+            {/* CERTIFICATE VISUAL CANVAS */}
             <div className="overflow-x-auto max-h-[60vh] p-2 bg-[#050505] rounded-2xl border border-[rgba(255,255,255,0.1)]">
               <div
                 className="w-[820px] mx-auto p-10 bg-[#FFFFFF] text-[#000000] rounded-xl shadow-2xl relative select-none"
@@ -845,17 +782,14 @@ export default function RankHoldersPage() {
                   border: '10px double #B8860B',
                 }}
               >
-                {/* Inner Ornate Border */}
                 <div
                   className="w-full h-full p-6 border-2 border-[#B8860B]/70 flex flex-col justify-between text-center relative"
                   style={{ minHeight: '520px' }}
                 >
-                  {/* Watermark Crest */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
                     <Award size={340} className="text-[#B8860B]" />
                   </div>
 
-                  {/* Header */}
                   <div>
                     <div className="text-[12px] font-sans font-bold tracking-[0.25em] text-[#555555] uppercase">
                       {certConfig.institution}
@@ -875,7 +809,6 @@ export default function RankHoldersPage() {
                     </p>
                   </div>
 
-                  {/* Recipient */}
                   <div className="my-3">
                     <h1
                       className="text-3xl md:text-4xl font-black text-[#0B2545] tracking-wide underline decoration-[#B8860B] decoration-2 underline-offset-8"
@@ -890,7 +823,6 @@ export default function RankHoldersPage() {
                     </p>
                   </div>
 
-                  {/* Honor Citation */}
                   <div className="max-w-xl mx-auto text-xs font-serif text-[#333333] leading-relaxed">
                     For securing{' '}
                     <span className="font-bold text-[#B8860B] uppercase">
@@ -904,7 +836,6 @@ export default function RankHoldersPage() {
                     of <span className="font-bold">{activeCertificate.score} / {activeCertificate.total_marks}</span> ({activeCertificate.percentage}%).
                   </div>
 
-                  {/* Signatures & Seal */}
                   <div className="pt-6 grid grid-cols-3 items-end text-center">
                     <div>
                       <div className="w-36 h-[1px] bg-[#333333] mx-auto mb-1" />
@@ -914,7 +845,6 @@ export default function RankHoldersPage() {
                       <div className="text-[9px] font-sans text-[#777777] uppercase">Faculty Coordinator</div>
                     </div>
 
-                    {/* Emblem Badge */}
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-14 h-14 rounded-full border-2 border-[#B8860B] flex items-center justify-center bg-[#FFF8E7] shadow-inner">
                         <Award size={26} className="text-[#B8860B]" />
@@ -931,7 +861,6 @@ export default function RankHoldersPage() {
                     </div>
                   </div>
 
-                  {/* Verification Serial */}
                   <div className="text-[8px] font-mono text-[#999999] pt-2 border-t border-[#E5E5E5] flex justify-between">
                     <span>ISSUE DATE: {certConfig.dateOfIssue}</span>
                     <span>OFFLINE VERIFICATION: ECE-OFFLINE-TOPPER-{activeCertificate.overall_rank}</span>
@@ -940,7 +869,6 @@ export default function RankHoldersPage() {
               </div>
             </div>
 
-            {/* Modal Action Buttons */}
             <div className="flex items-center justify-between pt-2">
               <p className="text-xs text-[#94A3B8] font-light">
                 Ready for physical printing on A4 Cardstock / Certificate Paper.
@@ -967,7 +895,7 @@ export default function RankHoldersPage() {
 
       {/* ── HIDDEN PRINT-STAGE CONTAINER (ONLY ACCESSED BY BROWSER WINDOW.PRINT) ── */}
       <div id="offline-print-stage" ref={printRef} className="hidden">
-        {(batchPrintMode ? effectiveToppers.slice(0, 3) : activeCertificate ? [activeCertificate] : []).map(
+        {(batchPrintMode ? toppers.slice(0, 3) : activeCertificate ? [activeCertificate] : []).map(
           (cert, idx) => (
             <div
               key={cert.id || idx}

@@ -151,8 +151,7 @@ export async function GET(req: NextRequest) {
         else if (t.includes('SECTION C') || t.includes('SEC C')) resolvedSection = 'C';
         else if (t.includes('SECTION D') || t.includes('SEC D')) resolvedSection = 'D';
       } else {
-        const secList: ('A' | 'B' | 'C' | 'D')[] = ['A', 'B', 'C', 'D'];
-        resolvedSection = secList[idx % 4];
+        resolvedSection = (s.section && ['A', 'B', 'C', 'D'].includes(s.section)) ? s.section : 'A';
       }
 
       const score = targetAttempt?.score ?? 0;
