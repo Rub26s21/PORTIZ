@@ -154,6 +154,7 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     localStorage.removeItem('admin_session');
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     await supabase.auth.signOut();
     toast.success('Logged out successfully');
     router.push('/admin/login');

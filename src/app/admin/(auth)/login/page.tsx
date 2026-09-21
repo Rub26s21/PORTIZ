@@ -69,6 +69,7 @@ export default function CleanAdminLoginPage() {
         displayName: resData.user?.display_name || 'Admin',
         email: data.email,
         role: 'admin',
+        token: resData.session?.access_token || '',
       }));
 
       toast.success('Admin authorization granted 🛡️');

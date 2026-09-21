@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { MASTER_QUESTION_POOL } from '@/lib/question-seed';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
@@ -13,6 +14,16 @@ function shuffleArray<T>(array: T[]): T[] {
 
 export async function POST(req: NextRequest) {
   try {
+    // 0. Rate Limiting: Max 10 attempts per minute per IP
+    const clientIp = getClientIp(req);
+    const rateLimit = checkRateLimit(`enter:${clientIp}`, 10, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `Too many attempts. Please wait ${rateLimit.retryAfterSeconds} seconds.` },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const { name, register_no, email, phone, round_id, section } = body;
 
