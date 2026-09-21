@@ -165,7 +165,6 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     { label: 'Scheduling 📅', href: '/admin/scheduling', icon: Calendar },
     { label: 'Questions Bank', href: '/admin/questions', icon: HelpCircle },
     { label: 'Attendance & Reports 📋', href: '/admin/participants', icon: Users2 },
-    { label: 'Leaderboard', href: '/admin/leaderboard', icon: Trophy },
     { label: 'Rank Holders 🏆', href: '/admin/certificates', icon: Award },
     { label: 'Settings', href: '/admin/settings', icon: Settings2 },
   ];
@@ -179,7 +178,6 @@ function AdminLayoutShell({ children }: { children: React.ReactNode }) {
     if (pathname.includes('/admin/rounds') && pathname.includes('/monitoring')) return 'Live Monitor';
     if (pathname.includes('/admin/rounds')) return 'Rounds Management';
     if (pathname.includes('/admin/participants')) return 'Participants Directory';
-    if (pathname.includes('/admin/leaderboard')) return 'Leaderboard';
     if (pathname.includes('/admin/certificates')) return 'Rank Holders & Honors';
     if (pathname.includes('/admin/settings')) return 'Settings';
     return 'Admin Portal';

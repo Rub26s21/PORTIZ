@@ -278,15 +278,6 @@ export default function AdminDashboardPage() {
       badgeColor: 'border-[#9C27B0]/40 text-[#9C27B0] bg-[#9C27B0]/10',
       actionText: 'Open Analytics',
     },
-    {
-      title: 'Real-Time Leaderboard',
-      description: 'Live test rankings and standing board with instant student portal visibility controls.',
-      href: '/admin/leaderboard',
-      icon: Trophy,
-      badge: 'Live Standings',
-      badgeColor: 'border-[#00B0FF]/40 text-[#00B0FF] bg-[#00B0FF]/10',
-      actionText: 'Inspect Leaderboard',
-    },
   ];
 
   return (
