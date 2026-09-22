@@ -145,7 +145,15 @@ export async function GET(req: NextRequest) {
       const inProgressAttempts = attempts.filter((a) => a.status === 'in_progress');
 
       let targetAttempt = submittedAttempts.length > 0
-        ? submittedAttempts.reduce((best, cur) => (cur.score > best.score ? cur : best), submittedAttempts[0])
+        ? submittedAttempts.reduce((best, cur) => {
+            if (cur.score > best.score) return cur;
+            if (cur.score === best.score) {
+              const curTime = cur.started_at && cur.submitted_at ? new Date(cur.submitted_at).getTime() - new Date(cur.started_at).getTime() : 9999999;
+              const bestTime = best.started_at && best.submitted_at ? new Date(best.submitted_at).getTime() - new Date(best.started_at).getTime() : 9999999;
+              return curTime < bestTime ? cur : best;
+            }
+            return best;
+          }, submittedAttempts[0])
         : inProgressAttempts[0] || attempts[0] || null;
 
       // Deduce Section strictly from participant record (from entry card) or round title
@@ -161,7 +169,7 @@ export async function GET(req: NextRequest) {
       }
 
       const score = targetAttempt?.score ?? 0;
-      const totalMarks = targetAttempt?.total_marks || 100;
+      const totalMarks = targetAttempt?.total_marks || 30;
       const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 100) : 0;
       const hasAttempted = attempts.length > 0;
       const status = targetAttempt?.status || (hasAttempted ? 'in_progress' : 'enrolled');
@@ -310,10 +318,18 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
+    const sectionToppers = {
+      A: fullyRanked.filter((s) => s.section === 'A' && s.status === 'submitted' && s.score > 0).slice(0, 3),
+      B: fullyRanked.filter((s) => s.section === 'B' && s.status === 'submitted' && s.score > 0).slice(0, 3),
+      C: fullyRanked.filter((s) => s.section === 'C' && s.status === 'submitted' && s.score > 0).slice(0, 3),
+      D: fullyRanked.filter((s) => s.section === 'D' && s.status === 'submitted' && s.score > 0).slice(0, 3),
+    };
+
     return NextResponse.json({
       success: true,
       rankings: filteredRankings,
       toppers,
+      sectionToppers,
       stats: {
         totalEnrolled,
         totalAssessed,

@@ -93,6 +93,51 @@ function cleanAlphanumeric(text: string): string {
     .trim();
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const d: number[][] = [];
+  for (let i = 0; i <= b.length; i++) d[i] = [i];
+  for (let j = 0; j <= a.length; j++) d[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) d[i][j] = d[i - 1][j - 1];
+      else d[i][j] = Math.min(d[i - 1][j - 1] + 1, d[i][j - 1] + 1, d[i - 1][j] + 1);
+    }
+  }
+  return d[b.length][a.length];
+}
+
+function normalizeWords(str: string): string[] {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function isWordMatch(uWord: string, tWord: string): boolean {
+  if (uWord === tWord) return true;
+  if (tWord.length >= 5 && levenshteinDistance(uWord, tWord) <= 1) return true;
+  if (tWord === 'emitting' && (uWord === 'emiting' || uWord === 'emmiting' || uWord === 'emitted' || uWord === 'emtting')) return true;
+  if (tWord === 'silicon' && (uWord === 'silcone' || uWord === 'silcon' || uWord === 'silion')) return true;
+  if (tWord === 'diode' && uWord === 'doide') return true;
+  if (tWord === 'light' && uWord === 'ligth') return true;
+  return false;
+}
+
+function testFuzzyWordMatch(userStr: string, targetStr: string): boolean {
+  const uWords = normalizeWords(userStr);
+  const tWords = normalizeWords(targetStr);
+  if (uWords.length === tWords.length && uWords.length > 0) {
+    const allMatch = tWords.every((tw, idx) => isWordMatch(uWords[idx], tw));
+    if (allMatch) return true;
+  }
+  return false;
+}
+
 function scoreFillBlank(correct: any, selected: any): boolean {
   let cVal = typeof correct === 'object' && correct !== null ? (correct.value !== undefined ? correct.value : correct) : correct;
   let sVal = typeof selected === 'object' && selected !== null ? (selected.value !== undefined ? selected.value : selected) : selected;
@@ -101,6 +146,11 @@ function scoreFillBlank(correct: any, selected: any): boolean {
 
   const rawUser = String(sVal).trim();
   const userClean = cleanAlphanumeric(rawUser);
+
+  // Strip parenthetical content e.g. "Silicon (Si)" -> "Silicon" and "Si"
+  const withoutParens = cleanAlphanumeric(rawUser.replace(/\(.*?\)/g, ''));
+  const parenMatch = rawUser.match(/\((.*?)\)/);
+  const insideParens = parenMatch ? cleanAlphanumeric(parenMatch[1]) : '';
 
   let acceptableList: string[] = [];
   if (Array.isArray(cVal)) {
@@ -126,11 +176,19 @@ function scoreFillBlank(correct: any, selected: any): boolean {
     if (!acc) continue;
     if (normalizeText(acc) === normalizeText(rawUser)) return true;
     const accClean = cleanAlphanumeric(acc);
-    if (accClean && userClean === accClean) return true;
+    if (accClean) {
+      if (userClean === accClean) return true;
+      if (withoutParens && withoutParens === accClean) return true;
+      if (insideParens && insideParens === accClean) return true;
+    }
 
-    // Unit aliases (e.g., ohm / ohms / Ω)
+    // Fuzzy word-level tolerance (e.g., "LIGHT EMITING DIODE" vs "light emitting diode")
+    if (testFuzzyWordMatch(rawUser, acc)) return true;
+
+    // Unit aliases (e.g., ohm / ohms / Ω / omega)
     if (accClean === 'ohm' || accClean === 'ohms') {
-      if (['ohm', 'ohms', 'o'].includes(userClean) || rawUser === 'Ω') return true;
+      if (['ohm', 'ohms', 'o', 'omega', 'ω'].includes(userClean) || rawUser === 'Ω') return true;
+      if (rawUser.toLowerCase().endsWith('ohm') || rawUser.toLowerCase().endsWith('ohms')) return true;
     }
     if (accClean === 'farad' || accClean === 'farads') {
       if (['farad', 'farads', 'f'].includes(userClean)) return true;
@@ -142,10 +200,25 @@ function scoreFillBlank(correct: any, selected: any): boolean {
       if (['hertz', 'hz'].includes(userClean)) return true;
     }
 
-    // Binary formatting (e.g. 101 vs 0101 vs 5)
+    // Binary formatting (e.g. 101 vs 0101 vs 5 vs "(101)2" vs "101 base 2")
     if (accClean === '101') {
+      const strippedDigits = userClean.replace(/[^0-9]/g, '');
       const stripped = userClean.replace(/^0+/, '');
-      if (stripped === '101' || userClean === '101' || userClean === '0101' || userClean === '5') {
+      if (
+        stripped === '101' ||
+        userClean === '101' ||
+        userClean === '0101' ||
+        userClean === '5' ||
+        strippedDigits === '101' ||
+        rawUser.includes('101')
+      ) {
+        return true;
+      }
+    }
+
+    // Silicon variations e.g. "silicon(si", "silicon", "si"
+    if (accClean === 'silicon' || accClean === 'si') {
+      if (userClean === 'silicon' || userClean === 'si' || userClean === 'siliconsi' || userClean.startsWith('silicon')) {
         return true;
       }
     }
@@ -165,10 +238,10 @@ function scoreFillBlank(correct: any, selected: any): boolean {
       bjt: ['bipolarjunctiontransistor', 'bjt'],
       fet: ['fieldeffecttransistor', 'fet'],
       opamp: ['operationalamplifier', 'opamp', 'opampcircuit'],
-      led: ['lightemittingdiode', 'led'],
+      led: ['lightemittingdiode', 'led', 'lightemitingdiode', 'lightemmitingdiode', 'lightemitteddiode'],
     };
     for (const [key, variants] of Object.entries(abbrevMap)) {
-      if (variants.includes(accClean) && variants.includes(userClean)) {
+      if (variants.includes(accClean) && (variants.includes(userClean) || variants.includes(withoutParens))) {
         return true;
       }
     }
