@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { evaluateAnswerDetailed } from '@/lib/answer-evaluator';
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,43 +56,12 @@ export async function POST(req: NextRequest) {
 
     let totalScore = 0;
 
-    // Helper: Robust answer matching logic
-    const evaluateAnswer = (q: any, userSel: string): boolean => {
-      if (!userSel || userSel.trim() === '') return false;
-      let correctVal: any = q.correct_answer;
-      if (correctVal && typeof correctVal === 'object') {
-        correctVal = correctVal.value !== undefined ? correctVal.value : correctVal;
-      }
-
-      const uStr = String(userSel).trim().toLowerCase();
-      const cStr = String(correctVal).trim().toLowerCase();
-
-      if (uStr === cStr) return true;
-
-      // Check MCQ option index / text mapping
-      if (q.options && Array.isArray(q.options)) {
-        const cIdx = Number(correctVal);
-        if (!isNaN(cIdx) && cIdx >= 0 && cIdx < q.options.length) {
-          const cText = String(q.options[cIdx]).trim().toLowerCase();
-          if (uStr === cText || uStr === String(cIdx).toLowerCase()) return true;
-        }
-
-        const uIdx = Number(userSel);
-        if (!isNaN(uIdx) && uIdx >= 0 && uIdx < q.options.length) {
-          const uText = String(q.options[uIdx]).trim().toLowerCase();
-          if (uText === cStr || String(uIdx).toLowerCase() === cStr) return true;
-        }
-      }
-
-      return false;
-    };
-
-    // 4. Calculate score on exam questions
+    // 4. Calculate score on exam questions using 3-Stage Smart Engineering Evaluation
     examQuestions.forEach((q) => {
       const userSel = responseMap.get(q.id);
       if (userSel !== undefined && userSel !== null && userSel.trim() !== '') {
-        const isCorrect = evaluateAnswer(q, userSel);
-        if (isCorrect) {
+        const evalResult = evaluateAnswerDetailed(q, userSel);
+        if (evalResult.isCorrect) {
           totalScore += Number(q.marks || 1);
         } else if (round?.negative_marking) {
           const penalty = q.negative_marks || round.negative_marks_per_wrong || 0;

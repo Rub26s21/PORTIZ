@@ -50,6 +50,9 @@ interface QuestionAnalysis {
   marksAwarded: number;
   maxMarks: number;
   negativePenalty: number;
+  isMcq?: boolean;
+  matchType?: string;
+  feedback?: string;
 }
 
 interface AnalysisSummary {
@@ -464,63 +467,113 @@ function SubmittedContent() {
                       </div>
                     )}
 
-                    {/* Options List with High-Visibility Answer Highlighting */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3">
-                      {q.options.map((optText, optIdx) => {
-                        const optLetter = optionLetters[optIdx] || String(optIdx + 1);
-                        const isThisTheCorrectAnswer =
-                          q.correctIndex === optIdx ||
-                          optText.trim().toLowerCase() === q.correctAnswerRaw.trim().toLowerCase();
+                    {/* ═══ 1. MCQ OPTIONS VIEW ═══ */}
+                    {q.options && q.options.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3">
+                        {q.options.map((optText, optIdx) => {
+                          const optLetter = optionLetters[optIdx] || String(optIdx + 1);
+                          const isThisTheCorrectAnswer =
+                            q.correctIndex === optIdx ||
+                            optText.trim().toLowerCase() === q.correctAnswerRaw.trim().toLowerCase();
 
-                        const isThisWhatUserPicked =
-                          q.userSelectedIndex === optIdx ||
-                          (q.userSelectedRaw !== null &&
-                            (optText.trim().toLowerCase() === q.userSelectedRaw.trim().toLowerCase() ||
-                              String(optIdx) === q.userSelectedRaw.trim()));
+                          const isThisWhatUserPicked =
+                            q.userSelectedIndex === optIdx ||
+                            (q.userSelectedRaw !== null &&
+                              (optText.trim().toLowerCase() === q.userSelectedRaw.trim().toLowerCase() ||
+                                String(optIdx) === q.userSelectedRaw.trim()));
 
-                        let cardStyle = 'bg-white/[0.03] border-white/10 text-[#CBD5E1]';
-                        let badge = null;
+                          let cardStyle = 'bg-white/[0.03] border-white/10 text-[#CBD5E1]';
+                          let badge = null;
 
-                        if (isThisWhatUserPicked && isThisTheCorrectAnswer) {
-                          // User selected correctly!
-                          cardStyle = 'bg-emerald-500/20 border-emerald-500/60 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.15)] font-semibold';
-                          badge = (
-                            <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
-                              <Check size={11} /> Your Answer (Correct!)
-                            </span>
-                          );
-                        } else if (isThisWhatUserPicked && !isThisTheCorrectAnswer) {
-                          // User selected incorrectly!
-                          cardStyle = 'bg-rose-500/25 border-rose-500/60 text-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.15)] font-semibold';
-                          badge = (
-                            <span className="text-[10px] font-mono font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
-                              <X size={11} /> What You Selected (Incorrect)
-                            </span>
-                          );
-                        } else if (isThisTheCorrectAnswer) {
-                          // The actual right answer (user picked something else or skipped)
-                          cardStyle = 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200 border-dashed';
-                          badge = (
-                            <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
-                              ★ Correct Answer
-                            </span>
-                          );
-                        }
+                          if (isThisWhatUserPicked && isThisTheCorrectAnswer) {
+                            cardStyle = 'bg-emerald-500/20 border-emerald-500/60 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.15)] font-semibold';
+                            badge = (
+                              <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
+                                <Check size={11} /> Your Choice (Correct!)
+                              </span>
+                            );
+                          } else if (isThisWhatUserPicked && !isThisTheCorrectAnswer) {
+                            cardStyle = 'bg-rose-500/25 border-rose-500/60 text-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.15)] font-semibold';
+                            badge = (
+                              <span className="text-[10px] font-mono font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
+                                <X size={11} /> Your Choice (Incorrect)
+                              </span>
+                            );
+                          } else if (isThisTheCorrectAnswer) {
+                            cardStyle = 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200 border-dashed';
+                            badge = (
+                              <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-md border border-emerald-500/30 flex items-center gap-1">
+                                ★ Official Correct Answer
+                              </span>
+                            );
+                          }
 
-                        return (
-                          <div
-                            key={optIdx}
-                            className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 text-xs transition-all ${cardStyle}`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <span className="font-mono font-bold opacity-75">{optLetter}.</span>
-                              <span className="flex-1 leading-snug">{optText}</span>
+                          return (
+                            <div
+                              key={optIdx}
+                              className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 text-xs transition-all ${cardStyle}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className="font-mono font-bold opacity-75">{optLetter}.</span>
+                                <span className="flex-1 leading-snug">{optText}</span>
+                              </div>
+                              {badge && <div className="self-end mt-1">{badge}</div>}
                             </div>
-                            {badge && <div className="self-end mt-1">{badge}</div>}
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* ═══ 2. FILL-IN-THE-BLANK / NUMERICAL / TEXT ENTRY VIEW ═══ */
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                        {/* What the student entered */}
+                        <div
+                          className={`p-3.5 rounded-xl border text-xs flex flex-col justify-between gap-1.5 transition-all ${
+                            q.isCorrect
+                              ? 'bg-emerald-500/20 border-emerald-500/60 text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
+                              : q.isWrong
+                              ? 'bg-rose-500/25 border-rose-500/60 text-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.15)]'
+                              : 'bg-white/[0.03] border-white/10 text-[#94A3B8]'
+                          }`}
+                        >
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-[#94A3B8]">
+                            Your Entered Answer
+                          </span>
+                          <div className="font-mono font-bold text-sm tracking-wide">
+                            {q.userSelectedRaw ? `"${q.userSelectedRaw}"` : 'Left Blank / Unanswered'}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="self-start mt-0.5">
+                            {q.isCorrect ? (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-500/25 text-emerald-300 font-mono text-[10px] font-bold flex items-center gap-1 border border-emerald-500/40">
+                                <Check size={11} /> Correct Input
+                              </span>
+                            ) : q.isWrong ? (
+                              <span className="px-2 py-0.5 rounded-md bg-rose-500/25 text-rose-300 font-mono text-[10px] font-bold flex items-center gap-1 border border-rose-500/40">
+                                <X size={11} /> Incorrect Input
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-slate-500/20 text-[#94A3B8] font-mono text-[10px]">
+                                Skipped
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Official required answer */}
+                        <div className="p-3.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-xs flex flex-col justify-between gap-1.5">
+                          <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-400">
+                            Required Solution / Accepted Answer
+                          </span>
+                          <div className="font-mono font-bold text-sm text-emerald-200 tracking-wide">
+                            "{q.correctAnswerText}"
+                          </div>
+                          <div className="self-start mt-0.5">
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                              ★ Official Answer Key
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Individual Verdict & Explanation Box */}
                     <div className="mt-4 pt-3 border-t border-white/10 flex items-start gap-2.5 text-xs font-mono">
@@ -528,20 +581,34 @@ function SubmittedContent() {
                         <div className="flex items-start gap-2 text-emerald-400">
                           <CheckCircle2 size={15} className="mt-0.5 flex-shrink-0" />
                           <span>
-                            <strong>Well done!</strong> You selected Option {optionLetters[q.userSelectedIndex ?? 0] || 'correct'}, which is the right answer.
+                            <strong>Well done!</strong>{' '}
+                            {q.options && q.options.length > 0
+                              ? `You selected Option ${q.userSelectedIndex !== null ? optionLetters[q.userSelectedIndex] : q.userSelectedText}, which is correct.`
+                              : `Your answer "${q.userSelectedRaw}" is correct.`}
+                            {q.feedback && q.feedback !== 'Correct option selected.' && (
+                              <span className="text-emerald-300 block text-[11px] mt-0.5">({q.feedback})</span>
+                            )}
                           </span>
                         </div>
                       ) : q.isWrong ? (
                         <div className="flex items-start gap-2 text-rose-300">
                           <XCircle size={15} className="mt-0.5 flex-shrink-0 text-rose-400" />
                           <span>
-                            <strong>Mistake Review:</strong> You answered{' '}
+                            <strong>Mistake Review:</strong> You entered{' '}
                             <span className="underline decoration-rose-400 font-bold">
-                              Option {optionLetters[q.userSelectedIndex ?? 0] || q.userSelectedText || 'N/A'}
+                              {q.options && q.options.length > 0
+                                ? q.userSelectedIndex !== null
+                                  ? `Option ${optionLetters[q.userSelectedIndex]}`
+                                  : `"${q.userSelectedRaw}"`
+                                : `"${q.userSelectedRaw}"`}
                             </span>
                             , but the correct answer is{' '}
                             <span className="text-emerald-400 font-bold underline">
-                              Option {optionLetters[q.correctIndex ?? 0] || q.correctAnswerText}
+                              {q.options && q.options.length > 0
+                                ? q.correctIndex !== null
+                                  ? `Option ${optionLetters[q.correctIndex]} (${q.correctAnswerText})`
+                                  : `"${q.correctAnswerText}"`
+                                : `"${q.correctAnswerText}"`}
                             </span>
                             .
                           </span>
@@ -550,9 +617,11 @@ function SubmittedContent() {
                         <div className="flex items-start gap-2 text-[#94A3B8]">
                           <AlertCircle size={15} className="mt-0.5 flex-shrink-0 text-amber-400" />
                           <span>
-                            <strong>Unattempted:</strong> You did not select an answer for this question. The correct answer was{' '}
+                            <strong>Unattempted:</strong> You did not enter an answer for this question. The correct answer was{' '}
                             <span className="text-emerald-400 font-bold">
-                              Option {optionLetters[q.correctIndex ?? 0] || q.correctAnswerText}
+                              {q.options && q.options.length > 0 && q.correctIndex !== null
+                                ? `Option ${optionLetters[q.correctIndex]} (${q.correctAnswerText})`
+                                : `"${q.correctAnswerText}"`}
                             </span>
                             .
                           </span>

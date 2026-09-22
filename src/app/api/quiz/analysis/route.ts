@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { evaluateAnswerDetailed } from '@/lib/answer-evaluator';
 
 export async function GET(req: NextRequest) {
   try {
@@ -168,46 +169,41 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Check correctness
-      let isCorrect = false;
-      let isWrong = false;
+      // Use 3-Stage Smart Engineering Answer Evaluator
+      const evalRes = isSkipped ? null : evaluateAnswerDetailed(q, userSel);
+      const isCorrect = evalRes ? evalRes.isCorrect : false;
+      const isWrong = !isSkipped && !isCorrect;
       let marksAwarded = 0;
 
       if (isSkipped) {
         skippedCount++;
+      } else if (isCorrect) {
+        correctCount++;
+        marksAwarded = maxMarks;
       } else {
-        const uStr = userSel.toLowerCase();
-        if (
-          uStr === cStr ||
-          (userSelectedIndex !== null && correctIndex !== null && userSelectedIndex === correctIndex) ||
-          (userSelectedText && userSelectedText.toLowerCase() === correctAnswerText.toLowerCase())
-        ) {
-          isCorrect = true;
-          correctCount++;
-          marksAwarded = maxMarks;
-        } else {
-          isWrong = true;
-          wrongCount++;
-          if (round?.negative_marking) {
-            marksAwarded = -negPenalty;
-          }
+        wrongCount++;
+        if (round?.negative_marking) {
+          marksAwarded = -negPenalty;
         }
       }
+
+      const isMcq = optionsArray.length > 0;
 
       return {
         id: q.id,
         orderIndex: idx + 1,
         questionText: q.question_text,
-        questionType: q.question_type || 'mcq',
+        questionType: q.question_type || (isMcq ? 'mcq' : 'fill_blank'),
+        isMcq,
         imageUrl: q.image_url || null,
         category: q.category || 'Electronics',
         difficulty: q.difficulty || 'medium',
         options: optionsArray,
         userSelectedRaw: userSel,
-        userSelectedText,
+        userSelectedText: evalRes?.userAnswerFormatted || userSelectedText || userSel,
         userSelectedIndex,
         correctAnswerRaw: String(correctVal ?? ''),
-        correctAnswerText,
+        correctAnswerText: evalRes?.correctAnswerFormatted || correctAnswerText,
         correctIndex,
         isCorrect,
         isWrong,
@@ -215,6 +211,8 @@ export async function GET(req: NextRequest) {
         marksAwarded,
         maxMarks,
         negativePenalty: negPenalty,
+        matchType: evalRes?.matchType || (isSkipped ? 'none' : 'none'),
+        feedback: evalRes?.feedback || (isSkipped ? 'Unattempted' : ''),
       };
     }).filter(Boolean);
 
