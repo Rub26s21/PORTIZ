@@ -17,12 +17,16 @@ export default function ParticipantWaitingPage() {
   const [liveRoundTitle, setLiveRoundTitle] = useState<string | null>(null);
 
   useEffect(() => {
+    let studentSec = 'A';
     const sessionData = typeof window !== 'undefined' ? localStorage.getItem('participant_info') || sessionStorage.getItem('quiz_session') : null;
     if (sessionData) {
       try {
         const parsed = JSON.parse(sessionData);
         if (parsed.name) setParticipantName(parsed.name);
         if (parsed.register_no) setRegisterNo(parsed.register_no);
+        if (parsed.section && ['A', 'B', 'C', 'D'].includes(parsed.section)) {
+          studentSec = parsed.section;
+        }
       } catch {}
     }
 
@@ -33,7 +37,25 @@ export default function ParticipantWaitingPage() {
         const res = await fetch('/api/participant/rounds');
         if (res.ok) {
           const data = await res.json();
-          const liveRound = data.rounds?.find((r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing');
+          const liveRounds = (data.rounds || []).filter(
+            (r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing'
+          );
+
+          // Find round matching student's section first, then demo, then general
+          const liveRound =
+            liveRounds.find((r: any) => {
+              const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+              return t.includes(`SECTION ${studentSec}`) || t.includes(`SEC ${studentSec}`);
+            }) ||
+            liveRounds.find((r: any) => {
+              const t = (r.title + ' ' + (r.description || '')).toLowerCase();
+              return t.includes('demo') || t.includes('sample');
+            }) ||
+            liveRounds.find((r: any) => {
+              const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+              return !t.includes('SECTION A') && !t.includes('SECTION B') && !t.includes('SECTION C') && !t.includes('SECTION D');
+            }) ||
+            liveRounds[0];
 
           if (liveRound) {
             setLiveRoundTitle(liveRound.title);

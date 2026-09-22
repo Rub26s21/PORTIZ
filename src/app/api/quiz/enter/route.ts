@@ -35,7 +35,21 @@ export async function POST(req: NextRequest) {
     }
 
     const regNoUpper = register_no.trim().toUpperCase();
-    const studentSection = (section || 'A').toUpperCase();
+    let studentSection = (section || '').trim().toUpperCase();
+
+    // Ensure valid section 'A' | 'B' | 'C' | 'D'
+    if (!['A', 'B', 'C', 'D'].includes(studentSection)) {
+      const match = regNoUpper.match(/922524106(\d{3})/);
+      if (match) {
+        const roll = parseInt(match[1], 10);
+        if (roll >= 1 && roll <= 60) studentSection = 'A';
+        else if (roll >= 61 && roll <= 120) studentSection = 'B';
+        else if (roll >= 121 && roll <= 180) studentSection = 'C';
+        else studentSection = 'D';
+      } else {
+        studentSection = 'A';
+      }
+    }
 
     // 1. Fetch active/live/published round
     let roundIdToUse = round_id;
@@ -48,48 +62,67 @@ export async function POST(req: NextRequest) {
         .eq('id', roundIdToUse)
         .maybeSingle();
 
-      targetRound = round;
+      if (round) {
+        // Cross-section mismatch check: If round is explicitly named for a DIFFERENT section, reject it
+        const t = (round.title + ' ' + (round.description || '')).toUpperCase();
+        const hasOtherSection = ['A', 'B', 'C', 'D'].some(
+          (s) => s !== studentSection && (t.includes(`SECTION ${s}`) || t.includes(`SEC ${s}`))
+        );
+        if (!hasOtherSection) {
+          targetRound = round;
+        } else {
+          // Explicit mismatch! Reroute to student's proper section round
+          roundIdToUse = null;
+        }
+      }
     }
 
-    // 1b. If no specific round supplied or found, search for live/active/published rounds
+    // 1b. Search for live/active/published rounds matching student's section
     if (!targetRound) {
       const { data: liveRounds } = await supabaseAdmin
         .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results')
+        .select('id, status, title, description, randomize_questions, show_results, round_number')
         .in('status', ['active', 'live', 'published', 'ongoing'])
         .order('round_number', { ascending: true });
 
       if (liveRounds && liveRounds.length > 0) {
-        // Try to match student's section first (e.g. Section A, Section B, etc.)
+        // 1. Prioritize round matching student's section (e.g. Section A, Section B, Section C, Section D)
         const sectionMatch = liveRounds.find((r) => {
           const t = (r.title + ' ' + (r.description || '')).toUpperCase();
           return t.includes(`SECTION ${studentSection}`) || t.includes(`SEC ${studentSection}`);
         });
 
-        // Or match active Sample / Demo Test
+        // 2. Or active Sample / Demo Test
         const demoMatch = liveRounds.find((r) => {
           const t = (r.title + ' ' + (r.description || '')).toLowerCase();
           return t.includes('demo') || t.includes('sample');
         });
 
-        targetRound = sectionMatch || demoMatch || liveRounds[0];
-        roundIdToUse = targetRound.id;
+        // 3. Or general live round without conflicting section name
+        const generalMatch = liveRounds.find((r) => {
+          const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+          return !t.includes('SECTION A') && !t.includes('SECTION B') && !t.includes('SECTION C') && !t.includes('SECTION D');
+        });
+
+        targetRound = sectionMatch || demoMatch || generalMatch || null;
+        if (targetRound) roundIdToUse = targetRound.id;
       }
     }
 
-    // 1c. If still no active round found, search ANY round in DB
+    // 1c. If still no active round found, find round specifically dedicated to this section in DB
     if (!targetRound) {
-      const { data: anyRounds } = await supabaseAdmin
+      const { data: secRounds } = await supabaseAdmin
         .from('rounds')
         .select('id, status, title, description, randomize_questions, show_results')
+        .or(`title.ilike.%SECTION ${studentSection}%,description.ilike.%SECTION ${studentSection}%`)
         .order('round_number', { ascending: true })
         .limit(1);
 
-      if (anyRounds && anyRounds.length > 0) {
-        targetRound = anyRounds[0];
+      if (secRounds && secRounds.length > 0) {
+        targetRound = secRounds[0];
         roundIdToUse = targetRound.id;
 
-        // Auto-activate this round to 'live'
+        // Auto-activate this section round to 'live'
         await supabaseAdmin
           .from('rounds')
           .update({ status: 'live' })
@@ -97,7 +130,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1d. If no rounds exist in DB at all, auto-create one on-the-fly!
+    // 1d. Fallback to Demo round or auto-create section round
+    if (!targetRound) {
+      const { data: demoRound } = await supabaseAdmin
+        .from('rounds')
+        .select('id, status, title, description, randomize_questions, show_results')
+        .eq('round_number', 0)
+        .maybeSingle();
+
+      if (demoRound) {
+        targetRound = demoRound;
+        roundIdToUse = demoRound.id;
+      }
+    }
+
+    // 1e. If no rounds exist in DB at all, auto-create one for this exact section!
     if (!targetRound || !roundIdToUse) {
       const { data: createdRound, error: createErr } = await supabaseAdmin
         .from('rounds')
@@ -124,7 +171,7 @@ export async function POST(req: NextRequest) {
       roundIdToUse = createdRound.id;
     }
 
-    // 2. Upsert participant in participants table
+    // 2. Upsert participant in participants table WITH EXPLICIT SECTION PRESERVATION
     const { data: participant } = await supabaseAdmin
       .from('participants')
       .upsert(
@@ -133,6 +180,9 @@ export async function POST(req: NextRequest) {
           register_no: regNoUpper,
           email: email.trim(),
           phone: phone ? phone.trim() : null,
+          roll_number: studentSection,
+          college: `Section ${studentSection}`,
+          department: 'ECE',
         },
         { onConflict: 'register_no' }
       )
@@ -152,6 +202,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to record participant details' }, { status: 500 });
       }
       participantId = existingPart.id;
+
+      // Update existing record with section
+      await supabaseAdmin
+        .from('participants')
+        .update({
+          roll_number: studentSection,
+          college: `Section ${studentSection}`,
+          department: 'ECE',
+        })
+        .eq('id', participantId);
     }
 
     // 3. Check for existing attempt
@@ -304,6 +364,7 @@ export async function POST(req: NextRequest) {
       attempt_id: newAttempt.id,
       participant_id: participantId,
       round_id: roundIdToUse,
+      section: studentSection,
       question_count: questionOrderIds.length,
     });
 

@@ -28,38 +28,79 @@ export default function QuizEntryCard() {
 
   // Round / Status State
   const [activeRound, setActiveRound] = useState<ActiveRound | null>(null);
+  const [allLiveRounds, setAllLiveRounds] = useState<ActiveRound[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Helper to pick the best round matching the chosen section
+  const resolveRoundForSection = (rounds: ActiveRound[], targetSec: 'A' | 'B' | 'C' | 'D') => {
+    if (!rounds || rounds.length === 0) return null;
+    // 1. Direct section match
+    const secMatch = rounds.find((r) => {
+      const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+      return t.includes(`SECTION ${targetSec}`) || t.includes(`SEC ${targetSec}`);
+    });
+    if (secMatch) return secMatch;
+
+    // 2. Demo or Sample round
+    const demoMatch = rounds.find((r) => {
+      const t = (r.title + ' ' + (r.description || '')).toLowerCase();
+      return t.includes('demo') || t.includes('sample');
+    });
+    if (demoMatch) return demoMatch;
+
+    // 3. Any round without explicit conflicting section
+    const generalRound = rounds.find((r) => {
+      const t = (r.title + ' ' + (r.description || '')).toUpperCase();
+      return !t.includes('SECTION A') && !t.includes('SECTION B') && !t.includes('SECTION C') && !t.includes('SECTION D');
+    });
+    return generalRound || rounds[0] || null;
+  };
 
   useEffect(() => {
     // Pre-fill participant data if saved previously
     const saved = typeof window !== 'undefined' ? localStorage.getItem('participant_info') : null;
+    let initialSec: 'A' | 'B' | 'C' | 'D' = 'A';
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed.name) setName(parsed.name);
         if (parsed.register_no) setRegisterNo(parsed.register_no);
-        if (parsed.section) setSection(parsed.section);
+        if (parsed.section && ['A', 'B', 'C', 'D'].includes(parsed.section)) {
+          setSection(parsed.section);
+          initialSec = parsed.section;
+        }
         if (parsed.phone) setPhone(parsed.phone);
         if (parsed.email) setEmail(parsed.email);
       } catch {}
     }
 
-    const fetchActiveRound = async () => {
+    const fetchActiveRounds = async () => {
       try {
         const res = await fetch('/api/participant/rounds');
         if (res.ok) {
           const data = await res.json();
-          const live = data.rounds?.find((r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing');
-          setActiveRound(live || null);
+          const liveList = (data.rounds || []).filter(
+            (r: any) => r.status === 'active' || r.status === 'live' || r.status === 'ongoing'
+          );
+          setAllLiveRounds(liveList);
+          setActiveRound(resolveRoundForSection(liveList, initialSec));
         }
       } catch {
         setActiveRound(null);
       }
     };
 
-    fetchActiveRound();
+    fetchActiveRounds();
   }, []);
+
+  // Update active round preview when user changes section dropdown
+  const handleSectionChange = (newSec: 'A' | 'B' | 'C' | 'D') => {
+    setSection(newSec);
+    if (allLiveRounds.length > 0) {
+      setActiveRound(resolveRoundForSection(allLiveRounds, newSec));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,13 +142,25 @@ export default function QuizEntryCard() {
     sessionStorage.setItem('participant_info', JSON.stringify(participantData));
 
     try {
+      // Verify active round does not conflict with selected section
+      let roundIdToSend = activeRound?.id || null;
+      if (activeRound?.title) {
+        const t = activeRound.title.toUpperCase();
+        const hasOtherSection = ['A', 'B', 'C', 'D'].some(
+          (s) => s !== (section || 'A') && (t.includes(`SECTION ${s}`) || t.includes(`SEC ${s}`))
+        );
+        if (hasOtherSection) {
+          roundIdToSend = null; // Let backend find/activate the exact round for this section
+        }
+      }
+
       // Post to /api/quiz/enter backend route
       const res = await fetch('/api/quiz/enter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...participantData,
-          round_id: activeRound?.id || null,
+          round_id: roundIdToSend,
         }),
       });
 
@@ -122,6 +175,7 @@ export default function QuizEntryCard() {
         const waitPayload = {
           name: name.trim(),
           register_no: registerNo.trim().toUpperCase(),
+          section: section || 'A',
           phone: phone.trim(),
           email: email.trim() || null,
         };
@@ -136,6 +190,7 @@ export default function QuizEntryCard() {
         participant_id: data.participant_id,
         name: name.trim(),
         register_no: registerNo.trim().toUpperCase(),
+        section: section || 'A',
         round_id: data.round_id,
       };
 
@@ -275,7 +330,7 @@ export default function QuizEntryCard() {
                 </label>
                 <select
                   value={section}
-                  onChange={(e) => setSection(e.target.value as any)}
+                  onChange={(e) => handleSectionChange(e.target.value as any)}
                   className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-heading)] focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none transition-all cursor-pointer"
                 >
                   <option value="A">Section A</option>

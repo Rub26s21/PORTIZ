@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
     // 3. Fetch direct participants (if any registered via standalone registration)
     const { data: partData } = await supabaseAdmin
       .from('participants')
-      .select('id, name, register_no, email, phone, created_at')
+      .select('id, name, register_no, email, phone, roll_number, college, department, created_at')
       .order('created_at', { ascending: false });
 
     // 4. Fetch all test attempts
@@ -109,15 +109,24 @@ export async function GET(req: NextRequest) {
     (partData || []).forEach((part) => {
       const regKey = (part.register_no || part.id).trim().toUpperCase();
       const existing = unifiedMap.get(regKey) || {};
+
+      let parsedSection = '';
+      if (part.roll_number && ['A', 'B', 'C', 'D'].includes(part.roll_number.toUpperCase())) {
+        parsedSection = part.roll_number.toUpperCase();
+      } else if (part.college) {
+        const m = part.college.match(/Section\s*([A-D])/i);
+        if (m) parsedSection = m[1].toUpperCase();
+      }
+
       unifiedMap.set(regKey, {
         ...existing,
         id: part.id,
         name: part.name || existing.name || 'Undergraduate Student',
         register_no: part.register_no || existing.register_no || 'N/A',
         email: part.email || existing.email || '',
-        department: existing.department || 'ECE',
+        department: existing.department || part.department || 'ECE',
         year: existing.year || '3rd',
-        section: existing.section || '',
+        section: parsedSection || existing.section || '',
         created_at: part.created_at || existing.created_at,
         participant_id: part.id,
       });
@@ -139,7 +148,7 @@ export async function GET(req: NextRequest) {
         ? submittedAttempts.reduce((best, cur) => (cur.score > best.score ? cur : best), submittedAttempts[0])
         : inProgressAttempts[0] || attempts[0] || null;
 
-      // Deduce Section if not set
+      // Deduce Section with multi-layered robustness
       let resolvedSection: 'A' | 'B' | 'C' | 'D' = 'A';
       if (['A', 'B', 'C', 'D'].includes(s.section)) {
         resolvedSection = s.section as any;
@@ -149,8 +158,21 @@ export async function GET(req: NextRequest) {
         else if (t.includes('SECTION B') || t.includes('SEC B')) resolvedSection = 'B';
         else if (t.includes('SECTION C') || t.includes('SEC C')) resolvedSection = 'C';
         else if (t.includes('SECTION D') || t.includes('SEC D')) resolvedSection = 'D';
-      } else {
-        resolvedSection = (s.section && ['A', 'B', 'C', 'D'].includes(s.section)) ? s.section : 'A';
+      }
+
+      // If still unresolved or defaulted to A without explicit record, check register number range
+      if (!['A', 'B', 'C', 'D'].includes(s.section)) {
+        const reg = (s.register_no || '').trim().toUpperCase();
+        const m = reg.match(/922524106(\d{3})/);
+        if (m) {
+          const roll = parseInt(m[1], 10);
+          if (roll >= 1 && roll <= 60) resolvedSection = 'A';
+          else if (roll >= 61 && roll <= 120) resolvedSection = 'B';
+          else if (roll >= 121 && roll <= 180) resolvedSection = 'C';
+          else if (roll >= 181) resolvedSection = 'D';
+        } else if (reg.includes('1006172') || reg.includes('172')) {
+          resolvedSection = 'C';
+        }
       }
 
       const score = targetAttempt?.score ?? 0;

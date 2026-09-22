@@ -78,11 +78,33 @@ export default function AdminDashboardPage() {
         { data: attemptsData },
       ] = await Promise.all([
         supabase.from('profiles').select('id, register_number, display_name, department, year').eq('role', 'participant'),
-        supabase.from('participants').select('id, name, register_no, email, phone'),
+        supabase.from('participants').select('id, name, register_no, email, phone, roll_number, college, department'),
         supabase.from('rounds').select('id, round_number, title, status, duration_minutes, started_at').order('round_number', { ascending: true }),
         supabase.from('master_questions').select('*', { count: 'exact', head: true }),
         supabase.from('attempts').select('id, participant_id, user_id, round_id, score, total_marks, status, started_at, submitted_at, rounds(title)'),
       ]);
+
+      // Build lookup for student section
+      const partSectionMap = new Map<string, 'A' | 'B' | 'C' | 'D'>();
+      (participants || []).forEach((p) => {
+        let sec: 'A' | 'B' | 'C' | 'D' = 'A';
+        if (p.roll_number && ['A', 'B', 'C', 'D'].includes(p.roll_number.toUpperCase())) {
+          sec = p.roll_number.toUpperCase() as any;
+        } else if (p.college) {
+          const m = p.college.match(/Section\s*([A-D])/i);
+          if (m) sec = m[1].toUpperCase() as any;
+        } else {
+          const m = (p.register_no || '').match(/922524106(\d{3})/);
+          if (m) {
+            const roll = parseInt(m[1], 10);
+            if (roll >= 1 && roll <= 60) sec = 'A';
+            else if (roll >= 61 && roll <= 120) sec = 'B';
+            else if (roll >= 121 && roll <= 180) sec = 'C';
+            else if (roll >= 181) sec = 'D';
+          }
+        }
+        partSectionMap.set(p.id, sec);
+      });
 
       // Deduplicate enrolled students across profiles and participants
       const uniqueRegs = new Set<string>();
@@ -121,13 +143,20 @@ export default function AdminDashboardPage() {
       const sections = ['A', 'B', 'C', 'D'] as const;
       sections.forEach((sec) => {
         const secAttempts = submittedAttempts.filter((a) => {
+          // Check participant-resolved section first
+          if (a.participant_id && partSectionMap.has(a.participant_id)) {
+            return partSectionMap.get(a.participant_id) === sec;
+          }
+          // Fallback to round title
           const rnd = (Array.isArray(a.rounds) ? a.rounds[0] : a.rounds) as any;
           const t = rnd?.title?.toUpperCase() || '';
           return t.includes(`SECTION ${sec}`) || t.includes(`SEC ${sec}`);
         });
+
+        const secEnrolledCount = Array.from(partSectionMap.values()).filter((s) => s === sec).length;
         const secScores = secAttempts.map((a) => a.score || 0);
         sectionStats[sec] = {
-          enrolled: Math.floor(totalEnrolled / 4),
+          enrolled: secEnrolledCount > 0 ? secEnrolledCount : Math.floor(totalEnrolled / 4),
           assessed: secAttempts.length,
           avgScore: secScores.length > 0 ? Math.round(secScores.reduce((a, b) => a + b, 0) / secScores.length) : 0,
           topScore: secScores.length > 0 ? Math.max(...secScores) : 0,

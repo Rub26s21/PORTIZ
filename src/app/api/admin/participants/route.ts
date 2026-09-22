@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     // 1. Fetch from participants table
     const { data: partData } = await supabaseAdmin
       .from('participants')
-      .select('id, name, register_no, email, phone, created_at')
+      .select('id, name, register_no, email, phone, roll_number, college, department, created_at')
       .order('created_at', { ascending: false });
 
     // 2. Fetch from profiles table (registered users)
@@ -72,6 +72,15 @@ export async function GET(req: NextRequest) {
     (partData || []).forEach((part) => {
       const regKey = (part.register_no || part.id).toUpperCase();
       const existing = combinedMap.get(regKey) || {};
+
+      let parsedSection = '';
+      if (part.roll_number && ['A', 'B', 'C', 'D'].includes(part.roll_number.toUpperCase())) {
+        parsedSection = part.roll_number.toUpperCase();
+      } else if (part.college) {
+        const m = part.college.match(/Section\s*([A-D])/i);
+        if (m) parsedSection = m[1].toUpperCase();
+      }
+
       combinedMap.set(regKey, {
         ...existing,
         id: part.id,
@@ -79,6 +88,8 @@ export async function GET(req: NextRequest) {
         register_no: part.register_no || existing.register_no || 'N/A',
         email: part.email || existing.email || '',
         phone: part.phone || existing.phone || '',
+        department: existing.department || part.department || 'ECE',
+        section: parsedSection || existing.section || '',
         created_at: part.created_at || existing.created_at,
         participant_id: part.id,
       });
@@ -97,9 +108,9 @@ export async function GET(req: NextRequest) {
       const bestScore = pAttempts.reduce((max, a) => Math.max(max, a.score || 0), 0);
       const isPresent = attemptsCount > 0 && pAttempts.some((a) => a.status === 'submitted' || a.status === 'in_progress');
 
-      // Deduce section if not set
+      // Deduce section with multi-layered robustness
       let assignedSection = p.section;
-      if (!assignedSection) {
+      if (!['A', 'B', 'C', 'D'].includes(assignedSection)) {
         if (latestAttempt?.rounds?.title) {
           const t = latestAttempt.rounds.title.toUpperCase();
           if (t.includes('SECTION A') || t.includes('SEC A')) assignedSection = 'A';
@@ -107,9 +118,21 @@ export async function GET(req: NextRequest) {
           else if (t.includes('SECTION C') || t.includes('SEC C')) assignedSection = 'C';
           else if (t.includes('SECTION D') || t.includes('SEC D')) assignedSection = 'D';
         }
-        if (!assignedSection) {
-          const secList = ['A', 'B', 'C', 'D'];
-          assignedSection = secList[idx % 4];
+      }
+
+      if (!['A', 'B', 'C', 'D'].includes(assignedSection)) {
+        const reg = (p.register_no || '').trim().toUpperCase();
+        const m = reg.match(/922524106(\d{3})/);
+        if (m) {
+          const roll = parseInt(m[1], 10);
+          if (roll >= 1 && roll <= 60) assignedSection = 'A';
+          else if (roll >= 61 && roll <= 120) assignedSection = 'B';
+          else if (roll >= 121 && roll <= 180) assignedSection = 'C';
+          else if (roll >= 181) assignedSection = 'D';
+        } else if (reg.includes('1006172') || reg.includes('172')) {
+          assignedSection = 'C';
+        } else {
+          assignedSection = 'A';
         }
       }
 

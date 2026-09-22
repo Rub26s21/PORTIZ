@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     if (attempt.participant_id) {
       const { data: p } = await supabaseAdmin
         .from('participants')
-        .select('name, register_no, email, phone')
+        .select('name, register_no, email, phone, roll_number, college, department')
         .eq('id', attempt.participant_id)
         .maybeSingle();
 
@@ -48,6 +48,12 @@ export async function GET(req: NextRequest) {
         participantName = p.name || participantName;
         registerNo = p.register_no || registerNo;
         email = p.email || '';
+        if (p.roll_number && ['A', 'B', 'C', 'D'].includes(p.roll_number.toUpperCase())) {
+          studentSection = p.roll_number.toUpperCase() as any;
+        } else if (p.college) {
+          const m = p.college.match(/Section\s*([A-D])/i);
+          if (m) studentSection = m[1].toUpperCase() as any;
+        }
       }
     } else if (attempt.user_id) {
       const { data: u } = await supabaseAdmin
@@ -77,6 +83,18 @@ export async function GET(req: NextRequest) {
       else if (t.includes('SECTION B') || t.includes('SEC B')) studentSection = 'B';
       else if (t.includes('SECTION C') || t.includes('SEC C')) studentSection = 'C';
       else if (t.includes('SECTION D') || t.includes('SEC D')) studentSection = 'D';
+    }
+
+    // Fallback: Deduce from register number if still default
+    if (!studentSection || studentSection === 'A') {
+      const match = registerNo.match(/922524106(\d{3})/);
+      if (match) {
+        const roll = parseInt(match[1], 10);
+        if (roll >= 1 && roll <= 60) studentSection = 'A';
+        else if (roll >= 61 && roll <= 120) studentSection = 'B';
+        else if (roll >= 121 && roll <= 180) studentSection = 'C';
+        else if (roll >= 181) studentSection = 'D';
+      }
     }
 
     // 4. Fetch All Questions for this round
