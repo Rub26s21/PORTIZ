@@ -85,18 +85,6 @@ export async function GET(req: NextRequest) {
       else if (t.includes('SECTION D') || t.includes('SEC D')) studentSection = 'D';
     }
 
-    // Fallback: Deduce from register number if still default
-    if (!studentSection || studentSection === 'A') {
-      const match = registerNo.match(/922524106(\d{3})/);
-      if (match) {
-        const roll = parseInt(match[1], 10);
-        if (roll >= 1 && roll <= 60) studentSection = 'A';
-        else if (roll >= 61 && roll <= 120) studentSection = 'B';
-        else if (roll >= 121 && roll <= 180) studentSection = 'C';
-        else if (roll >= 181) studentSection = 'D';
-      }
-    }
-
     // 4. Fetch All Questions for this round
     const { data: allQuestions } = await supabaseAdmin
       .from('questions')

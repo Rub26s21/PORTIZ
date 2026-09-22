@@ -37,18 +37,9 @@ export async function POST(req: NextRequest) {
     const regNoUpper = register_no.trim().toUpperCase();
     let studentSection = (section || '').trim().toUpperCase();
 
-    // Ensure valid section 'A' | 'B' | 'C' | 'D'
+    // Ensure valid section 'A' | 'B' | 'C' | 'D' directly from input card selection
     if (!['A', 'B', 'C', 'D'].includes(studentSection)) {
-      const match = regNoUpper.match(/922524106(\d{3})/);
-      if (match) {
-        const roll = parseInt(match[1], 10);
-        if (roll >= 1 && roll <= 60) studentSection = 'A';
-        else if (roll >= 61 && roll <= 120) studentSection = 'B';
-        else if (roll >= 121 && roll <= 180) studentSection = 'C';
-        else studentSection = 'D';
-      } else {
-        studentSection = 'A';
-      }
+      studentSection = 'A';
     }
 
     // 1. Fetch active/live/published round

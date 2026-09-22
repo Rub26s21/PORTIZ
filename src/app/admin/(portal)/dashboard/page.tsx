@@ -84,7 +84,7 @@ export default function AdminDashboardPage() {
         supabase.from('attempts').select('id, participant_id, user_id, round_id, score, total_marks, status, started_at, submitted_at, rounds(title)'),
       ]);
 
-      // Build lookup for student section
+      // Build lookup for student section strictly from participant record
       const partSectionMap = new Map<string, 'A' | 'B' | 'C' | 'D'>();
       (participants || []).forEach((p) => {
         let sec: 'A' | 'B' | 'C' | 'D' = 'A';
@@ -93,15 +93,6 @@ export default function AdminDashboardPage() {
         } else if (p.college) {
           const m = p.college.match(/Section\s*([A-D])/i);
           if (m) sec = m[1].toUpperCase() as any;
-        } else {
-          const m = (p.register_no || '').match(/922524106(\d{3})/);
-          if (m) {
-            const roll = parseInt(m[1], 10);
-            if (roll >= 1 && roll <= 60) sec = 'A';
-            else if (roll >= 61 && roll <= 120) sec = 'B';
-            else if (roll >= 121 && roll <= 180) sec = 'C';
-            else if (roll >= 181) sec = 'D';
-          }
         }
         partSectionMap.set(p.id, sec);
       });

@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
         ? submittedAttempts.reduce((best, cur) => (cur.score > best.score ? cur : best), submittedAttempts[0])
         : inProgressAttempts[0] || attempts[0] || null;
 
-      // Deduce Section with multi-layered robustness
+      // Deduce Section strictly from participant record (from entry card) or round title
       let resolvedSection: 'A' | 'B' | 'C' | 'D' = 'A';
       if (['A', 'B', 'C', 'D'].includes(s.section)) {
         resolvedSection = s.section as any;
@@ -158,21 +158,6 @@ export async function GET(req: NextRequest) {
         else if (t.includes('SECTION B') || t.includes('SEC B')) resolvedSection = 'B';
         else if (t.includes('SECTION C') || t.includes('SEC C')) resolvedSection = 'C';
         else if (t.includes('SECTION D') || t.includes('SEC D')) resolvedSection = 'D';
-      }
-
-      // If still unresolved or defaulted to A without explicit record, check register number range
-      if (!['A', 'B', 'C', 'D'].includes(s.section)) {
-        const reg = (s.register_no || '').trim().toUpperCase();
-        const m = reg.match(/922524106(\d{3})/);
-        if (m) {
-          const roll = parseInt(m[1], 10);
-          if (roll >= 1 && roll <= 60) resolvedSection = 'A';
-          else if (roll >= 61 && roll <= 120) resolvedSection = 'B';
-          else if (roll >= 121 && roll <= 180) resolvedSection = 'C';
-          else if (roll >= 181) resolvedSection = 'D';
-        } else if (reg.includes('1006172') || reg.includes('172')) {
-          resolvedSection = 'C';
-        }
       }
 
       const score = targetAttempt?.score ?? 0;

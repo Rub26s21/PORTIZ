@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
       const bestScore = pAttempts.reduce((max, a) => Math.max(max, a.score || 0), 0);
       const isPresent = attemptsCount > 0 && pAttempts.some((a) => a.status === 'submitted' || a.status === 'in_progress');
 
-      // Deduce section with multi-layered robustness
+      // Deduce section strictly from participant record (from entry card) or round title
       let assignedSection = p.section;
       if (!['A', 'B', 'C', 'D'].includes(assignedSection)) {
         if (latestAttempt?.rounds?.title) {
@@ -121,19 +121,7 @@ export async function GET(req: NextRequest) {
       }
 
       if (!['A', 'B', 'C', 'D'].includes(assignedSection)) {
-        const reg = (p.register_no || '').trim().toUpperCase();
-        const m = reg.match(/922524106(\d{3})/);
-        if (m) {
-          const roll = parseInt(m[1], 10);
-          if (roll >= 1 && roll <= 60) assignedSection = 'A';
-          else if (roll >= 61 && roll <= 120) assignedSection = 'B';
-          else if (roll >= 121 && roll <= 180) assignedSection = 'C';
-          else if (roll >= 181) assignedSection = 'D';
-        } else if (reg.includes('1006172') || reg.includes('172')) {
-          assignedSection = 'C';
-        } else {
-          assignedSection = 'A';
-        }
+        assignedSection = 'A';
       }
 
       return {
