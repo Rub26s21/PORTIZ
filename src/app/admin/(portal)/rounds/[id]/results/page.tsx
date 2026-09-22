@@ -234,17 +234,17 @@ export default function ResultsPage({ params }: PageProps) {
       <FadeIn delay={0.12}>
         <GlassCard variant="solid" radius={24} hover={false} noHover className="!p-0 border border-[rgba(255,255,255,0.07)]" style={{ boxShadow: skeuomorphicShadow }}>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-[rgba(168,85,247,0.16)] bg-[rgba(124,58,237,0.1)] font-[family-name:var(--font-heading)] text-xs text-[var(--aurora-purple)] uppercase tracking-wider">
-                  <th className="px-4 py-3.5 text-center w-10">
+                  <th className="px-4 py-3.5 text-center w-10 whitespace-nowrap">
                     <input type="checkbox" checked={selectedIds.length === results.length && results.length > 0} onChange={handleSelectAll} />
                   </th>
-                  <th className="px-4 py-3.5 text-center w-12">Rank</th>
-                  <th className="px-4 py-3.5 text-left">Participant</th>
-                  <th className="px-4 py-3.5 text-center">Score</th>
-                  <th className="px-4 py-3.5 text-center">Time Taken</th>
-                  <th className="px-4 py-3.5 text-right">Status</th>
+                  <th className="px-4 py-3.5 text-center w-14 whitespace-nowrap">Rank</th>
+                  <th className="px-4 py-3.5 text-left whitespace-nowrap">Participant</th>
+                  <th className="px-4 py-3.5 text-center whitespace-nowrap">Score</th>
+                  <th className="px-4 py-3.5 text-center whitespace-nowrap">Time Taken</th>
+                  <th className="px-4 py-3.5 text-right whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>

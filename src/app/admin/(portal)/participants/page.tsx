@@ -523,17 +523,17 @@ export default function ParticipantsPage() {
           style={{ boxShadow: cleanShadow, background: '#000000' }}
         >
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
+            <table className="w-full border-collapse text-left min-w-[1100px]">
               <thead>
                 <tr className="border-b border-white/12 bg-white/[0.04] font-[family-name:var(--font-heading)] text-xs text-white uppercase tracking-wider">
-                  <th className="px-5 py-4 w-12 text-center">#</th>
-                  <th className="px-5 py-4">Student & Register No</th>
-                  <th className="px-5 py-4 text-center">Section</th>
-                  <th className="px-5 py-4 text-center">Attendance Status</th>
-                  <th className="px-5 py-4">Assigned Test Round</th>
-                  <th className="px-5 py-4 text-center">Score & Performance</th>
-                  <th className="px-5 py-4 text-center">Time Spent</th>
-                  <th className="px-5 py-4 text-center">Reports Column</th>
+                  <th className="px-4 py-3.5 w-14 text-center whitespace-nowrap">#</th>
+                  <th className="px-5 py-3.5 min-w-[240px] whitespace-nowrap">Student & Register No</th>
+                  <th className="px-4 py-3.5 w-32 text-center whitespace-nowrap">Section</th>
+                  <th className="px-4 py-3.5 w-36 text-center whitespace-nowrap">Attendance Status</th>
+                  <th className="px-5 py-3.5 min-w-[220px] whitespace-nowrap">Assigned Test Round</th>
+                  <th className="px-4 py-3.5 w-40 text-center whitespace-nowrap">Score & Performance</th>
+                  <th className="px-4 py-3.5 w-32 text-center whitespace-nowrap">Time Spent</th>
+                  <th className="px-4 py-3.5 w-36 text-center whitespace-nowrap">Reports Column</th>
                 </tr>
               </thead>
               <tbody>
@@ -557,7 +557,7 @@ export default function ParticipantsPage() {
                     const theme = getSectionTheme(p.section);
                     const isPresent = p.attendance_status === 'present';
                     const accuracy = p.latest_score !== null && p.latest_score !== undefined
-                      ? Math.round((p.latest_score / (p.latest_total_marks || 100)) * 100)
+                      ? Math.round((p.latest_score / (p.latest_total_marks || 30)) * 100)
                       : null;
 
                     return (
@@ -566,60 +566,61 @@ export default function ParticipantsPage() {
                         className="border-b border-white/[0.04] hover:bg-white/[0.03] transition-colors group"
                       >
                         {/* 1. Index */}
-                        <td className="px-5 py-4 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8] text-center font-semibold">
+                        <td className="px-4 py-3.5 font-[family-name:var(--font-mono)] text-xs text-[#94A3B8] text-center font-semibold whitespace-nowrap">
                           {idx + 1}
                         </td>
 
                         {/* 2. Student Info */}
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono border ${theme.badge}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono border shrink-0 ${theme.badge}`}>
                               {getInitials(p.name || 'S')}
                             </div>
-                            <div>
-                              <div className="font-semibold text-xs text-white group-hover:text-[#00E5FF] transition-colors">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-xs text-white group-hover:text-[#00E5FF] transition-colors truncate">
                                 {p.name}
                               </div>
                               <div className="text-[11px] font-mono text-[#94A3B8] flex items-center gap-1.5 mt-0.5">
                                 <span className="font-bold text-[#CBD5E1]">{p.register_no}</span>
                                 <span className="text-white/30">•</span>
-                                <span>{p.email || 'No email'}</span>
+                                <span className="truncate max-w-[160px]">{p.email || 'No email'}</span>
                               </div>
                             </div>
                           </div>
                         </td>
 
                         {/* 3. Section Badge */}
-                        <td className="px-5 py-4 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold font-mono border ${theme.badge}`}>
-                            🏛️ Section {p.section}
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          <span className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono border whitespace-nowrap shadow-sm ${theme.badge}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+                            Section {p.section}
                           </span>
                         </td>
 
                         {/* 4. Attendance Status */}
-                        <td className="px-5 py-4 text-center">
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           {isPresent ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold font-mono">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              Present ✅
+                            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs font-bold font-mono whitespace-nowrap shadow-sm">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                              Present
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono">
-                              <XCircle size={12} />
-                              Absent (Pending)
+                            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono whitespace-nowrap">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                              Absent
                             </span>
                           )}
                         </td>
 
                         {/* 5. Assigned Round */}
-                        <td className="px-5 py-4">
+                        <td className="px-5 py-3.5">
                           {p.latest_round_title ? (
-                            <div className="max-w-[220px]">
+                            <div className="max-w-[240px]">
                               <div className="text-xs text-white font-semibold truncate" title={p.latest_round_title}>
                                 {p.latest_round_title}
                               </div>
                               {p.submitted_at && (
-                                <div className="text-[10px] font-mono text-[#64748B] mt-0.5">
+                                <div className="text-[10px] font-mono text-[#64748B] mt-0.5 whitespace-nowrap">
                                   Submitted: {formatDateIST(p.submitted_at)}
                                 </div>
                               )}
@@ -630,16 +631,16 @@ export default function ParticipantsPage() {
                         </td>
 
                         {/* 6. Score & Performance */}
-                        <td className="px-5 py-4 text-center">
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           {p.latest_score !== null && p.latest_score !== undefined ? (
-                            <div className="inline-block text-center">
+                            <div className="inline-flex flex-col items-center justify-center">
                               <div className="text-xs font-mono font-extrabold text-white">
-                                {p.latest_score} <span className="text-[#94A3B8] font-normal">/ {p.latest_total_marks || 100}</span>
+                                {p.latest_score} <span className="text-[#94A3B8] font-normal">/ {p.latest_total_marks || 30}</span>
                               </div>
                               <div className="w-16 h-1 rounded-full bg-white/10 overflow-hidden mx-auto mt-1">
                                 <div
                                   className="h-full bg-gradient-to-r from-emerald-400 to-[#00E5FF] rounded-full"
-                                  style={{ width: `${accuracy || 0}%` }}
+                                  style={{ width: `${Math.min(100, accuracy || 0)}%` }}
                                 />
                               </div>
                               <div className="text-[9px] font-mono text-emerald-400 font-bold mt-0.5">
@@ -652,9 +653,9 @@ export default function ParticipantsPage() {
                         </td>
 
                         {/* 7. Time Spent */}
-                        <td className="px-5 py-4 text-center font-[family-name:var(--font-mono)] text-xs text-[#E2E8F0]">
+                        <td className="px-4 py-3.5 text-center font-[family-name:var(--font-mono)] text-xs text-[#E2E8F0] whitespace-nowrap">
                           {p.time_taken_seconds ? (
-                            <div className="flex items-center justify-center gap-1 text-xs">
+                            <div className="inline-flex items-center justify-center gap-1.5 text-xs text-[#CBD5E1]">
                               <Clock size={12} className="text-[#94A3B8]" />
                               <span>{Math.floor(p.time_taken_seconds / 60)}m {p.time_taken_seconds % 60}s</span>
                             </div>
@@ -664,10 +665,10 @@ export default function ParticipantsPage() {
                         </td>
 
                         {/* 8. Reports Column */}
-                        <td className="px-5 py-4 text-center">
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
                           <button
                             onClick={() => setInspectStudent(p)}
-                            className="px-3 py-1.5 rounded-xl bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 text-[#00E5FF] text-xs font-bold font-[family-name:var(--font-heading)] transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(0,229,255,0.15)]"
+                            className="px-3.5 py-1.5 rounded-xl bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 text-[#00E5FF] text-xs font-bold font-[family-name:var(--font-heading)] transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-[0_0_12px_rgba(0,229,255,0.15)] hover:scale-105 active:scale-95"
                           >
                             <FileText size={13} />
                             <span>View Report</span>
@@ -741,7 +742,7 @@ export default function ParticipantsPage() {
                   <div className="text-[10px] font-mono text-[#94A3B8] uppercase tracking-wider">Performance Score</div>
                   <div className="font-bold text-sm font-mono text-white flex items-baseline gap-1.5">
                     <span className="text-lg text-[#00E5FF]">{inspectStudent.latest_score !== null && inspectStudent.latest_score !== undefined ? inspectStudent.latest_score : inspectStudent.best_score}</span>
-                    <span className="text-xs text-[#94A3B8]">/ {inspectStudent.latest_total_marks || 100} pts</span>
+                    <span className="text-xs text-[#94A3B8]">/ {inspectStudent.latest_total_marks || 30} pts</span>
                   </div>
                 </div>
               </div>
