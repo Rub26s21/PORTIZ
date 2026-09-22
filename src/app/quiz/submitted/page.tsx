@@ -434,9 +434,7 @@ function SubmittedContent() {
                       {q.isWrong && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-300 font-mono text-xs font-bold">
                           <X size={13} />
-                          <span>
-                            Incorrect ({q.negativePenalty > 0 ? `-${q.negativePenalty} Penalty` : '0 Marks'})
-                          </span>
+                          <span>Incorrect (0 Marks)</span>
                         </div>
                       )}
 

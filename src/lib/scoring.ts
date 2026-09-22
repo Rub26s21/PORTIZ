@@ -40,10 +40,8 @@ export function scoreAnswer(
   let marksAwarded: number;
   if (isCorrect) {
     marksAwarded = question.marks;
-  } else if (negativeMarking && selectedAnswer) {
-    marksAwarded = -(question.negative_marks || negativeMarksPerWrong);
   } else {
-    marksAwarded = 0;
+    marksAwarded = 0; // Negative marks entirely removed
   }
 
   return { isCorrect, marksAwarded };
@@ -81,24 +79,109 @@ function scoreTrueFalse(correct: any, selected: any): boolean {
   return String(cVal).trim().toLowerCase() === String(sVal).trim().toLowerCase();
 }
 
+function normalizeText(text: string): string {
+  return String(text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function cleanAlphanumeric(text: string): string {
+  return normalizeText(text)
+    .replace(/\b(an|a|the)\b/gi, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .trim();
+}
+
 function scoreFillBlank(correct: any, selected: any): boolean {
-  let cVal = typeof correct === 'object' ? correct?.value : correct;
-  let sVal = typeof selected === 'object' ? selected?.value : selected;
+  let cVal = typeof correct === 'object' && correct !== null ? (correct.value !== undefined ? correct.value : correct) : correct;
+  let sVal = typeof selected === 'object' && selected !== null ? (selected.value !== undefined ? selected.value : selected) : selected;
+
+  if (sVal === undefined || sVal === null || String(sVal).trim() === '') return false;
+
+  const rawUser = String(sVal).trim();
+  const userClean = cleanAlphanumeric(rawUser);
+
+  let acceptableList: string[] = [];
   if (Array.isArray(cVal)) {
-    return cVal.some((accepted) => normalizeText(String(accepted)) === normalizeText(String(sVal)));
+    acceptableList = cVal.map((v) => String(v).trim());
+  } else if (typeof cVal === 'string') {
+    if (cVal.startsWith('[') && cVal.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(cVal);
+        if (Array.isArray(parsed)) acceptableList = parsed.map((v) => String(v).trim());
+      } catch {
+        acceptableList = [cVal];
+      }
+    } else {
+      acceptableList = cVal.split(/[,|;/]/).map((v) => v.trim()).filter(Boolean);
+      if (!acceptableList.includes(cVal) && cVal.length > 0) acceptableList.unshift(cVal);
+    }
+  } else {
+    acceptableList = [String(cVal ?? '').trim()];
   }
-  return normalizeText(String(cVal)) === normalizeText(String(sVal));
+
+  // 1. Direct and normalized check
+  for (const acc of acceptableList) {
+    if (!acc) continue;
+    if (normalizeText(acc) === normalizeText(rawUser)) return true;
+    const accClean = cleanAlphanumeric(acc);
+    if (accClean && userClean === accClean) return true;
+
+    // Unit aliases (e.g., ohm / ohms / Ω)
+    if (accClean === 'ohm' || accClean === 'ohms') {
+      if (['ohm', 'ohms', 'o'].includes(userClean) || rawUser === 'Ω') return true;
+    }
+    if (accClean === 'farad' || accClean === 'farads') {
+      if (['farad', 'farads', 'f'].includes(userClean)) return true;
+    }
+    if (accClean === 'henry' || accClean === 'henries') {
+      if (['henry', 'henries', 'h'].includes(userClean)) return true;
+    }
+    if (accClean === 'hertz' || accClean === 'hz') {
+      if (['hertz', 'hz'].includes(userClean)) return true;
+    }
+
+    // Binary formatting (e.g. 101 vs 0101 vs 5)
+    if (accClean === '101') {
+      const stripped = userClean.replace(/^0+/, '');
+      if (stripped === '101' || userClean === '101' || userClean === '0101' || userClean === '5') {
+        return true;
+      }
+    }
+
+    // Logic gate name check e.g. 'and' vs 'and gate'
+    const logicGates = ['and', 'or', 'not', 'nand', 'nor', 'xor', 'xnor'];
+    for (const gate of logicGates) {
+      if (accClean === gate || accClean === `${gate}gate`) {
+        if (userClean === gate || userClean === `${gate}gate`) return true;
+      }
+    }
+
+    // Common Electronics Abbreviations
+    const abbrevMap: Record<string, string[]> = {
+      pcb: ['printedcircuitboard', 'pcb'],
+      ic: ['integratedcircuit', 'ic'],
+      bjt: ['bipolarjunctiontransistor', 'bjt'],
+      fet: ['fieldeffecttransistor', 'fet'],
+      opamp: ['operationalamplifier', 'opamp', 'opampcircuit'],
+      led: ['lightemittingdiode', 'led'],
+    };
+    for (const [key, variants] of Object.entries(abbrevMap)) {
+      if (variants.includes(accClean) && variants.includes(userClean)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function scoreNumerical(correct: any, selected: any): boolean {
-  let cVal = typeof correct === 'object' ? correct?.value : correct;
-  let sVal = typeof selected === 'object' ? selected?.value : selected;
-  const tol = typeof correct === 'object' ? (correct?.tolerance || 0) : 0;
+  let cVal = typeof correct === 'object' && correct !== null ? (correct.value !== undefined ? correct.value : correct) : correct;
+  let sVal = typeof selected === 'object' && selected !== null ? (selected.value !== undefined ? selected.value : selected) : selected;
+  const tol = typeof correct === 'object' && correct !== null ? (correct.tolerance || 0) : 0;
   return Math.abs(Number(sVal) - Number(cVal)) <= tol;
-}
-
-function normalizeText(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 // Calculate total score for an attempt

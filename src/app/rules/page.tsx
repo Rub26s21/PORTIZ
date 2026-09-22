@@ -15,6 +15,7 @@ const rules = [
   { icon: AlertTriangle, text: 'Copy, paste, cut, right-click, and developer tools are all disabled during the test.' },
   { icon: BookOpen, text: 'Questions and options are randomized for each participant. No two participants will see the same order.' },
   { icon: Shield, text: 'Answers are auto-saved as you select them. You can change your answer before submitting.' },
+  { icon: Shield, text: 'There is NO negative marking in any test. Wrong answers receive 0 marks with zero penalty.' },
   { icon: Clock, text: 'If the timer runs out, your test is automatically submitted with whatever answers you have provided.' },
   { icon: Users, text: 'Promotion to the next round is decided by the admin based on scores. Only promoted participants can attempt the next round.' },
 ];

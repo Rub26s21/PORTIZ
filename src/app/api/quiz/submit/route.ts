@@ -63,10 +63,8 @@ export async function POST(req: NextRequest) {
         const evalResult = evaluateAnswerDetailed(q, userSel);
         if (evalResult.isCorrect) {
           totalScore += Number(q.marks || 1);
-        } else if (round?.negative_marking) {
-          const penalty = q.negative_marks || round.negative_marks_per_wrong || 0;
-          totalScore -= Number(penalty);
         }
+        // Negative marks entirely removed: wrong answers receive 0 marks without penalty
       }
     });
 

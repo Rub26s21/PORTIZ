@@ -296,10 +296,8 @@ export default function TestPage() {
                   Question {currentIndex + 1} of {questions.length}
                 </span>
                 <div className="flex items-center gap-3 text-xs font-[family-name:var(--font-mono)] text-[var(--text-muted)]">
-                  <span>{currentQuestion.marks} marks</span>
-                  {currentQuestion.negative_marks > 0 && (
-                    <span className="text-[var(--aurora-rose)]">-{currentQuestion.negative_marks} wrong</span>
-                  )}
+                  <span>+{currentQuestion.marks} marks</span>
+                  <span className="text-emerald-400">No negative marking</span>
                 </div>
               </div>
 

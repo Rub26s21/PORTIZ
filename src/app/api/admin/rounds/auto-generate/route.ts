@@ -125,8 +125,8 @@ export async function POST(req: NextRequest) {
             status: status || 'published',
             randomize_questions: Boolean(randomize_questions),
             randomize_options: Boolean(randomize_options),
-            negative_marking: Boolean(negative_marking),
-            negative_marks_per_wrong: Number(negative_marks_per_wrong),
+            negative_marking: false,
+            negative_marks_per_wrong: 0,
             equal_subject_distribution: false,
             questions_per_subject: 5,
           })

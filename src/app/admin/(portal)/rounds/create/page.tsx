@@ -27,7 +27,7 @@ export default function CreateRoundPage() {
       randomize_questions: true,
       randomize_options: true,
       negative_marking: false,
-      negative_marks_per_wrong: 0.25,
+      negative_marks_per_wrong: 0,
       requires_promotion: false,
       show_results: false,
       show_leaderboard: true,
@@ -35,7 +35,7 @@ export default function CreateRoundPage() {
     },
   });
 
-  const negativeMarking = watch('negative_marking');
+  const negativeMarking = false;
   const status = watch('status');
 
   const onSubmit = async (data: any) => {
@@ -50,7 +50,11 @@ export default function CreateRoundPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          negative_marking: false,
+          negative_marks_per_wrong: 0,
+        }),
       });
 
       if (!res.ok) {

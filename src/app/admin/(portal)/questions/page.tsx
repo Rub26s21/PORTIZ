@@ -415,7 +415,7 @@ export default function QuestionsControlPage() {
     }
 
     const marks = Number(row['Marks'] || row['Mark'] || row['Points']) || 2;
-    const negMarks = Number(row['Negative Marks'] || row['Negative Mark'] || row['Negative']) || 0.5;
+    const negMarks = 0; // Negative marks entirely removed
     const difficulty = row['Difficulty'] || 'medium';
     const category = row['Category'] || matchedSubject;
     const explanation = row['Explanation'] || row['Solution'] || '';
@@ -1075,7 +1075,7 @@ export default function QuestionsControlPage() {
     setFormOptions(['', '', '', '']);
     setFormCorrectIndex(0);
     setFormMarks(2);
-    setFormNegativeMarks(0.5);
+    setFormNegativeMarks(0);
     setFormExplanation('');
     setCategory('Electronics');
     setFormImageUrl('');
@@ -1092,7 +1092,7 @@ export default function QuestionsControlPage() {
       typeof q.correct_answer === 'object' ? q.correct_answer?.value ?? 0 : Number(q.correct_answer) || 0
     );
     setFormMarks(q.marks || 2);
-    setFormNegativeMarks(q.negative_marks || 0.5);
+    setFormNegativeMarks(0);
     setFormExplanation(q.explanation || '');
     setCategory(q.category || '');
     setFormImageUrl(q.image_url || '');
@@ -1490,7 +1490,7 @@ export default function QuestionsControlPage() {
                         </span>
 
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-[family-name:var(--font-mono)] font-bold text-white bg-[rgba(255,255,255,0.08)]">
-                          +{q.marks} pts {q.negative_marks ? `(-${q.negative_marks})` : ''}
+                          +{q.marks} pts
                         </span>
                       </div>
 
@@ -2139,10 +2139,9 @@ export default function QuestionsControlPage() {
                   <label className="form-label text-xs text-[#E2E8F0] font-bold">Negative Marks (-)</label>
                   <input
                     type="number"
-                    step="0.25"
-                    value={formNegativeMarks}
-                    onChange={(e) => setFormNegativeMarks(Number(e.target.value))}
-                    className="form-input bg-[#000000] text-white border border-[rgba(255,255,255,0.2)] text-xs"
+                    disabled
+                    value={0}
+                    className="form-input bg-[#000000] text-[#64748B] border border-[rgba(255,255,255,0.1)] text-xs cursor-not-allowed"
                   />
                 </div>
               </div>

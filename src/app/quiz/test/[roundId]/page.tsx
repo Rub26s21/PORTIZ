@@ -769,14 +769,12 @@ export default function QuizTestPage({ params }: PageProps) {
 
                   {/* Marks */}
                   <div className="flex items-center gap-2 mb-3 text-xs font-[family-name:var(--font-mono)]">
-                    <span className="px-2 py-0.5 rounded bg-[rgba(16,185,129,0.14)] text-[var(--aurora-green)] border border-[rgba(16,185,129,0.3)]">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[rgba(16,185,129,0.14)] text-[var(--aurora-green)] border border-[rgba(16,185,129,0.3)] font-semibold">
                       +{currentQuestion.marks} marks
                     </span>
-                    {currentQuestion.negative_marks ? (
-                      <span className="px-2 py-0.5 rounded bg-[rgba(244,63,94,0.14)] text-[var(--aurora-rose)] border border-[rgba(244,63,94,0.3)]">
-                        −{currentQuestion.negative_marks} penalty
-                      </span>
-                    ) : null}
+                    <span className="px-2 py-0.5 rounded-full bg-white/5 text-[#94A3B8] border border-white/10 text-[10px]">
+                      No Negative Marking
+                    </span>
                   </div>
 
                   {/* Question Text */}

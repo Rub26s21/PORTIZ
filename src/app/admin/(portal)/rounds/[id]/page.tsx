@@ -422,7 +422,7 @@ export default function RoundDetailPage({ params }: PageProps) {
               {[
                 { label: "Shuffle Questions", val: round.randomize_questions },
                 { label: "Shuffle Options", val: round.randomize_options },
-                { label: "Negative Marking", val: round.negative_marking },
+                { label: "Negative Marking", val: false },
                 { label: "Requires Promotion", val: round.requires_promotion },
                 { label: "Public Leaderboard", val: round.show_leaderboard },
                 { label: "Instant Results", val: round.show_results },

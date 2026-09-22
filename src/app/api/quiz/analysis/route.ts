@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
       let userSelectedIndex: number | null = null;
       let userSelectedText: string | null = null;
 
-      if (!isSkipped) {
+      if (!isSkipped && userSel !== null) {
         const parsedUIdx = Number(userSel);
         if (!isNaN(parsedUIdx) && parsedUIdx >= 0 && parsedUIdx < optionsArray.length) {
           userSelectedIndex = parsedUIdx;
@@ -173,10 +173,12 @@ export async function GET(req: NextRequest) {
             userSelectedIndex = foundUIdx;
           }
         }
+      } else {
+        userSelectedText = userSel || '';
       }
 
-      // Use 3-Stage Smart Engineering Answer Evaluator
-      const evalRes = isSkipped ? null : evaluateAnswerDetailed(q, userSel);
+      // Evaluate using 3-Stage Smart Engineering Evaluator
+      const evalRes = !isSkipped && userSel !== null ? evaluateAnswerDetailed(q, userSel) : null;
       const isCorrect = evalRes ? evalRes.isCorrect : false;
       const isWrong = !isSkipped && !isCorrect;
       let marksAwarded = 0;
@@ -188,9 +190,8 @@ export async function GET(req: NextRequest) {
         marksAwarded = maxMarks;
       } else {
         wrongCount++;
-        if (round?.negative_marking) {
-          marksAwarded = -negPenalty;
-        }
+        // Negative marks entirely removed: wrong answers receive 0 marks
+        marksAwarded = 0;
       }
 
       const isMcq = optionsArray.length > 0;
@@ -216,7 +217,7 @@ export async function GET(req: NextRequest) {
         isSkipped,
         marksAwarded,
         maxMarks,
-        negativePenalty: negPenalty,
+        negativePenalty: 0,
         matchType: evalRes?.matchType || (isSkipped ? 'none' : 'none'),
         feedback: evalRes?.feedback || (isSkipped ? 'Unattempted' : ''),
       };
