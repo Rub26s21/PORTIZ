@@ -290,8 +290,16 @@ export default function ParticipantsPage() {
               <Download size={14} /> Export CSV
             </GalaxyButton>
             <GalaxyButton variant="cyan" size="sm" onClick={handleExportExcel}>
-              <FileSpreadsheet size={14} /> Export Section-Wise Excel
+              <FileSpreadsheet size={14} /> Section Sheets (.xlsx)
             </GalaxyButton>
+            <a
+              href="/api/admin/reports/coordinator-excel"
+              download="III_ECE_Technical_Test_Consolidated_Template.xlsx"
+            >
+              <GalaxyButton variant="primary" size="sm" className="!bg-[#00E676]/20 !border-[#00E676]/50 !text-[#00E676] hover:!bg-[#00E676]/30">
+                <FileSpreadsheet size={14} /> Official College Template (.xlsx) 📥
+              </GalaxyButton>
+            </a>
           </div>
         </div>
 

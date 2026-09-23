@@ -298,6 +298,15 @@ export default function AdminDashboardPage() {
       badgeColor: 'border-[#9C27B0]/40 text-[#9C27B0] bg-[#9C27B0]/10',
       actionText: 'Open Analytics',
     },
+    {
+      title: 'Coordinator Official Excel 📥',
+      description: 'Official III ECE Technical Test Consolidated template with Section A-D breakdown, Test 2 percentages, and metrics analysis.',
+      href: '/api/admin/reports/coordinator-excel',
+      icon: FileSpreadsheet,
+      badge: 'Official Template',
+      badgeColor: 'border-[#00E676]/40 text-[#00E676] bg-[#00E676]/10',
+      actionText: 'Download Official .xlsx',
+    },
   ];
 
   return (
@@ -323,6 +332,14 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <a
+                href="/api/admin/reports/coordinator-excel"
+                download="III_ECE_Technical_Test_Consolidated_Template.xlsx"
+              >
+                <GalaxyButton variant="secondary" size="sm" className="!border-[#00E676]/50 !text-[#00E676] hover:!bg-[#00E676]/10">
+                  <FileSpreadsheet size={14} /> Coordinator Excel 📥
+                </GalaxyButton>
+              </a>
               <Link href="/admin/scheduling">
                 <GalaxyButton variant="secondary" size="sm">
                   <Calendar size={14} /> Scheduling 📅
