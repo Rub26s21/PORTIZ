@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/server';
 import { MASTER_QUESTION_POOL } from '@/lib/question-seed';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { validateStudentSection } from '@/data/studentRoster';
 
 function shuffleArray<T>(array: T[]): T[] {
   const arr = [...array];
@@ -40,6 +41,19 @@ export async function POST(req: NextRequest) {
     // Ensure valid section 'A' | 'B' | 'C' | 'D' directly from input card selection
     if (!['A', 'B', 'C', 'D'].includes(studentSection)) {
       studentSection = 'A';
+    }
+
+    // Strict Official Roster Section Verification
+    const rosterCheck = validateStudentSection(regNoUpper, studentSection);
+    if (!rosterCheck.isValid) {
+      return NextResponse.json(
+        {
+          error: rosterCheck.error || `Register number ${regNoUpper} cannot take the test under Section ${studentSection}.`,
+          officialSection: rosterCheck.officialSection,
+          regNo: regNoUpper,
+        },
+        { status: 403 }
+      );
     }
 
     // 1. Fetch active/live/published round
