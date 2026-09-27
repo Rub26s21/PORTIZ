@@ -770,6 +770,7 @@ export default function QuizTestPage({ params }: PageProps) {
                   startedAtIso={startedAt}
                   onTimeUp={() => handleFinalSubmit()}
                   compact
+                  attemptId={attemptId || undefined}
                 />
               </div>
             )}
@@ -1240,6 +1241,7 @@ export default function QuizTestPage({ params }: PageProps) {
                 totalDurationMinutes={durationMinutes}
                 startedAtIso={startedAt}
                 onTimeUp={() => handleFinalSubmit()}
+                attemptId={attemptId || undefined}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-[140px]">

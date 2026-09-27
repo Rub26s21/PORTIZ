@@ -216,7 +216,7 @@ export default function TestPage() {
       timerEverRan.current = true;
     }
 
-    const interval = setInterval(() => {
+    const tick = () => {
       const remaining = getTimeRemaining(startedAt, durationMinutes, endTime);
       setTimeRemaining(remaining);
 
@@ -229,9 +229,30 @@ export default function TestPage() {
         clearInterval(interval);
         handleSubmit(true, false, 'Time expired');
       }
-    }, 1000);
+    };
 
-    return () => clearInterval(interval);
+    const interval = setInterval(tick, 1000);
+
+    const handleWakeup = () => {
+      tick();
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleWakeup);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleWakeup);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleWakeup);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleWakeup);
+      }
+    };
   }, [startedAt, durationMinutes, endTime, loading, handleSubmit]);
 
   const [isOnline, setIsOnline] = useState<boolean>(true);
