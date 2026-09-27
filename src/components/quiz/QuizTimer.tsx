@@ -6,9 +6,11 @@ interface QuizTimerProps {
   totalDurationMinutes: number;
   startedAtIso: string;
   onTimeUp: () => void;
+  /** If true, renders as inline compact text (for mobile header). Otherwise renders full SVG ring. */
+  compact?: boolean;
 }
 
-export default function QuizTimer({ totalDurationMinutes, startedAtIso, onTimeUp }: QuizTimerProps) {
+export default function QuizTimer({ totalDurationMinutes, startedAtIso, onTimeUp, compact = false }: QuizTimerProps) {
   const totalSeconds = totalDurationMinutes * 60;
 
   const calculateRemaining = () => {
@@ -65,12 +67,25 @@ export default function QuizTimer({ totalDurationMinutes, startedAtIso, onTimeUp
   const seconds = remaining % 60;
   const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
+  const isCritical = percent <= 10;
+
+  // ── COMPACT MODE: Inline text for mobile header bar ──
+  if (compact) {
+    return (
+      <span
+        className={`font-[family-name:var(--font-mono)] font-bold text-xs tracking-wider ${isCritical ? 'animate-pulse' : ''}`}
+        style={{ color: strokeColor, textShadow: `0 0 8px ${strokeColor}66` }}
+      >
+        {formattedTime}
+      </span>
+    );
+  }
+
+  // ── FULL MODE: SVG ring with center text ──
   // SVG Ring values
   const radius = 62;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - (totalSeconds > 0 ? remaining / totalSeconds : 0));
-
-  const isCritical = percent <= 10;
 
   return (
     <div className="flex flex-col items-center justify-center space-y-2 select-none">

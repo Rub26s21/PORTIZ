@@ -3,10 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { initAntiCheat, ViolationType } from '@/lib/anti-cheat';
+import { initAntiCheat, ViolationType, requestFullscreen } from '@/lib/anti-cheat';
 import { formatDuration, getTimeRemaining, formatImageUrl } from '@/lib/utils';
 import { QuestionWithoutAnswer, AnswerValue } from '@/types/quiz';
-import { Clock, Send, ChevronLeft, ChevronRight, Flag, X, Maximize2 } from 'lucide-react';
+import {
+  Clock, Send, ChevronLeft, ChevronRight, Flag, X, Maximize2,
+  ShieldAlert, AlertTriangle, Maximize, AlertOctagon
+} from 'lucide-react';
 import GlowButton from '@/components/shared/GlowButton';
 import GlassCard from '@/components/shared/GlassCard';
 
@@ -20,79 +23,216 @@ export default function TestPage() {
   const [answers, setAnswers] = useState<Record<string, AnswerValue | null>>({});
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [markedForReview, setMarkedForReview] = useState<Set<string>>(new Set());
-  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(0);
   const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Anti-cheat state
+  const [isFullscreenRequired, setIsFullscreenRequired] = useState(true);
+  const [strikeCount, setStrikeCount] = useState(0);
+  const [activeWarning, setActiveWarning] = useState<string | null>(null);
+
+  const antiCheatArmed = useRef(false);
   const antiCheatCleanup = useRef<(() => void) | null>(null);
   const tokenRef = useRef('');
+  const hasSubmitted = useRef(false);
+  const timerEverRan = useRef(false);
+  const strikeCountRef = useRef(0);
+  const lastViolationTimeRef = useRef(0);
 
-  // Handle violation
-  const handleViolation = useCallback(async (reason: ViolationType) => {
+  // Submit test (regular or forced)
+  const handleSubmit = useCallback(async (auto = false, forceDisqualify = false, reason = '') => {
+    if (hasSubmitted.current || isSubmitting) return;
+    hasSubmitted.current = true;
+    setIsSubmitting(true);
+
     try {
-      await fetch(`/api/participant/rounds/${roundId}/proctor-event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-        body: JSON.stringify({ eventType: reason }),
-      });
       await fetch(`/api/participant/rounds/${roundId}/submit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-        body: JSON.stringify({ forceDisqualify: true, reason }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenRef.current}`,
+        },
+        body: JSON.stringify({
+          forceDisqualify,
+          reason,
+        }),
       });
-    } catch { /* redirect anyway */ }
+    } catch {
+      /* continue redirect */
+    }
+
     if (antiCheatCleanup.current) antiCheatCleanup.current();
-    router.push(`/participant/rounds/${roundId}/disqualified?reason=${reason}`);
-  }, [roundId, router]);
+
+    if (forceDisqualify) {
+      router.push(`/participant/rounds/${roundId}/disqualified?reason=${encodeURIComponent(reason)}`);
+    } else {
+      router.push(`/participant/rounds/${roundId}/submitted`);
+    }
+  }, [roundId, isSubmitting, router]);
+
+  // Handle anti-cheat violation with 3-strike tolerance
+  const handleViolation = useCallback(async (reason: ViolationType) => {
+    if (!antiCheatArmed.current || hasSubmitted.current) return;
+
+    const now = Date.now();
+    // 3.5s cooldown between strikes to avoid cascade
+    if (now - lastViolationTimeRef.current < 3500) {
+      return;
+    }
+    lastViolationTimeRef.current = now;
+
+    strikeCountRef.current += 1;
+    const newCount = strikeCountRef.current;
+    setStrikeCount(newCount);
+
+    // Log proctor event
+    try {
+      fetch(`/api/participant/rounds/${roundId}/proctor-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenRef.current}`,
+        },
+        body: JSON.stringify({ eventType: reason, strike: newCount }),
+      }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+
+    const violationLabels: Record<string, string> = {
+      tab_switch: 'Tab switch / backgrounding',
+      window_blur: 'Focus loss / leaving exam window',
+      fullscreen_exit: 'Fullscreen exited',
+      devtools_detected: 'Developer tools inspection',
+      keyboard_shortcut: 'Prohibited keyboard shortcut',
+    };
+    const label = violationLabels[reason] || reason;
+
+    if (newCount >= 3) {
+      // 3 strikes: Auto-submit with disqualification
+      setActiveWarning(null);
+      await handleSubmit(true, true, `Exceeded maximum anti-cheat violations (${label})`);
+    } else {
+      // Strikes 1 and 2: Show non-blocking warning modal with countdown
+      setActiveWarning(
+        `Warning ${newCount} of 3: ${label} was detected. Please stay focused in Fullscreen mode. Further violations will result in automatic disqualification.`
+      );
+    }
+  }, [roundId, handleSubmit]);
+
+  // Request fullscreen to start
+  const handleEnterFullscreen = async () => {
+    const success = await requestFullscreen();
+    if (success) {
+      setIsFullscreenRequired(false);
+      // Arm anti-cheat after 1 second grace period
+      setTimeout(() => {
+        antiCheatArmed.current = true;
+      }, 1000);
+    } else {
+      // In case browser rejects or user denies, still let them proceed after acknowledgment
+      setIsFullscreenRequired(false);
+      setTimeout(() => {
+        antiCheatArmed.current = true;
+      }, 2000);
+    }
+  };
 
   // Load questions and init
   useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/login'); return; }
+      if (!session) {
+        router.push('/login');
+        return;
+      }
       tokenRef.current = session.access_token;
 
-      const res = await fetch(`/api/participant/rounds/${roundId}/questions`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      try {
+        const res = await fetch(`/api/participant/rounds/${roundId}/questions`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
 
-      if (!res.ok) { router.push('/participant/dashboard'); return; }
+        if (!res.ok) {
+          router.push('/participant/dashboard');
+          return;
+        }
 
-      const data = await res.json();
-      setQuestions(data.questions || []);
-      setStartedAt(data.attempt?.started_at || '');
-      setDurationMinutes(data.round?.duration_minutes || 0);
-      setEndTime(data.round?.end_time || '');
+        const data = await res.json();
+        if (!isMounted) return;
 
-      const savedAnswers: Record<string, AnswerValue | null> = {};
-      (data.responses || []).forEach((r: { question_id: string; selected_answer: AnswerValue | null }) => {
-        savedAnswers[r.question_id] = r.selected_answer;
-      });
-      setAnswers(savedAnswers);
-      setLoading(false);
+        setQuestions(data.questions || []);
+        const serverStartedAt = data.attempt?.started_at || new Date().toISOString();
+        setStartedAt(serverStartedAt);
+        setDurationMinutes(data.round?.duration_minutes || 30);
+        setEndTime(data.round?.end_time || '');
 
-      antiCheatCleanup.current = initAntiCheat(handleViolation);
+        const savedAnswers: Record<string, AnswerValue | null> = {};
+        (data.responses || []).forEach((r: { question_id: string; selected_answer: AnswerValue | null }) => {
+          savedAnswers[r.question_id] = r.selected_answer;
+        });
+        setAnswers(savedAnswers);
+        setLoading(false);
+
+        // Check if already in fullscreen
+        if (typeof document !== 'undefined' && document.fullscreenElement) {
+          setIsFullscreenRequired(false);
+          antiCheatArmed.current = true;
+        }
+
+        // Initialize anti-cheat listener (only triggers when antiCheatArmed.current is true)
+        antiCheatCleanup.current = initAntiCheat(handleViolation, {
+          isArmed: () => antiCheatArmed.current && !hasSubmitted.current,
+          cooldownMs: 3500,
+        });
+      } catch (err) {
+        console.error('Failed to init test session:', err);
+      }
     };
+
     init();
 
     return () => {
+      isMounted = false;
       if (antiCheatCleanup.current) antiCheatCleanup.current();
     };
   }, [roundId, router, handleViolation]);
 
-  // Timer
+  // Safe Timer Engine
   useEffect(() => {
-    if (!startedAt || !durationMinutes) return;
+    if (!startedAt || !durationMinutes || loading) return;
+
+    // Initial calculation
+    const initialRemaining = getTimeRemaining(startedAt, durationMinutes, endTime);
+    setTimeRemaining(initialRemaining);
+    if (initialRemaining > 5) {
+      timerEverRan.current = true;
+    }
+
     const interval = setInterval(() => {
       const remaining = getTimeRemaining(startedAt, durationMinutes, endTime);
       setTimeRemaining(remaining);
-      if (remaining <= 0) { handleSubmit(true); }
+
+      if (remaining > 5) {
+        timerEverRan.current = true;
+      }
+
+      // Only trigger auto-submit if the timer actually started and reached zero
+      if (remaining <= 0 && timerEverRan.current && !hasSubmitted.current) {
+        clearInterval(interval);
+        handleSubmit(true, false, 'Time expired');
+      }
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [startedAt, durationMinutes, endTime]);
+  }, [startedAt, durationMinutes, endTime, loading, handleSubmit]);
 
   const [isOnline, setIsOnline] = useState<boolean>(true);
 
@@ -149,15 +289,23 @@ export default function TestPage() {
     // 1. Instantly cache in LocalStorage
     const cacheKey = `participant_answers_${roundId}`;
     const queueKey = `participant_offline_queue_${roundId}`;
-    const existingCache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
-    existingCache[questionId] = answer;
-    localStorage.setItem(cacheKey, JSON.stringify(existingCache));
+    try {
+      const existingCache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+      existingCache[questionId] = answer;
+      localStorage.setItem(cacheKey, JSON.stringify(existingCache));
+    } catch {
+      /* ignore storage errors */
+    }
 
     if (!navigator.onLine) {
-      const existingQueue: Array<{ questionId: string; selectedAnswer: any }> = JSON.parse(localStorage.getItem(queueKey) || '[]');
-      const updatedQueue = existingQueue.filter(i => i.questionId !== questionId);
-      updatedQueue.push({ questionId, selectedAnswer: answer });
-      localStorage.setItem(queueKey, JSON.stringify(updatedQueue));
+      try {
+        const existingQueue: Array<{ questionId: string; selectedAnswer: any }> = JSON.parse(localStorage.getItem(queueKey) || '[]');
+        const updatedQueue = existingQueue.filter(i => i.questionId !== questionId);
+        updatedQueue.push({ questionId, selectedAnswer: answer });
+        localStorage.setItem(queueKey, JSON.stringify(updatedQueue));
+      } catch {
+        /* ignore */
+      }
       return;
     }
 
@@ -171,21 +319,6 @@ export default function TestPage() {
       /* queued for auto-sync */
     }
   }, [roundId]);
-
-  // Submit
-  const handleSubmit = async (auto = false) => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      await fetch(`/api/participant/rounds/${roundId}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-        body: JSON.stringify({}),
-      });
-    } catch { /* continue */ }
-    if (antiCheatCleanup.current) antiCheatCleanup.current();
-    router.push(`/participant/rounds/${roundId}/submitted`);
-  };
 
   const toggleReview = (qId: string) => {
     setMarkedForReview(prev => {
@@ -210,6 +343,53 @@ export default function TestPage() {
 
   return (
     <div className="min-h-screen bg-[var(--space-void)] text-[var(--text-primary)] flex flex-col select-none relative z-50">
+      {/* Fullscreen Prompt Gate Modal */}
+      {isFullscreenRequired && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4">
+          <GlassCard variant="elevated" radius={24} className="!p-8 max-w-lg w-full text-center" hover={false} noHover>
+            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mx-auto mb-5 text-cyan-400">
+              <Maximize size={32} />
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-white mb-3">
+              Secure Assessment Mode
+            </h2>
+            <p className="font-[family-name:var(--font-body)] text-sm text-slate-300 mb-6 leading-relaxed">
+              This exam requires Fullscreen Mode to ensure test integrity. Tab switching or exiting fullscreen will be recorded by the proctoring monitor.
+            </p>
+            <GlowButton variant="primary" fullWidth size="lg" onClick={handleEnterFullscreen}>
+              Enter Fullscreen & Begin Test
+            </GlowButton>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Warning Strike Modal */}
+      {activeWarning && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+          <GlassCard variant="elevated" radius={24} className="!p-6 max-w-md w-full border-amber-500/40 text-center" hover={false} noHover>
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center mx-auto mb-4 text-amber-400">
+              <AlertTriangle size={28} />
+            </div>
+            <h3 className="font-[family-name:var(--font-heading)] text-xl font-bold text-amber-300 mb-2">
+              Proctoring Warning ({strikeCount}/3)
+            </h3>
+            <p className="font-[family-name:var(--font-body)] text-sm text-slate-200 mb-6 leading-relaxed">
+              {activeWarning}
+            </p>
+            <GlowButton
+              variant="primary"
+              fullWidth
+              onClick={() => {
+                setActiveWarning(null);
+                requestFullscreen().catch(() => {});
+              }}
+            >
+              I Understand, Resume Test
+            </GlowButton>
+          </GlassCard>
+        </div>
+      )}
+
       {/* Zoom Image Modal */}
       {zoomImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" onClick={() => setZoomImage(null)}>
@@ -226,17 +406,27 @@ export default function TestPage() {
         className="sticky top-0 z-50 flex items-center justify-between px-6 py-3 border-b border-[var(--glass-border)]"
         style={{ background: 'rgba(10, 1, 24, 0.98)' }}
       >
-        <h2 className="font-[family-name:var(--font-display)] text-lg font-bold gradient-text">⚡ Quiz in Progress</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-bold gradient-text">⚡ Quiz in Progress</h2>
+          {strikeCount > 0 && (
+            <span className="flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono">
+              <ShieldAlert size={12} /> {strikeCount}/3 Strikes
+            </span>
+          )}
+        </div>
+
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2 text-sm font-[family-name:var(--font-heading)]">
             <span className="text-[var(--text-muted)]">Answered:</span>
             <span className="text-[var(--aurora-purple)] font-bold font-[family-name:var(--font-mono)]">{answeredCount} / {questions.length}</span>
           </div>
+
           <div className={`flex items-center gap-2 font-[family-name:var(--font-mono)] font-bold text-lg ${
-            timeRemaining < 300 ? 'text-[var(--aurora-rose)] animate-pulse' : 'text-[var(--aurora-cyan)]'
+            (timeRemaining !== null && timeRemaining < 300) ? 'text-[var(--aurora-rose)] animate-pulse' : 'text-[var(--aurora-cyan)]'
           }`}>
-            <Clock size={18} />{formatDuration(timeRemaining)}
+            <Clock size={18} />{timeRemaining !== null ? formatDuration(timeRemaining) : '--:--'}
           </div>
+
           <GlowButton size="sm" variant="primary" onClick={() => setShowSubmitModal(true)}>
             <Send size={14} /> Submit
           </GlowButton>
@@ -253,14 +443,14 @@ export default function TestPage() {
             <h3 className="font-[family-name:var(--font-heading)] text-[var(--aurora-purple)] text-xs uppercase tracking-wider mb-4">
               Question Map
             </h3>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto pr-1">
               {questions.map((q, i) => {
                 const isAnswered = answers[q.id] !== null && answers[q.id] !== undefined;
                 const isCurrent = i === currentIndex;
                 const isMarked = markedForReview.has(q.id);
                 return (
                   <button
-                    key={q.id}
+                    key={`${q.id}-${i}`}
                     onClick={() => setCurrentIndex(i)}
                     className={`w-8 h-8 rounded-lg text-xs font-[family-name:var(--font-mono)] font-bold flex items-center justify-center transition-all ${
                       isCurrent
@@ -289,14 +479,14 @@ export default function TestPage() {
 
         {/* Main Question Display */}
         <main className="flex-1 p-8 md:p-12 max-w-4xl mx-auto">
-          {currentQuestion && (
+          {currentQuestion ? (
             <div>
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--glass-border)]">
                 <span className="font-[family-name:var(--font-mono)] text-[var(--aurora-purple)] text-sm font-semibold">
                   Question {currentIndex + 1} of {questions.length}
                 </span>
                 <div className="flex items-center gap-3 text-xs font-[family-name:var(--font-mono)] text-[var(--text-muted)]">
-                  <span>+{currentQuestion.marks} marks</span>
+                  <span>+{currentQuestion.marks || 1} marks</span>
                   <span className="text-emerald-400">No negative marking</span>
                 </div>
               </div>
@@ -307,7 +497,10 @@ export default function TestPage() {
 
               {/* Circuit Schematic Diagram / Figure */}
               {currentQuestion.image_url && (
-                <div className="mb-8 p-4 rounded-2xl bg-black/60 border border-white/12 flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all" onClick={() => setZoomImage(formatImageUrl(currentQuestion.image_url))}>
+                <div
+                  className="mb-8 p-4 rounded-2xl bg-black/60 border border-white/12 flex flex-col items-center gap-2 group cursor-pointer hover:border-[#00E5FF]/40 transition-all"
+                  onClick={() => setZoomImage(formatImageUrl(currentQuestion.image_url))}
+                >
                   <div className="w-full flex items-center justify-between text-xs text-[#94A3B8] font-mono px-1">
                     <span>⚡ Circuit Schematic Diagram / Figure</span>
                     <span className="text-[#00E5FF] group-hover:underline flex items-center gap-1">
@@ -426,6 +619,11 @@ export default function TestPage() {
                   Next <ChevronRight size={18} />
                 </GlowButton>
               </div>
+            </div>
+          ) : (
+            <div className="text-center py-20 text-slate-400">
+              <p className="text-lg mb-2">No question available.</p>
+              <p className="text-sm">Please refresh the page or contact the invigilator.</p>
             </div>
           )}
         </main>

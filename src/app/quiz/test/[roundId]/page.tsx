@@ -11,7 +11,8 @@ import Logo from '@/components/shared/Logo';
 import { formatImageUrl } from '@/lib/utils';
 import {
   Bookmark, CheckCircle2, XCircle, CheckCircle, Loader2,
-  AlertTriangle, HelpCircle, FileText, ShieldAlert, ShieldCheck, Maximize, AlertOctagon, Lock
+  AlertTriangle, HelpCircle, FileText, ShieldAlert, ShieldCheck, Maximize, AlertOctagon, Lock,
+  Grid3X3, ChevronDown, Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -57,10 +58,12 @@ export default function QuizTestPage({ params }: PageProps) {
   // UI & Loading States
   const [loading, setLoading] = useState(true);
   const [fetchingQ, setFetchingQ] = useState(false);
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submittingFinal, setSubmittingFinal] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const [showMobilePalette, setShowMobilePalette] = useState(false);
 
   // Anti-Cheat & Security Proctoring States
   const [strikes, setStrikes] = useState<number>(0);
@@ -80,6 +83,9 @@ export default function QuizTestPage({ params }: PageProps) {
   // Cache & Debounce Refs
   const cachedQuestions = useRef<Map<string, QuestionPayload>>(new Map());
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Race condition prevention: only the latest loadQuestion request's result is applied
+  const loadRequestCounter = useRef(0);
 
   // Keep answersMapRef in sync with answersMap state
   useEffect(() => {
@@ -268,44 +274,123 @@ export default function QuizTestPage({ params }: PageProps) {
     initSession();
   }, [roundId, router]);
 
-  // 2. Question Loader with Cache
+  // 2. Question Loader with Cache + Race Condition Prevention
   const loadQuestion = useCallback(
     async (index: number, order: string[], attId: string, currentAnswers: Record<string, string>) => {
       const qId = order[index];
       if (!qId) return;
 
-      setFetchingQ(true);
+      // Assign a unique request ID to prevent stale async responses from overwriting current question
+      const thisRequestId = ++loadRequestCounter.current;
 
-      // Check Cache First
+      setFetchingQ(true);
+      setQuestionLoadError(null);
+
+      // Check Cache First — instant navigation for already-fetched questions
       if (cachedQuestions.current.has(qId)) {
-        const cached = cachedQuestions.current.get(qId)!;
-        setCurrentQuestion(cached);
-        setSelectedAnswer(currentAnswers[qId] || '');
-        setFetchingQ(false);
+        // Only apply if this is still the latest request (user hasn't clicked another question)
+        if (loadRequestCounter.current === thisRequestId) {
+          const cached = cachedQuestions.current.get(qId)!;
+          setCurrentQuestion(cached);
+          setSelectedAnswer(currentAnswers[qId] || '');
+          setFetchingQ(false);
+        }
         return;
       }
 
       try {
         const res = await fetch(`/api/quiz/question?id=${qId}&attempt_id=${attId}`);
+
+        // ── STALE CHECK: If user already clicked another question while this was loading, discard ──
+        if (loadRequestCounter.current !== thisRequestId) return;
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({ error: 'Unknown error' }));
+
+          // 403 = Exam session ended (submitted/disqualified by server-side timer or anti-cheat)
+          if (res.status === 403) {
+            if (errData.error?.includes('terminated') || errData.error?.includes('disqualified')) {
+              toast.error('Your exam session was terminated.');
+              if (!hasSubmittedRef.current) {
+                hasSubmittedRef.current = true;
+                sessionStorage.removeItem('quiz_session');
+                router.push(`/quiz/disqualified?reason=session_terminated`);
+              }
+            } else {
+              // Exam was auto-submitted by server
+              toast.error('⏰ Your exam time has expired. Redirecting to results...');
+              if (!hasSubmittedRef.current) {
+                hasSubmittedRef.current = true;
+                sessionStorage.removeItem('quiz_session');
+                if (typeof window !== 'undefined') localStorage.setItem('latest_quiz_attempt_id', attId);
+                router.push(`/quiz/submitted?attempt_id=${attId}`);
+              }
+            }
+            setFetchingQ(false);
+            return;
+          }
+
+          // 404 = Question not found in DB (possibly deleted or wrong round)
+          if (res.status === 404) {
+            setQuestionLoadError(`Question ${index + 1} could not be loaded. It may have been removed.`);
+            toast.error(`Question ${index + 1} not found. Try navigating to another question.`);
+            setFetchingQ(false);
+            return;
+          }
+
+          // Other errors
+          setQuestionLoadError(errData.error || 'Failed to load question. Please try again.');
+          setFetchingQ(false);
+          return;
+        }
+
         const data = await res.json();
+
+        // ── SECOND STALE CHECK after JSON parsing ──
+        if (loadRequestCounter.current !== thisRequestId) return;
+
         if (data.question) {
           cachedQuestions.current.set(qId, data.question);
           setCurrentQuestion(data.question);
           setSelectedAnswer(currentAnswers[qId] || data.savedAnswer || '');
+          setQuestionLoadError(null);
+
+          // ── BACKGROUND PRE-FETCH: Load next 2 adjacent questions for instant navigation ──
+          const prefetchIndices = [index + 1, index + 2].filter(i => i < order.length);
+          for (const pi of prefetchIndices) {
+            const prefetchId = order[pi];
+            if (prefetchId && !cachedQuestions.current.has(prefetchId)) {
+              // Fire-and-forget prefetch (don't await, don't block current render)
+              fetch(`/api/quiz/question?id=${prefetchId}&attempt_id=${attId}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d?.question) cachedQuestions.current.set(prefetchId, d.question); })
+                .catch(() => {}); // Silently ignore prefetch failures
+            }
+          }
+        } else {
+          setQuestionLoadError('Question data was empty. Please try another question.');
         }
       } catch (err) {
+        // ── STALE CHECK on error path too ──
+        if (loadRequestCounter.current !== thisRequestId) return;
         console.error('Error fetching question:', err);
+        setQuestionLoadError('Network error loading question. Check your connection and try again.');
+        toast.error('Network error. Your progress is auto-saved.');
       } finally {
-        setFetchingQ(false);
+        // Only clear loading if this is still the active request
+        if (loadRequestCounter.current === thisRequestId) {
+          setFetchingQ(false);
+        }
       }
     },
-    []
+    [router]
   );
 
   // Handle Question Navigation — uses answersMapRef to avoid stale closure
   const goToQuestion = useCallback((index: number) => {
     if (index < 0 || index >= questionOrder.length || !attemptId) return;
     setCurrentIndex(index);
+    setShowMobilePalette(false); // Close mobile drawer on navigation
     loadQuestion(index, questionOrder, attemptId, answersMapRef.current);
   }, [questionOrder, attemptId, loadQuestion]);
 
@@ -671,17 +756,41 @@ export default function QuizTestPage({ params }: PageProps) {
       <div className="h-full w-full grid grid-rows-[60px_1fr] md:grid-cols-[220px_1fr_200px]">
 
         {/* ═══ ZONE 1: TOP BAR ═══ */}
-        <header className="col-span-full h-[60px] bg-[rgba(6,1,14,0.95)] border-b border-[rgba(168,85,247,0.12)] px-5 flex items-center justify-between z-30">
-          {/* Left Logo + Title */}
-          <div className="flex items-center gap-3 min-w-0">
+        <header className="col-span-full h-[60px] bg-[rgba(6,1,14,0.95)] border-b border-[rgba(168,85,247,0.12)] px-3 sm:px-5 flex items-center justify-between z-30">
+          {/* Left: Logo + mobile timer + question palette toggle */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Logo size="sm" showText={false} />
+
+            {/* ── MOBILE TIMER (visible only on mobile, replaces the hidden right panel) ── */}
+            {sessionReady && (
+              <div className="flex md:hidden items-center gap-1.5 px-2 py-1 rounded-lg bg-[rgba(6,182,212,0.1)] border border-[rgba(6,182,212,0.3)]">
+                <Clock size={12} className="text-[var(--aurora-cyan)]" />
+                <QuizTimer
+                  totalDurationMinutes={durationMinutes}
+                  startedAtIso={startedAt}
+                  onTimeUp={() => handleFinalSubmit()}
+                  compact
+                />
+              </div>
+            )}
+
+            {/* ── MOBILE QUESTION PALETTE TOGGLE ── */}
+            <button
+              onClick={() => setShowMobilePalette(!showMobilePalette)}
+              className="flex md:hidden items-center gap-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-[family-name:var(--font-mono)] text-[var(--text-muted)] hover:bg-white/10 transition-all"
+            >
+              <Grid3X3 size={12} />
+              <span>{currentIndex + 1}/{questionOrder.length}</span>
+              <ChevronDown size={10} className={`transition-transform ${showMobilePalette ? 'rotate-180' : ''}`} />
+            </button>
+
             <div className="h-5 w-[1px] bg-[rgba(255,255,255,0.1)] hidden sm:block" />
-            <span className="font-[family-name:var(--font-heading)] text-sm text-[var(--text-secondary)] font-medium truncate max-w-[200px] sm:max-w-[300px]">
+            <span className="font-[family-name:var(--font-heading)] text-sm text-[var(--text-secondary)] font-medium truncate max-w-[120px] sm:max-w-[300px] hidden sm:inline">
               {roundTitle}
             </span>
           </div>
 
-          {/* Center Progress Counter & Proctor Badge */}
+          {/* Center Progress Counter & Proctor Badge (desktop only) */}
           <div className="hidden sm:flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[rgba(16,185,129,0.1)] border border-[rgba(16,185,129,0.3)] text-xs text-[#10B981] font-[family-name:var(--font-mono)]">
               {strikes > 0 ? (
@@ -720,6 +829,52 @@ export default function QuizTestPage({ params }: PageProps) {
             Submit Quiz ✓
           </GalaxyButton>
         </header>
+
+        {/* ═══ MOBILE QUESTION PALETTE DROPDOWN ═══ */}
+        {showMobilePalette && (
+          <div className="md:hidden col-span-full bg-[rgba(4,0,10,0.98)] border-b border-[rgba(168,85,247,0.15)] px-3 py-3 z-20 animate-[questionIn_0.15s_ease-out]">
+            <div className="grid grid-cols-10 gap-1.5 max-h-[120px] overflow-y-auto">
+              {questionOrder.map((qId, idx) => {
+                const isAnswered = answersMap[qId] !== undefined && answersMap[qId] !== '';
+                const isCurrent = idx === currentIndex;
+                const isRev = !!markedQuestions[qId];
+
+                let bgStyle = 'rgba(255,255,255,0.04)';
+                let borderStyle = 'rgba(255,255,255,0.08)';
+                let textColor = 'var(--text-dim)';
+
+                if (isCurrent) {
+                  bgStyle = 'rgba(6,182,212,0.25)';
+                  borderStyle = '2px solid rgba(6,182,212,0.7)';
+                  textColor = 'white';
+                } else if (isAnswered) {
+                  bgStyle = 'rgba(168,85,247,0.2)';
+                  borderStyle = '1px solid rgba(168,85,247,0.45)';
+                  textColor = 'var(--aurora-purple)';
+                } else if (isRev) {
+                  bgStyle = 'rgba(245,158,11,0.18)';
+                  borderStyle = '1px solid rgba(245,158,11,0.4)';
+                  textColor = 'var(--aurora-gold)';
+                }
+
+                return (
+                  <button
+                    key={qId}
+                    onClick={() => goToQuestion(idx)}
+                    className="w-7 h-7 rounded-lg font-[family-name:var(--font-mono)] font-semibold text-[10px] flex items-center justify-center cursor-pointer"
+                    style={{ background: bgStyle, border: borderStyle, color: textColor }}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between mt-2 text-[10px] text-[var(--text-dim)] font-[family-name:var(--font-mono)]">
+              <span>✅ {answeredCount} answered</span>
+              <span>📝 {questionOrder.length - answeredCount} remaining</span>
+            </div>
+          </div>
+        )}
 
         {/* ═══ ZONE 2: QUESTION PALETTE (LEFT PANEL) ═══ */}
         <aside className="hidden md:flex flex-col justify-between bg-[rgba(4,0,10,0.96)] border-r border-[rgba(168,85,247,0.10)] p-3.5 overflow-y-auto no-scrollbar">
@@ -812,7 +967,24 @@ export default function QuizTestPage({ params }: PageProps) {
           <div className="max-w-[760px] mx-auto w-full space-y-6">
 
             {/* QUESTION CARD */}
-            {fetchingQ || !currentQuestion ? (
+            {/* Error State: Question failed to load */}
+            {questionLoadError && !fetchingQ ? (
+              <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-8 text-center py-12 border border-[rgba(244,63,94,0.3)]">
+                <AlertTriangle size={28} className="mx-auto text-[var(--aurora-gold)] mb-3" />
+                <p className="font-[family-name:var(--font-body)] text-sm text-[var(--text-primary)] font-medium mb-2">Question Load Error</p>
+                <p className="font-[family-name:var(--font-body)] text-xs text-[var(--text-muted)] font-light mb-4">{questionLoadError}</p>
+                <div className="flex items-center justify-center gap-3">
+                  <GalaxyButton variant="secondary" size="sm" onClick={() => goToQuestion(currentIndex)}>
+                    Retry Loading
+                  </GalaxyButton>
+                  {currentIndex < questionOrder.length - 1 && (
+                    <GalaxyButton variant="primary" size="sm" onClick={() => goToQuestion(currentIndex + 1)}>
+                      Skip to Next →
+                    </GalaxyButton>
+                  )}
+                </div>
+              </GlassCard>
+            ) : fetchingQ || !currentQuestion ? (
               <GlassCard variant="elevated" radius={20} hover={false} noHover className="!p-8 text-center py-20">
                 <Loader2 size={24} className="animate-spin mx-auto text-[var(--aurora-purple)] mb-2" />
                 <p className="font-[family-name:var(--font-body)] text-xs text-[var(--text-muted)] font-light">Loading question...</p>

@@ -48,17 +48,28 @@ export function formatDuration(totalSeconds: number): string {
     .padStart(2, '0')}`;
 }
 
-// Calculate time remaining in seconds
+// Calculate time remaining in seconds with resilient fallbacks
 export function getTimeRemaining(
   startedAt: string,
   durationMinutes: number,
-  endTime: string
+  endTime?: string
 ): number {
-  const now = new Date().getTime();
-  const started = new Date(startedAt).getTime();
-  const roundEnd = new Date(endTime).getTime();
-  const durationEnd = started + durationMinutes * 60 * 1000;
-  const effectiveEnd = Math.min(durationEnd, roundEnd);
+  const now = Date.now();
+  const started = startedAt ? new Date(startedAt).getTime() : now;
+  const safeStarted = isNaN(started) ? now : started;
+  const safeDuration = durationMinutes && !isNaN(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
+
+  const durationEnd = safeStarted + safeDuration * 60 * 1000;
+  let effectiveEnd = durationEnd;
+
+  if (endTime && typeof endTime === 'string' && endTime.trim().length > 0) {
+    const roundEnd = new Date(endTime).getTime();
+    // Only clamp to roundEnd if it's a valid date and is later than the start time
+    if (!isNaN(roundEnd) && roundEnd > safeStarted) {
+      effectiveEnd = Math.min(durationEnd, roundEnd);
+    }
+  }
+
   const remaining = Math.max(0, Math.floor((effectiveEnd - now) / 1000));
   return remaining;
 }

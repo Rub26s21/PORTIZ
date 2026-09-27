@@ -1,5 +1,5 @@
 // Anti-cheat system for the secure test page
-// Runs on mount and cannot be disabled by participants
+// Runs on mount and protects exam integrity without false-positive instant auto-submissions
 
 export type ViolationType =
   | 'tab_switch'
@@ -13,8 +13,33 @@ export type ViolationType =
 
 type ViolationCallback = (reason: ViolationType) => void;
 
-export function initAntiCheat(onViolation: ViolationCallback): () => void {
+interface AntiCheatOptions {
+  isArmed?: () => boolean;
+  cooldownMs?: number;
+}
+
+export function initAntiCheat(
+  onViolation: ViolationCallback,
+  options?: AntiCheatOptions
+): () => void {
   const cleanupFns: (() => void)[] = [];
+  const cooldownMs = options?.cooldownMs ?? 3500;
+  let lastViolationTime = 0;
+
+  const triggerViolation = (type: ViolationType) => {
+    // If an arming function was provided, only trigger when armed
+    if (options?.isArmed && !options.isArmed()) {
+      return;
+    }
+
+    const now = Date.now();
+    // Cooldown check: prevent multiple simultaneous events (e.g. blur + visibilitychange + resize)
+    if (now - lastViolationTime < cooldownMs) {
+      return;
+    }
+    lastViolationTime = now;
+    onViolation(type);
+  };
 
   // Block right click
   const handleContextMenu = (e: Event) => {
@@ -23,21 +48,21 @@ export function initAntiCheat(onViolation: ViolationCallback): () => void {
   document.addEventListener('contextmenu', handleContextMenu);
   cleanupFns.push(() => document.removeEventListener('contextmenu', handleContextMenu));
 
-  // Block keyboard shortcuts
+  // Block keyboard shortcuts (Ctrl+C, Ctrl+V, F12, PrintScreen, Alt+Tab, etc.)
   const handleKeydown = (e: KeyboardEvent) => {
+    const key = e.key ? e.key.toLowerCase() : '';
     const blockedShortcuts = [
-      e.ctrlKey && ['c', 'v', 'x', 's', 'p', 'u', 'a'].includes(e.key.toLowerCase()),
-      e.key === 'F12',
-      e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()),
-      e.altKey && e.key === 'Tab',
-      e.key === 'PrintScreen',
-      e.metaKey && ['c', 'v', 'x'].includes(e.key.toLowerCase()),
+      (e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 's', 'p', 'u', 'a'].includes(key),
+      key === 'f12',
+      (e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(key),
+      e.altKey && key === 'tab',
+      key === 'printscreen',
     ];
 
     if (blockedShortcuts.some(Boolean)) {
       e.preventDefault();
       e.stopPropagation();
-      onViolation('keyboard_shortcut');
+      triggerViolation('keyboard_shortcut');
     }
   };
   document.addEventListener('keydown', handleKeydown, { capture: true });
@@ -56,7 +81,7 @@ export function initAntiCheat(onViolation: ViolationCallback): () => void {
   // Tab switch / visibility change
   const handleVisibilityChange = () => {
     if (document.hidden) {
-      onViolation('tab_switch');
+      triggerViolation('tab_switch');
     }
   };
   document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -64,7 +89,10 @@ export function initAntiCheat(onViolation: ViolationCallback): () => void {
 
   // Window blur
   const handleBlur = () => {
-    onViolation('window_blur');
+    // Only fire blur if the document actually lost visibility or focus
+    if (!document.hasFocus()) {
+      triggerViolation('window_blur');
+    }
   };
   window.addEventListener('blur', handleBlur);
   cleanupFns.push(() => window.removeEventListener('blur', handleBlur));
@@ -72,33 +100,29 @@ export function initAntiCheat(onViolation: ViolationCallback): () => void {
   // Fullscreen exit
   const handleFullscreenChange = () => {
     if (!document.fullscreenElement) {
-      onViolation('fullscreen_exit');
+      triggerViolation('fullscreen_exit');
     }
   };
   document.addEventListener('fullscreenchange', handleFullscreenChange);
   cleanupFns.push(() => document.removeEventListener('fullscreenchange', handleFullscreenChange));
 
-  // Enter fullscreen
-  const enterFullscreen = async () => {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      onViolation('fullscreen_denied');
-    }
-  };
-  enterFullscreen();
+  // NOTE: enterFullscreen() is NOT automatically called here because modern browsers
+  // block document.documentElement.requestFullscreen() without direct user gestures.
+  // Instead, the UI explicitly prompts the user to enter fullscreen with requestFullscreen().
 
-  // DevTools detection (best effort)
-  const threshold = 160;
+  // DevTools detection (best effort, only when fullscreen is active to avoid DPI false positives)
+  const threshold = 220;
   const detectDevTools = () => {
-    if (
-      window.outerWidth - window.innerWidth > threshold ||
-      window.outerHeight - window.innerHeight > threshold
-    ) {
-      onViolation('devtools_detected');
+    if (document.fullscreenElement) {
+      if (
+        window.outerWidth - window.innerWidth > threshold ||
+        window.outerHeight - window.innerHeight > threshold
+      ) {
+        triggerViolation('devtools_detected');
+      }
     }
   };
-  const devToolsInterval = setInterval(detectDevTools, 1000);
+  const devToolsInterval = setInterval(detectDevTools, 2000);
   cleanupFns.push(() => clearInterval(devToolsInterval));
 
   // Disable text selection via CSS
@@ -112,17 +136,18 @@ export function initAntiCheat(onViolation: ViolationCallback): () => void {
   // Return cleanup function
   return () => {
     cleanupFns.forEach((fn) => fn());
-    // Exit fullscreen on cleanup
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
   };
 }
 
-// Request fullscreen explicitly
+// Request fullscreen explicitly via direct user gesture
 export async function requestFullscreen(): Promise<boolean> {
   try {
-    await document.documentElement.requestFullscreen();
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+    }
     return true;
   } catch {
     return false;
