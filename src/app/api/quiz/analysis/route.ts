@@ -145,15 +145,23 @@ export async function GET(req: NextRequest) {
       let correctIndex: number | null = null;
       let correctAnswerText = String(correctVal ?? '');
 
-      const parsedCIdx = Number(correctVal);
-      if (!isNaN(parsedCIdx) && parsedCIdx >= 0 && parsedCIdx < optionsArray.length) {
-        correctIndex = parsedCIdx;
-        correctAnswerText = optionsArray[parsedCIdx];
-      } else {
-        const foundIdx = optionsArray.findIndex((o) => o.toLowerCase() === cStr);
-        if (foundIdx !== -1) {
-          correctIndex = foundIdx;
-          correctAnswerText = optionsArray[foundIdx];
+      if (optionsArray.length > 0) {
+        const parsedCIdx = Number(correctVal);
+        if (!isNaN(parsedCIdx) && parsedCIdx >= 0 && parsedCIdx < optionsArray.length) {
+          correctIndex = parsedCIdx;
+          correctAnswerText = optionsArray[parsedCIdx];
+        } else {
+          const foundIdx = optionsArray.findIndex((o) => o.toLowerCase() === cStr);
+          if (foundIdx !== -1) {
+            correctIndex = foundIdx;
+            correctAnswerText = optionsArray[foundIdx];
+          } else if (cStr.length === 1) {
+            const code = cStr.toUpperCase().charCodeAt(0);
+            if (code >= 65 && code < 65 + optionsArray.length) {
+              correctIndex = code - 65;
+              correctAnswerText = optionsArray[correctIndex];
+            }
+          }
         }
       }
 
@@ -162,16 +170,34 @@ export async function GET(req: NextRequest) {
       let userSelectedText: string | null = null;
 
       if (!isSkipped && userSel !== null) {
-        const parsedUIdx = Number(userSel);
-        if (!isNaN(parsedUIdx) && parsedUIdx >= 0 && parsedUIdx < optionsArray.length) {
-          userSelectedIndex = parsedUIdx;
-          userSelectedText = optionsArray[parsedUIdx];
+        if (optionsArray.length > 0) {
+          // FIRST: Prioritize matching option text directly
+          const textIdx = optionsArray.findIndex((o) => o.toLowerCase() === userSel.toLowerCase());
+          if (textIdx !== -1) {
+            userSelectedIndex = textIdx;
+            userSelectedText = optionsArray[textIdx];
+          } else {
+            // SECOND: Check if letter A-D
+            if (userSel.length === 1) {
+              const code = userSel.toUpperCase().charCodeAt(0);
+              if (code >= 65 && code < 65 + optionsArray.length) {
+                userSelectedIndex = code - 65;
+                userSelectedText = optionsArray[userSelectedIndex];
+              }
+            }
+            // THIRD: Only if no option text matched, check if numeric index
+            if (userSelectedIndex === null) {
+              const parsedUIdx = Number(userSel);
+              if (!isNaN(parsedUIdx) && parsedUIdx >= 0 && parsedUIdx < optionsArray.length) {
+                userSelectedIndex = parsedUIdx;
+                userSelectedText = optionsArray[parsedUIdx];
+              } else {
+                userSelectedText = userSel;
+              }
+            }
+          }
         } else {
           userSelectedText = userSel;
-          const foundUIdx = optionsArray.findIndex((o) => o.toLowerCase() === userSel.toLowerCase());
-          if (foundUIdx !== -1) {
-            userSelectedIndex = foundUIdx;
-          }
         }
       } else {
         userSelectedText = userSel || '';

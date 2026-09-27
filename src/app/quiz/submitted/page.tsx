@@ -471,14 +471,14 @@ function SubmittedContent() {
                         {q.options.map((optText, optIdx) => {
                           const optLetter = optionLetters[optIdx] || String(optIdx + 1);
                           const isThisTheCorrectAnswer =
-                            q.correctIndex === optIdx ||
-                            optText.trim().toLowerCase() === q.correctAnswerRaw.trim().toLowerCase();
+                            q.correctIndex !== null && q.correctIndex !== undefined
+                              ? q.correctIndex === optIdx
+                              : (q.correctAnswerText ? optText.trim().toLowerCase() === q.correctAnswerText.trim().toLowerCase() : false);
 
                           const isThisWhatUserPicked =
-                            q.userSelectedIndex === optIdx ||
-                            (q.userSelectedRaw !== null &&
-                              (optText.trim().toLowerCase() === q.userSelectedRaw.trim().toLowerCase() ||
-                                String(optIdx) === q.userSelectedRaw.trim()));
+                            q.userSelectedIndex !== null && q.userSelectedIndex !== undefined
+                              ? q.userSelectedIndex === optIdx
+                              : (q.userSelectedText ? optText.trim().toLowerCase() === q.userSelectedText.trim().toLowerCase() : false);
 
                           let cardStyle = 'bg-white/[0.03] border-white/10 text-[#CBD5E1]';
                           let badge = null;

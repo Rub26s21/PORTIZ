@@ -48,29 +48,48 @@ export function scoreAnswer(
 }
 
 function scoreMCQ(correct: any, selected: any, questionOptions?: string[] | null): boolean {
-  let cVal = typeof correct === 'object' ? (correct?.value !== undefined ? correct.value : correct) : correct;
-  let sVal = typeof selected === 'object' ? (selected?.value !== undefined ? selected.value : selected) : selected;
+  const cVal = typeof correct === 'object' ? (correct?.value !== undefined ? correct.value : correct) : correct;
+  const sVal = typeof selected === 'object' ? (selected?.value !== undefined ? selected.value : selected) : selected;
 
   if (cVal === undefined || cVal === null || sVal === undefined || sVal === null) return false;
 
-  const cStr = String(cVal).trim().toLowerCase();
-  const sStr = String(sVal).trim().toLowerCase();
+  const opts = Array.isArray(questionOptions) ? questionOptions : [];
 
-  if (cStr === sStr) return true;
-
-  if (questionOptions && Array.isArray(questionOptions)) {
-    const cIdx = Number(cVal);
-    if (!isNaN(cIdx) && cIdx >= 0 && cIdx < questionOptions.length) {
-      if (String(questionOptions[cIdx]).trim().toLowerCase() === sStr) return true;
+  if (opts.length > 0) {
+    // 1. Resolve selected answer to an option index
+    let sIdx = -1;
+    const sStr = String(sVal).trim();
+    const textIdx = opts.findIndex((o) => String(o).trim().toLowerCase() === sStr.toLowerCase());
+    if (textIdx !== -1) {
+      sIdx = textIdx;
+    } else {
+      if (sStr.length === 1) {
+        const code = sStr.toUpperCase().charCodeAt(0);
+        if (code >= 65 && code < 65 + opts.length) sIdx = code - 65;
+      }
+      if (sIdx === -1) {
+        const n = Number(sStr);
+        if (!isNaN(n) && n >= 0 && n < opts.length) sIdx = n;
+      }
     }
 
-    const sIdx = Number(sVal);
-    if (!isNaN(sIdx) && sIdx >= 0 && sIdx < questionOptions.length) {
-      if (String(questionOptions[sIdx]).trim().toLowerCase() === cStr) return true;
+    // 2. Resolve correct answer to an option index
+    let cIdx = -1;
+    const nC = Number(cVal);
+    if (!isNaN(nC) && nC >= 0 && nC < opts.length) {
+      cIdx = nC;
+    } else {
+      const cStr = String(cVal).trim();
+      const cTextIdx = opts.findIndex((o) => String(o).trim().toLowerCase() === cStr.toLowerCase());
+      if (cTextIdx !== -1) cIdx = cTextIdx;
+    }
+
+    if (sIdx !== -1 && cIdx !== -1) {
+      return sIdx === cIdx;
     }
   }
 
-  return false;
+  return String(cVal).trim().toLowerCase() === String(sVal).trim().toLowerCase();
 }
 
 function scoreTrueFalse(correct: any, selected: any): boolean {

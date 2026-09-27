@@ -221,64 +221,88 @@ export function evaluateAnswerDetailed(
   // 1. MCQ OPTION INDEX / OPTION TEXT MATCHING
   // ══════════════════════════════════════════════════════════
   if (hasOptions) {
-    const userAsNum = Number(rawUser);
-    const userIsIdx = !isNaN(userAsNum) && userAsNum >= 0 && userAsNum < options.length;
+    // A. Resolve user's selection to an option index:
+    // First: Check if rawUser matches an option's text directly (case-insensitive)
+    let userOptIdx = -1;
+    const textMatchIdx = options.findIndex((o) => String(o).trim().toLowerCase() === rawUser.toLowerCase());
+    if (textMatchIdx !== -1) {
+      userOptIdx = textMatchIdx;
+    } else {
+      // Second: Check if userSelection is an option letter (A, B, C, D)
+      if (rawUser.length === 1) {
+        const charCode = rawUser.toUpperCase().charCodeAt(0);
+        if (charCode >= 65 && charCode < 65 + options.length) {
+          userOptIdx = charCode - 65;
+        }
+      }
+      // Third: Only if no option text matched, check if it's a numeric index (0 to options.length - 1)
+      if (userOptIdx === -1) {
+        const asNum = Number(rawUser);
+        if (!isNaN(asNum) && asNum >= 0 && asNum < options.length) {
+          userOptIdx = asNum;
+        }
+      }
+    }
 
+    // B. Check against each candidate correct answer
     for (const candidate of correctCandidates) {
-      const candAsNum = Number(candidate);
-      const candIsIdx = !isNaN(candAsNum) && candAsNum >= 0 && candAsNum < options.length;
+      const candStr = String(candidate).trim();
+      let candOptIdx = -1;
 
-      // Both are indices
-      if (userIsIdx && candIsIdx) {
-        if (userAsNum === candAsNum) {
+      // 1. Check if candidate is a numeric index
+      const candNum = Number(candStr);
+      if (!isNaN(candNum) && candNum >= 0 && candNum < options.length) {
+        candOptIdx = candNum;
+      } else {
+        // 2. Check if candidate matches option text
+        const cTextIdx = options.findIndex((o) => String(o).trim().toLowerCase() === candStr.toLowerCase());
+        if (cTextIdx !== -1) {
+          candOptIdx = cTextIdx;
+        } else if (candStr.length === 1) {
+          const cCode = candStr.toUpperCase().charCodeAt(0);
+          if (cCode >= 65 && cCode < 65 + options.length) {
+            candOptIdx = cCode - 65;
+          }
+        }
+      }
+
+      // If both resolved to option indices, compare strictly by index!
+      if (userOptIdx !== -1 && candOptIdx !== -1) {
+        if (userOptIdx === candOptIdx) {
           return {
             isCorrect: true,
             matchType: 'mcq_index',
-            userAnswerFormatted: options[userAsNum] || `Option ${userAsNum + 1}`,
-            correctAnswerFormatted: options[candAsNum] || `Option ${candAsNum + 1}`,
+            userAnswerFormatted: options[userOptIdx] || `Option ${userOptIdx + 1}`,
+            correctAnswerFormatted: options[candOptIdx] || `Option ${candOptIdx + 1}`,
             feedback: 'Correct option selected.',
           };
         }
-      }
-
-      // User index matches candidate text
-      if (userIsIdx) {
-        const optText = String(options[userAsNum] || '').trim().toLowerCase();
-        if (optText === candidate.toLowerCase() || normalizeText(optText) === normalizeText(candidate)) {
-          return {
-            isCorrect: true,
-            matchType: 'mcq_index',
-            userAnswerFormatted: options[userAsNum],
-            correctAnswerFormatted: candidate,
-            feedback: 'Correct option selected.',
-          };
-        }
-      }
-
-      // Candidate index matches user text
-      if (candIsIdx) {
-        const candText = String(options[candAsNum] || '').trim().toLowerCase();
-        if (rawUser.toLowerCase() === candText || normalizeText(rawUser) === normalizeText(candText)) {
-          return {
-            isCorrect: true,
-            matchType: 'mcq_text',
-            userAnswerFormatted: rawUser,
-            correctAnswerFormatted: options[candAsNum],
-            feedback: 'Correct option text matched.',
-          };
-        }
-      }
-
-      // Direct text-to-text comparison for MCQ options
-      if (rawUser.toLowerCase() === candidate.toLowerCase()) {
+      } else if (rawUser.toLowerCase() === candStr.toLowerCase()) {
         return {
           isCorrect: true,
           matchType: 'mcq_text',
           userAnswerFormatted: rawUser,
-          correctAnswerFormatted: candidate,
+          correctAnswerFormatted: candStr,
           feedback: 'Correct choice matched.',
         };
       }
+    }
+
+    // If options exist and the user made an option selection that did not match:
+    if (userOptIdx !== -1) {
+      const firstCand = correctCandidates[0];
+      const firstCandNum = Number(firstCand);
+      const expectedText = (!isNaN(firstCandNum) && firstCandNum >= 0 && firstCandNum < options.length)
+        ? (options[firstCandNum] || `Option ${firstCandNum + 1}`)
+        : String(firstCand ?? '');
+
+      return {
+        isCorrect: false,
+        matchType: 'none',
+        userAnswerFormatted: options[userOptIdx] || `Option ${userOptIdx + 1}`,
+        correctAnswerFormatted: expectedText,
+        feedback: 'Incorrect option selected.',
+      };
     }
   }
 
