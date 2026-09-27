@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 
       if (round && round.duration_minutes) {
         const elapsedSeconds = (Date.now() - new Date(attempt.started_at).getTime()) / 1000;
-        const maxAllowedSeconds = (round.duration_minutes * 60) + 90; // 90s grace for network latency
+        const maxAllowedSeconds = (round.duration_minutes * 60) + 300; // 5 min grace for network latency + clock skew
 
         if (elapsedSeconds > maxAllowedSeconds) {
           // Exam time has expired: auto-finalize and lock attempt

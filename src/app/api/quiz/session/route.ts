@@ -52,32 +52,26 @@ export async function GET(req: NextRequest) {
 
     let questionOrder: string[] = att.question_order || [];
 
-    // Fallback: If attempt had 0 questions assigned, retrieve from round or questions table
+    // Fallback: If attempt had 0 questions assigned, retrieve from the SAME round only
     if (questionOrder.length === 0) {
       const { data: roundQs } = await supabaseAdmin
         .from('questions')
         .select('id')
         .eq('round_id', att.round_id)
+        .order('order_index', { ascending: true })
         .limit(50);
 
       if (roundQs && roundQs.length > 0) {
         questionOrder = roundQs.map((q) => q.id);
-      } else {
-        const { data: anyQs } = await supabaseAdmin
-          .from('questions')
-          .select('id')
-          .limit(50);
-        if (anyQs && anyQs.length > 0) {
-          questionOrder = anyQs.map((q) => q.id);
-        }
-      }
 
-      if (questionOrder.length > 0) {
+        // Only write back to attempt if we found questions from the SAME round
         await supabaseAdmin
           .from('attempts')
           .update({ question_order: questionOrder })
           .eq('id', attemptId);
       }
+      // If no questions found for this round, questionOrder stays empty
+      // The frontend will show "No questions assigned" message
     }
 
     if (questionOrder.length > 50) {

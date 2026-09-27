@@ -35,12 +35,17 @@ export default function QuizTimer({ totalDurationMinutes, startedAtIso, onTimeUp
   const [remaining, setRemaining] = useState<number>(calculateRemaining);
   const onTimeUpRef = useRef(onTimeUp);
   onTimeUpRef.current = onTimeUp;
+  const hasCalledTimeUp = useRef(false);
 
   useEffect(() => {
+    // Reset guard when props change (e.g. new quiz session)
+    hasCalledTimeUp.current = false;
+
     const timer = setInterval(() => {
       const rem = calculateRemaining();
       setRemaining(rem);
-      if (rem <= 0) {
+      if (rem <= 0 && !hasCalledTimeUp.current) {
+        hasCalledTimeUp.current = true;
         clearInterval(timer);
         onTimeUpRef.current();
       }

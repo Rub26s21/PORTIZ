@@ -42,6 +42,7 @@ export default function QuizTestPage({ params }: PageProps) {
   const [roundTitle, setRoundTitle] = useState<string>('Competition Round');
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
   const [startedAt, setStartedAt] = useState<string>(new Date().toISOString());
+  const [sessionReady, setSessionReady] = useState(false); // Prevents timer from firing before session loads
 
   // Question Engine
   const [questionOrder, setQuestionOrder] = useState<string[]>([]);
@@ -50,6 +51,8 @@ export default function QuizTestPage({ params }: PageProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [answersMap, setAnswersMap] = useState<Record<string, string>>({});
   const [markedQuestions, setMarkedQuestions] = useState<Record<string, boolean>>({});
+  // Keep a ref to answersMap to avoid stale closures in goToQuestion/loadQuestion
+  const answersMapRef = useRef<Record<string, string>>({});
 
   // UI & Loading States
   const [loading, setLoading] = useState(true);
@@ -63,8 +66,12 @@ export default function QuizTestPage({ params }: PageProps) {
   const [strikes, setStrikes] = useState<number>(0);
   const [warningModal, setWarningModal] = useState<{ open: boolean; reason: string; strikes: number } | null>(null);
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
-  const MAX_STRIKES = 3;
+  const MAX_STRIKES = 5; // Increased from 3 to prevent false-positive auto-disqualification
   const antiCheatArmed = useRef(false);
+  const antiCheatGracePeriod = useRef(true); // Grace period after page load
+
+  // Submission Guard: prevents double-submission from timer + manual + anti-cheat racing
+  const hasSubmittedRef = useRef(false);
 
   // Network & Offline Queue States
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -73,6 +80,11 @@ export default function QuizTestPage({ params }: PageProps) {
   // Cache & Debounce Refs
   const cachedQuestions = useRef<Map<string, QuestionPayload>>(new Map());
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Keep answersMapRef in sync with answersMap state
+  useEffect(() => {
+    answersMapRef.current = answersMap;
+  }, [answersMap]);
 
   // Reconnection Auto-Sync
   const flushOfflineQueue = useCallback(async () => {
@@ -242,11 +254,15 @@ export default function QuizTestPage({ params }: PageProps) {
         return;
       }
 
-      setAnswersMap(aMap || {});
+      const initialAnswers = aMap || {};
+      setAnswersMap(initialAnswers);
+      answersMapRef.current = initialAnswers;
 
       // Prefetch first question
-      await loadQuestion(0, orderArr, attId, aMap || {});
+      await loadQuestion(0, orderArr, attId, initialAnswers);
       setLoading(false);
+      // Mark session as ready AFTER all data is loaded — this enables the timer
+      setSessionReady(true);
     };
 
     initSession();
@@ -286,31 +302,46 @@ export default function QuizTestPage({ params }: PageProps) {
     []
   );
 
-  // Handle Question Navigation
-  const goToQuestion = (index: number) => {
+  // Handle Question Navigation — uses answersMapRef to avoid stale closure
+  const goToQuestion = useCallback((index: number) => {
     if (index < 0 || index >= questionOrder.length || !attemptId) return;
     setCurrentIndex(index);
-    loadQuestion(index, questionOrder, attemptId, answersMap);
-  };
+    loadQuestion(index, questionOrder, attemptId, answersMapRef.current);
+  }, [questionOrder, attemptId, loadQuestion]);
 
   const lastViolationTime = useRef<number>(0);
+  const lastViolationReason = useRef<string>('');
 
   // ── ANTI-CHEAT PROCTORING CORE ──
   const recordViolation = useCallback(
     async (reason: string) => {
       if (!attemptId || !antiCheatArmed.current) return;
 
-      // 1.5 second cooldown between strikes to prevent dual-triggering (e.g. visibilitychange + blur)
+      // Skip violations during grace period (first 5 seconds after arming)
+      if (antiCheatGracePeriod.current) return;
+
+      // Skip if already submitted
+      if (hasSubmittedRef.current) return;
+
+      // 3 second cooldown between ALL strikes to prevent cascading triggers
+      // (e.g. visibilitychange + blur + fullscreenchange all fire together)
       const now = Date.now();
-      if (now - lastViolationTime.current < 1500) {
+      if (now - lastViolationTime.current < 3000) {
         return;
       }
+
+      // Deduplicate: same reason within 10 seconds counts as one event
+      if (reason === lastViolationReason.current && now - lastViolationTime.current < 10000) {
+        return;
+      }
+
       lastViolationTime.current = now;
+      lastViolationReason.current = reason;
 
       setStrikes((prev) => {
         const nextStrikes = prev + 1;
 
-        // Log proctoring event to database
+        // Log proctoring event to database (fire-and-forget)
         fetch('/api/quiz/proctor-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -318,19 +349,22 @@ export default function QuizTestPage({ params }: PageProps) {
         }).catch(() => {});
 
         if (nextStrikes >= MAX_STRIKES) {
-          // Auto-disqualify on max strikes
-          fetch('/api/quiz/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              attempt_id: attemptId,
-              forceDisqualify: true,
-              reason: reason,
-            }),
-          }).finally(() => {
-            sessionStorage.removeItem('quiz_session');
-            router.push(`/quiz/disqualified?reason=${reason}`);
-          });
+          // Auto-disqualify on max strikes — but only if not already submitted
+          if (!hasSubmittedRef.current) {
+            hasSubmittedRef.current = true;
+            fetch('/api/quiz/submit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                attempt_id: attemptId,
+                forceDisqualify: true,
+                reason: reason,
+              }),
+            }).finally(() => {
+              sessionStorage.removeItem('quiz_session');
+              router.push(`/quiz/disqualified?reason=${reason}`);
+            });
+          }
         } else {
           setWarningModal({
             open: true,
@@ -351,9 +385,22 @@ export default function QuizTestPage({ params }: PageProps) {
         await document.documentElement.requestFullscreen();
       }
       setShowFullscreenPrompt(false);
+      // Arm anti-cheat ONLY after fullscreen is confirmed entered
+      // Add a 5-second grace period so browser events from entering fullscreen don't count as violations
       antiCheatArmed.current = true;
+      antiCheatGracePeriod.current = true;
+      setTimeout(() => {
+        antiCheatGracePeriod.current = false;
+      }, 5000);
     } catch {
-      toast.error('Please allow fullscreen to proceed with the exam.');
+      // Don't block the exam — just show a warning
+      toast.error('Fullscreen not supported. The exam will continue, but proctoring is active.');
+      setShowFullscreenPrompt(false);
+      antiCheatArmed.current = true;
+      antiCheatGracePeriod.current = true;
+      setTimeout(() => {
+        antiCheatGracePeriod.current = false;
+      }, 5000);
     }
   };
 
@@ -362,10 +409,16 @@ export default function QuizTestPage({ params }: PageProps) {
     if (loading || !attemptId) return;
 
     // Prompt for fullscreen if not currently in fullscreen
+    // Do NOT arm anti-cheat yet — it arms only when fullscreen is actually entered
     if (!document.fullscreenElement) {
       setShowFullscreenPrompt(true);
     } else {
+      // Already in fullscreen (e.g. session recovery)
       antiCheatArmed.current = true;
+      antiCheatGracePeriod.current = true;
+      setTimeout(() => {
+        antiCheatGracePeriod.current = false;
+      }, 5000);
     }
 
     // 1. Block Context Menu (Right Click)
@@ -384,7 +437,7 @@ export default function QuizTestPage({ params }: PageProps) {
       document.addEventListener(ev, handleCopyPaste);
     });
 
-    // 3. Block Developer Tools & Hotkeys
+    // 3. Block Developer Tools & Hotkeys (only block keys, don't count as strikes for common shortcuts)
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       const isDevTools =
@@ -393,52 +446,63 @@ export default function QuizTestPage({ params }: PageProps) {
         (e.ctrlKey && key === 'u');
 
       const isForbiddenAction =
-        (e.ctrlKey && ['c', 'v', 'x', 'a', 'p', 's', 'r'].includes(key)) ||
-        e.key === 'F5' ||
-        e.key === 'PrintScreen' ||
-        (e.altKey && e.key === 'Tab');
+        (e.ctrlKey && ['c', 'v', 'x', 'a', 'p', 's'].includes(key)) ||
+        e.key === 'PrintScreen';
 
-      if (isDevTools || isForbiddenAction) {
+      // Block F5 and Ctrl+R silently (prevent page refresh without counting as strike)
+      const isRefreshAttempt =
+        e.key === 'F5' || (e.ctrlKey && key === 'r');
+
+      if (isDevTools) {
         e.preventDefault();
         e.stopPropagation();
-        recordViolation(isDevTools ? 'devtools_detected' : 'keyboard_shortcut');
+        recordViolation('devtools_detected');
+      } else if (isForbiddenAction) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Block the action but don't count common shortcuts as strikes
+        toast.error('🔒 This operation is blocked during the exam.');
+      } else if (isRefreshAttempt) {
+        e.preventDefault();
+        e.stopPropagation();
+        toast.error('🔒 Page refresh is blocked. Your progress is auto-saved.');
       }
     };
     document.addEventListener('keydown', handleKeyDown, { capture: true });
 
     // 4. Tab Switch & Visibility Change Detection
+    // Only count as violation if anti-cheat is armed AND grace period is over
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden && antiCheatArmed.current && !antiCheatGracePeriod.current) {
         recordViolation('tab_switch');
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // 5. Window Blur Detection
-    const handleBlur = () => {
-      recordViolation('window_blur');
-    };
-    window.addEventListener('blur', handleBlur);
+    // 5. Window Blur Detection — REMOVED as separate listener
+    // Reason: blur fires simultaneously with visibilitychange and fullscreenchange,
+    // causing 2-3 strikes to fire at once. visibilitychange alone is sufficient.
 
     // 6. Fullscreen Exit Detection
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && antiCheatArmed.current) {
+      if (!document.fullscreenElement && antiCheatArmed.current && !antiCheatGracePeriod.current) {
         recordViolation('fullscreen_exit');
         setShowFullscreenPrompt(true);
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
 
-    // 7. DevTools Dimension Anomaly Check
+    // 7. DevTools Dimension Anomaly Check — increased threshold to reduce false positives
     const devToolsInterval = setInterval(() => {
-      const threshold = 160;
+      if (!antiCheatArmed.current || antiCheatGracePeriod.current) return;
+      const threshold = 200; // Increased from 160 to reduce false positives on laptops with scaling
       if (
         window.outerWidth - window.innerWidth > threshold ||
         window.outerHeight - window.innerHeight > threshold
       ) {
         recordViolation('devtools_detected');
       }
-    }, 1500);
+    }, 3000); // Reduced frequency from 1.5s to 3s
 
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
@@ -447,7 +511,6 @@ export default function QuizTestPage({ params }: PageProps) {
       });
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       clearInterval(devToolsInterval);
     };
@@ -495,6 +558,21 @@ export default function QuizTestPage({ params }: PageProps) {
         if (res.ok) {
           setSavingStatus('saved');
         } else {
+          // Check if the server auto-submitted due to time expiry
+          try {
+            const errData = await res.json();
+            if (errData.expired) {
+              // Server has auto-submitted — redirect to results
+              toast.error('⏰ Exam time has expired! Your answers have been saved.');
+              if (!hasSubmittedRef.current) {
+                hasSubmittedRef.current = true;
+                sessionStorage.removeItem('quiz_session');
+                localStorage.setItem('latest_quiz_attempt_id', attemptId);
+                router.push(`/quiz/submitted?attempt_id=${attemptId}`);
+              }
+              return;
+            }
+          } catch {}
           setSavingStatus('idle');
         }
       } catch {
@@ -507,7 +585,9 @@ export default function QuizTestPage({ params }: PageProps) {
   const handleSelectAnswer = (value: string) => {
     if (!currentQuestion) return;
     setSelectedAnswer(value);
-    setAnswersMap((prev) => ({ ...prev, [currentQuestion.id]: value }));
+    const newMap = { ...answersMapRef.current, [currentQuestion.id]: value };
+    setAnswersMap(newMap);
+    answersMapRef.current = newMap;
     triggerAutoSave(currentQuestion.id, value);
   };
 
@@ -518,9 +598,12 @@ export default function QuizTestPage({ params }: PageProps) {
     setMarkedQuestions((prev) => ({ ...prev, [qId]: !prev[qId] }));
   };
 
-  // Final Submission Handler
+  // Final Submission Handler — protected by hasSubmittedRef to prevent double-submission
   const handleFinalSubmit = async () => {
     if (!attemptId) return;
+    // Prevent double-submission from timer + manual + anti-cheat racing
+    if (hasSubmittedRef.current) return;
+    hasSubmittedRef.current = true;
     setSubmittingFinal(true);
 
     try {
@@ -540,12 +623,18 @@ export default function QuizTestPage({ params }: PageProps) {
           localStorage.setItem('latest_quiz_attempt_id', attemptId);
         }
         router.push(`/quiz/submitted?attempt_id=${attemptId}&score=${data.score}&rank=${data.rank}`);
+      } else if (data.error === 'Attempt already submitted') {
+        // Already submitted by timer or server-side — just redirect
+        sessionStorage.removeItem('quiz_session');
+        router.push(`/quiz/submitted?attempt_id=${attemptId}`);
       } else {
         toast.error(data.error || 'Failed to submit quiz');
+        hasSubmittedRef.current = false; // Allow retry on actual errors
         setSubmittingFinal(false);
       }
     } catch {
-      toast.error('Error submitting quiz');
+      toast.error('Error submitting quiz. Please check your connection and try again.');
+      hasSubmittedRef.current = false; // Allow retry on network errors
       setSubmittingFinal(false);
     }
   };
@@ -973,11 +1062,19 @@ export default function QuizTestPage({ params }: PageProps) {
         <aside className="hidden md:flex flex-col items-center justify-between bg-[rgba(4,0,10,0.96)] border-l border-[rgba(168,85,247,0.10)] p-4 space-y-4 overflow-y-auto no-scrollbar">
           <div className="w-full space-y-4">
             {/* QuizTimer Component */}
-            <QuizTimer
-              totalDurationMinutes={durationMinutes}
-              startedAtIso={startedAt}
-              onTimeUp={() => handleFinalSubmit()}
-            />
+            {/* Only render timer AFTER session data is fully loaded to prevent premature onTimeUp */}
+            {sessionReady ? (
+              <QuizTimer
+                totalDurationMinutes={durationMinutes}
+                startedAtIso={startedAt}
+                onTimeUp={() => handleFinalSubmit()}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[140px]">
+                <Loader2 size={20} className="animate-spin text-[var(--aurora-cyan)]" />
+                <span className="font-[family-name:var(--font-mono)] text-[9px] text-[var(--text-dim)] mt-2">Loading timer...</span>
+              </div>
+            )}
 
             {/* Round Summary Card */}
             <GlassCard variant="solid" radius={14} hover={false} noHover className="!p-3 border border-[rgba(255,255,255,0.06)] space-y-1.5 text-xs font-[family-name:var(--font-body)]">
