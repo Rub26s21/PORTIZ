@@ -4,8 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Hash, Mail, Phone, AlertCircle, Loader2, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import {
+  User, Hash, Mail, Phone, AlertCircle, Loader2, ArrowRight,
+  CheckCircle2, ShieldAlert, AlertTriangle, X
+} from 'lucide-react';
+import {
+  validateStudentSection,
+  getStudentByRegisterNo
+} from '@/data/studentRoster';
 
 interface ActiveRound {
   id: string;
@@ -31,6 +37,15 @@ export default function QuizEntryCard() {
   const [allLiveRounds, setAllLiveRounds] = useState<ActiveRound[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Pop-up Confirmation Modal State
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [sectionMismatchAlert, setSectionMismatchAlert] = useState<{
+    officialSection: 'A' | 'B' | 'C' | 'D';
+    enteredSection: string;
+    regNo: string;
+    studentName?: string;
+  } | null>(null);
 
   // Helper to pick the best round matching the chosen section
   const resolveRoundForSection = (rounds: ActiveRound[], targetSec: 'A' | 'B' | 'C' | 'D') => {
@@ -94,19 +109,42 @@ export default function QuizEntryCard() {
     fetchActiveRounds();
   }, []);
 
+  // Live roster lookup whenever register number is typed
+  const matchedStudent = getStudentByRegisterNo(registerNo);
+
+  const handleRegisterNoChange = (value: string) => {
+    const clean = value.toUpperCase().trim();
+    setRegisterNo(clean);
+    setErrorMessage(null);
+
+    // Auto-detect and pre-fill name & section if found in official roster
+    const student = getStudentByRegisterNo(clean);
+    if (student) {
+      if (!name.trim() || name === 'Participant') {
+        setName(student.name);
+      }
+      setSection(student.section);
+      if (allLiveRounds.length > 0) {
+        setActiveRound(resolveRoundForSection(allLiveRounds, student.section));
+      }
+    }
+  };
+
   // Update active round preview when user changes section dropdown
   const handleSectionChange = (newSec: 'A' | 'B' | 'C' | 'D') => {
     setSection(newSec);
+    setErrorMessage(null);
     if (allLiveRounds.length > 0) {
       setActiveRound(resolveRoundForSection(allLiveRounds, newSec));
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: Form Validation & Section Confirmation Pop-Up Trigger
+  const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    // Form Validation
+    // Basic Validations
     if (!name.trim()) {
       setErrorMessage('Please enter your full name.');
       return;
@@ -127,7 +165,29 @@ export default function QuizEntryCard() {
       return;
     }
 
+    // Official Section Verification
+    const rosterCheck = validateStudentSection(registerNo.trim().toUpperCase(), section);
+
+    if (!rosterCheck.isValid && rosterCheck.officialSection) {
+      // Show High-Priority Section Mismatch Pop-Up!
+      setSectionMismatchAlert({
+        officialSection: rosterCheck.officialSection,
+        enteredSection: section,
+        regNo: registerNo.trim().toUpperCase(),
+        studentName: rosterCheck.studentName || name.trim(),
+      });
+      return;
+    }
+
+    // Section is verified or valid: Open Confirmation Pop-Up Modal
+    setShowConfirmModal(true);
+  };
+
+  // Step 2: Final Submission Execution after Pop-Up Confirmation
+  const executeSubmit = async () => {
+    setShowConfirmModal(false);
     setSubmitting(true);
+    setErrorMessage(null);
 
     const participantData = {
       name: name.trim(),
@@ -215,8 +275,121 @@ export default function QuizEntryCard() {
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="w-full max-w-md mx-auto"
+      className="w-full max-w-md mx-auto relative"
     >
+      {/* ═══ SECTION CONFIRMATION POP-UP MODAL ═══ */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 10 }}
+              className="bg-[#0D0B18] border border-cyan-500/40 rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl text-center relative overflow-hidden"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mx-auto mb-4 text-[#00E5FF]">
+                <CheckCircle2 size={30} />
+              </div>
+
+              <h3 className="font-[family-name:var(--font-heading)] font-extrabold text-lg text-white mb-2">
+                Confirm Section & Details
+              </h3>
+
+              <p className="font-[family-name:var(--font-body)] text-xs text-slate-300 mb-5 leading-relaxed">
+                Please verify that your section is correctly chosen. Official attendance and marks will be mapped to this section.
+              </p>
+
+              {/* Detail Verification Card */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-4 text-left space-y-2 mb-6 font-[family-name:var(--font-mono)] text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Reg No:</span>
+                  <span className="text-white font-bold">{registerNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Name:</span>
+                  <span className="text-white font-semibold truncate max-w-[170px]">{name}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-white/10">
+                  <span className="text-slate-400">Section:</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-[#00E5FF] font-bold border border-cyan-500/30">
+                    Section {section}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmModal(false)}
+                  className="flex-1 py-3 rounded-xl font-[family-name:var(--font-heading)] text-xs font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer"
+                >
+                  Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={executeSubmit}
+                  className="flex-1 py-3 rounded-xl font-[family-name:var(--font-heading)] text-xs font-bold text-black bg-[#00E5FF] hover:bg-[#00D0E8] transition-all cursor-pointer shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+                >
+                  Confirm & Start
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ SECTION MISMATCH WARNING POP-UP MODAL ═══ */}
+      <AnimatePresence>
+        {sectionMismatchAlert && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 10 }}
+              className="bg-[#14050A] border border-rose-500/50 rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl text-center relative overflow-hidden"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center mx-auto mb-4 text-[#F43F5E]">
+                <ShieldAlert size={30} />
+              </div>
+
+              <h3 className="font-[family-name:var(--font-heading)] font-extrabold text-lg text-rose-400 mb-2">
+                Section Mismatch Detected
+              </h3>
+
+              <p className="font-[family-name:var(--font-body)] text-xs text-slate-200 mb-4 leading-relaxed">
+                Register Number <strong className="font-mono text-white">{sectionMismatchAlert.regNo}</strong> is officially assigned to <strong className="text-emerald-400">Section {sectionMismatchAlert.officialSection}</strong>.
+              </p>
+
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-300 font-[family-name:var(--font-body)] mb-5">
+                ⛔ You selected <strong>Section {sectionMismatchAlert.enteredSection}</strong>. You are not permitted to take the assessment for a different section.
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSectionChange(sectionMismatchAlert.officialSection);
+                    setSectionMismatchAlert(null);
+                  }}
+                  className="w-full py-3 rounded-xl font-[family-name:var(--font-heading)] text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all cursor-pointer shadow-lg"
+                >
+                  Switch to Section {sectionMismatchAlert.officialSection} & Proceed
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSectionMismatchAlert(null)}
+                  className="w-full py-2.5 rounded-xl font-[family-name:var(--font-heading)] text-xs text-slate-400 hover:text-white transition-colors"
+                >
+                  Cancel / Re-check Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* ═══ APPLE MAC CLEAN GLASS CARD (75% LIQUID GLASS TRANSPARENCY) ═══ */}
       <div
         className="relative rounded-[28px] border border-white/15 p-6 sm:p-8 select-none"
@@ -255,13 +428,13 @@ export default function QuizEntryCard() {
             Participant Entry
           </h2>
           <p className="font-[family-name:var(--font-body)] text-xs text-[#94A3B8] font-light mt-1">
-            Enter your 3 basic details below to proceed to the quiz
+            Enter your details below to proceed to the quiz
           </p>
         </div>
 
         {/* Form Content Area */}
         <div className="relative z-10">
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handlePreSubmit} className="space-y-3.5">
 
             {/* Live Test Badge if Active */}
             {activeRound && (
@@ -293,45 +466,65 @@ export default function QuizEntryCard() {
               </div>
             )}
 
-            {/* 1. Full Name */}
+            {/* 1. Register Number (Top Priority for Verification) */}
             <div>
-              <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
-                <User size={13} className="text-[#FF0033]" /> Full Name <span className="text-[#FF0033]">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1.5 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
+                  <Hash size={13} className="text-[#00E5FF]" /> Register Number <span className="text-[#FF0033]">*</span>
+                </label>
+                {matchedStudent && (
+                  <span className="text-[10px] text-emerald-400 font-[family-name:var(--font-mono)] flex items-center gap-1">
+                    <CheckCircle2 size={11} /> Verified ECE Roster
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your full name"
-                className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-body)] focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none placeholder:text-[#64748B] transition-all"
+                value={registerNo}
+                onChange={(e) => handleRegisterNoChange(e.target.value)}
+                placeholder="e.g. 922524106001"
+                className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-mono)] uppercase tracking-wider focus:border-[#00E5FF] focus:ring-1 focus:ring-[#00E5FF] outline-none placeholder:text-[#64748B] transition-all"
               />
             </div>
 
-            {/* 2. Register Number & Section */}
+            {/* 2. Full Name & Section */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
-                  <Hash size={13} className="text-[#FF0033]" /> Register Number <span className="text-[#FF0033]">*</span>
+                  <User size={13} className="text-[#FF0033]" /> Full Name <span className="text-[#FF0033]">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  value={registerNo}
-                  onChange={(e) => setRegisterNo(e.target.value.toUpperCase())}
-                  placeholder="e.g. 22ECE001"
-                  className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-mono)] uppercase tracking-wider focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none placeholder:text-[#64748B] transition-all"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your full name"
+                  className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-body)] focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none placeholder:text-[#64748B] transition-all"
                 />
               </div>
 
               <div>
-                <label className="flex items-center gap-1.5 mb-1 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
-                  <span>🏛️ Class Section</span> <span className="text-[#FF0033]">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="flex items-center gap-1.5 font-[family-name:var(--font-heading)] text-xs text-[#CBD5E1] font-semibold">
+                    <span>🏛️ Section</span> <span className="text-[#FF0033]">*</span>
+                  </label>
+                  {matchedStudent && (
+                    <span className={`text-[10px] font-mono font-semibold ${
+                      matchedStudent.section === section ? 'text-emerald-400' : 'text-rose-400 animate-pulse'
+                    }`}>
+                      {matchedStudent.section === section ? `✓ Sec ${matchedStudent.section}` : `⚠️ Sec ${matchedStudent.section}`}
+                    </span>
+                  )}
+                </div>
                 <select
                   value={section}
                   onChange={(e) => handleSectionChange(e.target.value as any)}
-                  className="w-full bg-black/80 border border-white/12 rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-heading)] focus:border-[#FF0033] focus:ring-1 focus:ring-[#FF0033] outline-none transition-all cursor-pointer"
+                  className={`w-full bg-black/80 border rounded-xl px-3.5 py-2.5 text-xs text-white font-[family-name:var(--font-heading)] outline-none transition-all cursor-pointer ${
+                    matchedStudent && matchedStudent.section !== section
+                      ? 'border-rose-500/60 focus:border-rose-500'
+                      : 'border-white/12 focus:border-[#00E5FF]'
+                  }`}
                 >
                   <option value="A">Section A</option>
                   <option value="B">Section B</option>
@@ -391,7 +584,7 @@ export default function QuizEntryCard() {
               )}
             </AnimatePresence>
 
-            {/* Solid Red Action Button (No Neon Glow) */}
+            {/* Action Button */}
             <div className="pt-2">
               <motion.button
                 whileHover={{ scale: 1.02 }}
