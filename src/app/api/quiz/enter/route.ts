@@ -91,36 +91,54 @@ export async function POST(req: NextRequest) {
         .order('round_number', { ascending: true });
 
       if (liveRounds && liveRounds.length > 0) {
-        // 1. Prioritize round matching student's section (e.g. Section A, Section B, Section C, Section D)
+        // 1. Prioritize round strictly matching student's section (e.g. Section A, Section B, Section C, Section D)
         const sectionMatch = liveRounds.find((r) => {
           const t = (r.title + ' ' + (r.description || '')).toUpperCase();
-          return t.includes(`SECTION ${studentSection}`) || t.includes(`SEC ${studentSection}`);
+          return t.includes(`SECTION ${studentSection}`) || t.includes(`SEC ${studentSection}`) || t.endsWith(`— ${studentSection}`) || t.endsWith(`- ${studentSection}`);
         });
 
-        // 2. Or active Sample / Demo Test
-        const demoMatch = liveRounds.find((r) => {
-          const t = (r.title + ' ' + (r.description || '')).toLowerCase();
-          return t.includes('demo') || t.includes('sample');
-        });
+        if (sectionMatch) {
+          targetRound = sectionMatch;
+          roundIdToUse = targetRound.id;
+        } else {
+          // If another section or a general test is live (e.g. Test 1, Test 2), find the corresponding round for this student's section!
+          const activeTestNum = liveRounds.reduce((foundNum, r) => {
+            if (foundNum) return foundNum;
+            const m = r.title?.match(/Test\s+(\d+)/i);
+            return m ? parseInt(m[1], 10) : null;
+          }, null as number | null);
 
-        // 3. Or general live round without conflicting section name
-        const generalMatch = liveRounds.find((r) => {
-          const t = (r.title + ' ' + (r.description || '')).toUpperCase();
-          return !t.includes('SECTION A') && !t.includes('SECTION B') && !t.includes('SECTION C') && !t.includes('SECTION D');
-        });
+          if (activeTestNum) {
+            // Find the matching round for this exact test number and student's section
+            const { data: matchedTestRound } = await supabaseAdmin
+              .from('rounds')
+              .select('id, status, title, description, randomize_questions, show_results, round_number')
+              .ilike('title', `Test ${activeTestNum} — Section ${studentSection}%`)
+              .maybeSingle();
 
-        targetRound = sectionMatch || demoMatch || generalMatch || null;
-        if (targetRound) roundIdToUse = targetRound.id;
+            if (matchedTestRound) {
+              targetRound = matchedTestRound;
+              roundIdToUse = targetRound.id;
+              // Ensure it's live
+              if (matchedTestRound.status !== 'live') {
+                await supabaseAdmin
+                  .from('rounds')
+                  .update({ status: 'live' })
+                  .eq('id', matchedTestRound.id);
+              }
+            }
+          }
+        }
       }
     }
 
-    // 1c. If still no active round found, find round specifically dedicated to this section in DB
+    // 1c. If still no active round found, find the latest scheduled round specifically for this section
     if (!targetRound) {
       const { data: secRounds } = await supabaseAdmin
         .from('rounds')
         .select('id, status, title, description, randomize_questions, show_results')
-        .or(`title.ilike.%SECTION ${studentSection}%,description.ilike.%SECTION ${studentSection}%`)
-        .order('round_number', { ascending: true })
+        .ilike('title', `%Section ${studentSection}%`)
+        .order('round_number', { ascending: false })
         .limit(1);
 
       if (secRounds && secRounds.length > 0) {
@@ -132,20 +150,6 @@ export async function POST(req: NextRequest) {
           .from('rounds')
           .update({ status: 'live' })
           .eq('id', targetRound.id);
-      }
-    }
-
-    // 1d. Fallback to Demo round or auto-create section round
-    if (!targetRound) {
-      const { data: demoRound } = await supabaseAdmin
-        .from('rounds')
-        .select('id, status, title, description, randomize_questions, show_results')
-        .eq('round_number', 0)
-        .maybeSingle();
-
-      if (demoRound) {
-        targetRound = demoRound;
-        roundIdToUse = demoRound.id;
       }
     }
 
