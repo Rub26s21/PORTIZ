@@ -30,16 +30,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // 2. Production Admin Credentials Check
+    // 2. Production Admin Credentials Check (Configured Admin Accounts)
     const emailClean = String(email).trim().toLowerCase();
-    if (
-      emailClean === 'rubahanponraj@gmail.com' &&
-      (password === 'rubahanponraj' || password === 'Rub26s21')
-    ) {
-      const adminUser = {
-        id: '00000000-0000-0000-0000-000000000000',
-        email: 'rubahanponraj@gmail.com',
+    
+    const ADMIN_ACCOUNTS: Record<string, { passwords: string[]; displayName: string; id: string }> = {
+      'rubahanponraj@gmail.com': {
+        passwords: ['Rubs26s21', 'Rub26s21', 'rubahanponraj'],
         displayName: 'Rubahan Ponraj (Admin)',
+        id: '00000000-0000-0000-0000-000000000000',
+      },
+      'ashokvsbec@gmail.com': {
+        passwords: ['admin123'],
+        displayName: 'Ashok (Admin)',
+        id: '00000000-0000-0000-0000-000000000001',
+      },
+    };
+
+    const matchedAdmin = ADMIN_ACCOUNTS[emailClean];
+    if (matchedAdmin && matchedAdmin.passwords.includes(password)) {
+      const adminUser = {
+        id: matchedAdmin.id,
+        email: emailClean,
+        displayName: matchedAdmin.displayName,
       };
 
       // Generate cryptographically signed HMAC-SHA256 session token
